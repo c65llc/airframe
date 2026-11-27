@@ -123,6 +123,6 @@ func TestLoadPartialTokenError(t *testing.T) {
 	assert.Equal(t, "json-syntax", ds[0].Rule)
 	assert.Equal(t, "design-system/a.tokens.json", ds[0].File)
 	require.NotNil(t, p.Tokens)
-	assert.Contains(t, p.Tokens.Tokens, "space.s")
+	assert.Contains(t, p.Tokens.Tokens, "space-s")
 	assert.Equal(t, []string{"design-system/a.tokens.json", "design-system/b.tokens.json"}, p.TokenFiles)
 }
