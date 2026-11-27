@@ -1,0 +1,1 @@
+- {id: ink-on-surface, kind: contrast, fg: ink, bg: surface, min: 4.5, forEach: [appearance]}

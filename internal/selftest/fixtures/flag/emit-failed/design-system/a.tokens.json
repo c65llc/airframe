@@ -1,0 +1,4 @@
+{
+  "gap": {"$type": "number", "$value": 4, "$extensions": {"com.c65llc.airframe": {"tier": "primitive", "emit": ["json"]}}},
+  "gap-row": {"$type": "number", "$value": "{gap}", "$extensions": {"com.c65llc.airframe": {"tier": "semantic"}}}
+}

@@ -1,0 +1,14 @@
+- id: ink-on-surface
+  kind: contrast
+  fg: ink
+  bg: surface
+  min: 4.5
+  forEach: [appearance]
+- id: accent-hue-stable
+  kind: same-hue-across-appearances
+  tokens: [accent, accent-ink]
+- id: touch-floor
+  kind: min-dimension
+  match: "*-target"
+  min: 44
+  densities: all

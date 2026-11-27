@@ -1,0 +1,4 @@
+{
+  "ink": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.01, 250]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
+  "surface": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.62, 0.01, 250]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}}
+}

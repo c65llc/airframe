@@ -1,0 +1,1 @@
+- {id: danger-hue-reserved, kind: hue-reserved, hue: 25, tolerance: 8, only: [danger]}

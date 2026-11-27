@@ -1,0 +1,4 @@
+{
+  "danger": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.14, 25]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
+  "brand": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.14, 27]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}}
+}

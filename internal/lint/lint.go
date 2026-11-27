@@ -105,6 +105,27 @@ var allRules = []Rule{
 		Summary: "A token is exempt from a rule but gives no reason."},
 }
 
+// loadIDs are the rule IDs reported while loading, parsing, resolving or
+// building a project rather than by a registered rule. Config cannot change
+// their severity; they are always errors.
+var loadIDs = []string{
+	"alias-cycle", "alias-type-mismatch", "alias-unresolved", "config-missing", "emit-failed",
+	"json-syntax", "mode-ambiguous", "mode-base-value", "mode-override-conflict", "mode-unknown",
+	"no-tokens", "schema-invalid", "token-name-invalid", "type-unsupported", "yaml-syntax",
+}
+
+// AllIDs returns every rule ID Airframe can report, sorted: each registered
+// rule's and each load-time ID. It is the one list the self-test and the
+// rule docs are checked against.
+func AllIDs() []string {
+	out := slices.Clone(loadIDs)
+	for _, r := range allRules {
+		out = append(out, r.ID)
+	}
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
 // Rules returns every rule, sorted by ID.
 func Rules() []Rule {
 	out := slices.Clone(allRules)
@@ -116,7 +137,8 @@ func Rules() []Rule {
 // nothing to lint; report the load diagnostics alone). loadDiags pass
 // through unchanged, joined by p.Tokens.Check's findings and every rule's.
 // A rule's severity is config lint.rules over its Default; an off rule's
-// findings are dropped but it is still tallied. Strict then turns warnings
+// findings are dropped, and so are the exemptions it recorded, since they
+// suppressed nothing; it is still tallied. Strict then turns warnings
 // into errors. Every diagnostic is linked to its rule's page and sorted.
 func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 	all := slices.Clone(loadDiags)
@@ -125,6 +147,7 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 	}
 	ctx := &Context{Generated: opts.Generated}
 	res := Result{Diagnostics: []diag.Diagnostic{}}
+	off := map[string]bool{}
 	for _, r := range Rules() {
 		ds, tally := r.Run(p, ctx)
 		tally.Rule = r.ID
@@ -134,6 +157,7 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 			sev = s
 		}
 		if sev == diag.Off {
+			off[r.ID] = true
 			continue
 		}
 		for _, d := range ds {
@@ -157,12 +181,13 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 		res.Diagnostics = append(res.Diagnostics, d)
 	}
 	diag.Sort(res.Diagnostics)
-	res.Exemptions = sortedExemptions(ctx.exemptions)
+	res.Exemptions = sortedExemptions(slices.DeleteFunc(ctx.exemptions, func(e Exemption) bool { return off[e.Rule] }))
 	return res
 }
 
+// sortedExemptions returns es sorted and deduplicated, never nil.
 func sortedExemptions(es []Exemption) []Exemption {
-	out := slices.Clone(es)
+	out := append([]Exemption{}, es...)
 	cmpEx := func(a, b Exemption) int {
 		return cmp.Or(
 			strings.Compare(a.File, b.File),
