@@ -9,7 +9,10 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -238,4 +241,37 @@ func lineOf(root *yaml.Node, loc []string) int {
 		}
 	}
 	return line
+}
+
+var yamlLine = regexp.MustCompile(`line (\d+)`)
+
+// DecodeYAML parses data as exactly one YAML document. Empty input (or
+// comments only) is a zero Node. A syntax error, or a second document,
+// which a single decode would silently ignore, is a yaml-syntax
+// diagnostic at its line with no File set.
+func DecodeYAML(data []byte) (yaml.Node, *diag.Diagnostic) {
+	syntax := func(msg string, line int) *diag.Diagnostic {
+		return &diag.Diagnostic{Rule: "yaml-syntax", Severity: diag.Error, Line: line, Message: msg, Docs: diag.DocsURL("yaml-syntax")}
+	}
+	fromErr := func(err error) *diag.Diagnostic {
+		msg := strings.TrimPrefix(err.Error(), "yaml: ")
+		line := 0
+		if m := yamlLine.FindStringSubmatch(msg); m != nil {
+			line, _ = strconv.Atoi(m[1])
+		}
+		return syntax(msg, line)
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	var root yaml.Node
+	if err := dec.Decode(&root); err != nil && !errors.Is(err, io.EOF) {
+		return yaml.Node{}, fromErr(err)
+	}
+	var extra yaml.Node
+	switch err := dec.Decode(&extra); {
+	case err == nil:
+		return yaml.Node{}, syntax("multiple YAML documents are not supported", extra.Line)
+	case !errors.Is(err, io.EOF):
+		return yaml.Node{}, fromErr(err) // what follows the first --- does not parse
+	}
+	return root, nil
 }

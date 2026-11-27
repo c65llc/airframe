@@ -6,9 +6,7 @@
 package invariants
 
 import (
-	"regexp"
 	"strconv"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -35,8 +33,6 @@ type Invariant struct {
 	Has                 map[string]bool
 }
 
-var yamlLine = regexp.MustCompile(`line (\d+)`)
-
 func diagnostic(rule, msg string, line int) diag.Diagnostic {
 	return diag.Diagnostic{
 		Rule: rule, Severity: diag.Error, File: File, Line: line,
@@ -46,14 +42,9 @@ func diagnostic(rule, msg string, line int) diag.Diagnostic {
 
 // Parse reads invariants.yaml. On any diagnostic it returns no invariants.
 func Parse(data []byte) ([]Invariant, []diag.Diagnostic) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		msg := strings.TrimPrefix(err.Error(), "yaml: ")
-		line := 0
-		if m := yamlLine.FindStringSubmatch(msg); m != nil {
-			line, _ = strconv.Atoi(m[1])
-		}
-		return nil, []diag.Diagnostic{diagnostic("yaml-syntax", msg, line)}
+	root, bad := schema.DecodeYAML(data)
+	if bad != nil {
+		return nil, []diag.Diagnostic{diagnostic("yaml-syntax", bad.Message, bad.Line)}
 	}
 	if root.Kind == 0 { // empty file: no invariants
 		return nil, nil

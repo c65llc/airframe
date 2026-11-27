@@ -88,3 +88,13 @@ func TestInvariantHasRecordsPresentKeys(t *testing.T) {
 	assert.True(t, invs[0].Has["tolerance"])
 	assert.False(t, invs[1].Has["hue"], "an absent hue is not")
 }
+
+func TestInvariantMultipleDocuments(t *testing.T) {
+	invs, ds := Parse([]byte("- { id: a, kind: contrast, fg: x, bg: y, min: 3 }\n---\n- { id: b, kind: contrast, fg: x, bg: y, min: 3 }\n"))
+	assert.Empty(t, invs)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "yaml-syntax", ds[0].Rule)
+	assert.Equal(t, "multiple YAML documents are not supported", ds[0].Message)
+	assert.Equal(t, 2, ds[0].Line)
+	assert.Equal(t, File, ds[0].File)
+}

@@ -377,3 +377,15 @@ func TestOutKeyMustBeEmitted(t *testing.T) {
 	assert.Equal(t, 6, d.Line)
 	assert.Contains(t, d.Message, "csss")
 }
+
+// TestMultipleDocuments: a second YAML document would be ignored, so it
+// is yaml-syntax at its --- line.
+func TestMultipleDocuments(t *testing.T) {
+	c, ds := Load([]byte("version: 1\ncontent: a\n---\ncontent: b\n"))
+	assert.Nil(t, c)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "yaml-syntax", ds[0].Rule)
+	assert.Equal(t, "multiple YAML documents are not supported", ds[0].Message)
+	assert.Equal(t, 3, ds[0].Line)
+	assert.Equal(t, File, ds[0].File)
+}

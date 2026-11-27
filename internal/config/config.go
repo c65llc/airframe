@@ -11,7 +11,6 @@ import (
 	"path"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -85,8 +84,6 @@ var defaultTiers = map[string]Tier{
 	"component": {Name: "component", ReadableBy: []string{"owner"}},
 }
 
-var yamlLine = regexp.MustCompile(`line (\d+)`)
-
 func diagnostic(rule, msg, path string, line int) diag.Diagnostic {
 	return diag.Diagnostic{
 		Rule: rule, Severity: diag.Error, File: File, Path: path, Line: line,
@@ -97,14 +94,9 @@ func diagnostic(rule, msg, path string, line int) diag.Diagnostic {
 // Load parses and validates airframe.yaml. On any diagnostic the returned
 // Config is nil.
 func Load(data []byte) (*Config, []diag.Diagnostic) {
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		msg := strings.TrimPrefix(err.Error(), "yaml: ")
-		line := 0
-		if m := yamlLine.FindStringSubmatch(msg); m != nil {
-			line, _ = strconv.Atoi(m[1])
-		}
-		return nil, []diag.Diagnostic{diagnostic("yaml-syntax", msg, "", line)}
+	root, bad := schema.DecodeYAML(data)
+	if bad != nil {
+		return nil, []diag.Diagnostic{diagnostic("yaml-syntax", bad.Message, "", bad.Line)}
 	}
 	if ds := schema.Validate("config", &root); len(ds) > 0 {
 		for i := range ds {
