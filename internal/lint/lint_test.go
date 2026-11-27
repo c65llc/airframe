@@ -60,7 +60,7 @@ func TestRulesStableOrder(t *testing.T) {
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
 		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
-		"exemption-without-reason", "hue-reserved", "literal-in-semantic",
+		"emitted-stale", "exemption-without-reason", "hue-reserved", "literal-in-semantic",
 		"prefix-multiple-hues", "tier-violation", "token-unclassified",
 	}, ids)
 	for _, r := range Rules() {
@@ -71,15 +71,19 @@ func TestRulesStableOrder(t *testing.T) {
 }
 
 func TestTalliesNameEveryRule(t *testing.T) {
-	res := Run(load(t, flagAll), nil, Options{})
+	res := Run(loadWith(t, testConfig+"platforms:\n  json: { emit: json }\n", flagAll), nil, Options{})
 	var named []string
 	for _, tl := range res.Tallies {
 		named = append(named, tl.Rule)
 		assert.Positive(t, tl.Items, tl.Rule)
-		if slices.Contains(invariantRules, tl.Rule) {
+		switch {
+		case tl.Rule == "emitted-stale":
+			assert.Equal(t, "files", tl.Noun, tl.Rule)
+			assert.Equal(t, 1, tl.Files, tl.Rule)
+		case slices.Contains(invariantRules, tl.Rule):
 			assert.Equal(t, "checks", tl.Noun, tl.Rule)
 			assert.Equal(t, 2, tl.Files, tl.Rule)
-		} else {
+		default:
 			assert.Equal(t, "tokens", tl.Noun, tl.Rule)
 			assert.Equal(t, 1, tl.Files, tl.Rule)
 		}

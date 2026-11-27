@@ -97,6 +97,8 @@ var allRules = []Rule{
 		Summary: "A token's hue moves more than 1° between appearances, which same-hue-across-appearances forbids."},
 	{ID: "dimension-below", Default: diag.Error, Run: ruleDimensionBelow,
 		Summary: "A dimension a min-dimension invariant matches resolves below its minimum px in some context."},
+	{ID: "emitted-stale", Default: diag.Error, Run: ruleEmittedStale,
+		Summary: "A generated output differs from what airframe build would write, or is missing."},
 	{ID: "exemption-without-reason", Default: diag.Error, Run: ruleExemptionWithoutReason,
 		Summary: "A token is exempt from a rule but gives no reason."},
 }
