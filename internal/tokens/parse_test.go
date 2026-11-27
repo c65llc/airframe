@@ -330,3 +330,26 @@ func TestOverrideDescriptiveFields(t *testing.T) {
 	assert.Equal(t, 2.0, tok.Modes["appearance:dark"].Lit)
 	assert.Equal(t, 3.0, tok.Modes["app:slides+appearance:dark"].Lit)
 }
+
+// TestModeBaseValue: a value whose only web selector is bare :root is the
+// axis base; a mode key naming it is rejected at the key's line.
+func TestModeBaseValue(t *testing.T) {
+	cfg, cds := config.Load([]byte(`version: 1
+modes:
+  appearance: { values: [light, dark], web: { light: ":root", dark: [":root[data-theme='dark']"] } }
+  app: { values: [slides, wiki], web: { attr: data-app } }
+`))
+	require.Empty(t, cds)
+	s, ds := Parse(cfg, map[string][]byte{"a.tokens.json": []byte(`{ "x": { "$type": "number", "$value": 0,
+  "$extensions": { "com.c65llc.airframe": { "modes": {
+    "app:slides+appearance:light": 1,
+    "appearance:light": 2,
+    "appearance:dark": 3 } } } } }`)})
+	require.Len(t, ds, 2)
+	assert.Equal(t, "mode-base-value", ds[0].Rule)
+	assert.Equal(t, 3, ds[0].Line)
+	assert.Equal(t, "appearance:light is the base appearance; write the key without it", ds[0].Message)
+	assert.Equal(t, "mode-base-value", ds[1].Rule)
+	assert.Equal(t, 4, ds[1].Line)
+	assert.Equal(t, []config.ModeKey{"appearance:dark"}, sortedKeys(s.Tokens["x"].Modes), "rejected keys are dropped")
+}

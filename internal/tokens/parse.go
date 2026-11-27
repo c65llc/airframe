@@ -428,6 +428,10 @@ func (p *parser) merge(d decl) {
 			p.report("mode-unknown", d.file, r.at, r.node.Line, "mode key %q: %v", r.key, err)
 			continue
 		}
+		if axis, val, base := p.cfg.BasePair(key); base {
+			p.report("mode-base-value", d.file, r.at, r.node.Line, "%s:%s is the base %s; write the key without it", axis, val, axis)
+			continue
+		}
 		hint := ""
 		if r.density {
 			hint = unit

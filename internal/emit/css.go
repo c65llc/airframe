@@ -35,6 +35,10 @@ type option struct {
 // alias is written as var(--target), so overrides cascade.
 func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 	toks := emitted(p, "css")
+	inCSS := map[string]bool{}
+	for _, t := range toks {
+		inCSS[t.Name] = true
+	}
 	keys := map[config.ModeKey]bool{"": true}
 	for _, t := range toks {
 		for k := range t.Modes {
@@ -53,9 +57,14 @@ func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 			if v == nil {
 				continue
 			}
-			if val := cssValue(v); val != "" {
-				decls = append(decls, "--"+t.Name+": "+val+";")
+			if v.Alias != "" && !inCSS[v.Alias] {
+				return nil, fmt.Errorf("--%s aliases %s, which is not emitted to css%s", t.Name, v.Alias, inMode(key))
 			}
+			val := cssValue(v)
+			if val == "" {
+				return nil, fmt.Errorf("--%s: cannot write its value as CSS%s", t.Name, inMode(key))
+			}
+			decls = append(decls, "--"+t.Name+": "+val+";")
 		}
 		if len(decls) == 0 {
 			continue
@@ -70,6 +79,14 @@ func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 		}
 	}
 	return map[string][]byte{outPath(p, pl, "css"): []byte(b.String())}, nil
+}
+
+// inMode is " (mode <key>)" for an override and "" for $value.
+func inMode(k config.ModeKey) string {
+	if k == "" {
+		return ""
+	}
+	return " (mode " + string(k) + ")"
 }
 
 func writeBlock(b *strings.Builder, sc scope, decls []string) {
@@ -124,9 +141,19 @@ func axisNamed(cfg *config.Config, name string) (config.Axis, bool) {
 }
 
 // options lists how ax=val is spelled in CSS: its explicit selectors, else
-// [attr='val']; plus its Also media condition on :root, when set.
+// [attr='val']; plus, when Also is set, its media condition on
+// :root:not([attr]), a fallback only while the attribute is unset.
 func options(ax config.Axis, val string) ([]option, error) {
 	pair := ax.Name + ":" + val
+	also := strings.TrimSpace(ax.Web.Also[val])
+	// The also media condition is a fallback for while the attribute is
+	// unset, so an explicit attribute value always wins; it needs the attr.
+	if also != "" && ax.Web.Attr == "" {
+		return nil, &configError{
+			path: "modes." + ax.Name + ".web.also." + val,
+			msg:  fmt.Sprintf("%s: web also needs the axis's web attr, so the fallback can apply only while it is unset", pair),
+		}
+	}
 	var out []option
 	if sels := ax.Web.Selectors[val]; len(sels) > 0 {
 		for _, s := range sels {
@@ -149,14 +176,14 @@ func options(ax config.Axis, val string) ([]option, error) {
 		}
 		out = append(out, option{compound: "[" + ax.Web.Attr + "='" + val + "']"})
 	}
-	if also := strings.TrimSpace(ax.Web.Also[val]); also != "" {
+	if also != "" {
 		if !strings.HasPrefix(also, "@media ") || len(also) == len("@media ") {
 			return nil, &configError{
 				path: "modes." + ax.Name + ".web.also." + val,
 				msg:  fmt.Sprintf("%s: web also %q must be an @media condition", pair, also),
 			}
 		}
-		out = append(out, option{media: []string{also}})
+		out = append(out, option{media: []string{also}, compound: ":not([" + ax.Web.Attr + "])"})
 	}
 	return out, nil
 }
@@ -238,7 +265,7 @@ var genericFamilies = map[string]bool{
 }
 
 // cssValue is v as a CSS value: var(--target) for an alias, else the
-// literal. It is "" for a value with neither (an invalid one Parse kept).
+// literal. It is "" when the value cannot be written (CSS reports that).
 func cssValue(v *tokens.Value) string {
 	if v.Alias != "" {
 		return "var(--" + v.Alias + ")"

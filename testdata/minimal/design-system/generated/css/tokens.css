@@ -61,7 +61,7 @@
 }
 
 @media (pointer: coarse) {
-  :root {
+  :root:not([data-density]) {
     --button-gap: var(--gap-lg);
     --button-target: 56px;
   }

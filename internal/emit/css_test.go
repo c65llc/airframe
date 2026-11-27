@@ -90,13 +90,13 @@ func TestDensityAlsoMedia(t *testing.T) {
 	css := cssOf(t, big576With(t, `{ "x": { "$type": "number", "$value": 0,
   "$extensions": { "com.c65llc.airframe": { "modes": { "density:relaxed": 2 } } } } }`))
 	assert.Contains(t, css, "\n:root[data-density='relaxed'] {\n  --x: 2;\n}\n")
-	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root {\n    --x: 2;\n  }\n}\n")
+	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root:not([data-density]) {\n    --x: 2;\n  }\n}\n")
 }
 
 func TestNestedMedia(t *testing.T) {
 	css := cssOf(t, big576With(t, `{ "x": { "$type": "number", "$value": 0,
   "$extensions": { "com.c65llc.airframe": { "modes": { "appearance:dark+density:relaxed": 3 } } } } }`))
-	assert.Contains(t, css, "@media (prefers-color-scheme: dark) {\n  @media (pointer: coarse) {\n    :root:not([data-theme='light']) {\n      --x: 3;\n    }\n  }\n}\n")
+	assert.Contains(t, css, "@media (prefers-color-scheme: dark) {\n  @media (pointer: coarse) {\n    :root:not([data-theme='light']):not([data-density]) {\n      --x: 3;\n    }\n  }\n}\n")
 	assert.Equal(t, 4, strings.Count(css, "--x: 3;"), "2 appearance options x 2 density options")
 }
 
@@ -113,4 +113,72 @@ func TestBlockOrder(t *testing.T) {
 	assert.Less(t, i(":root {\n  --a: 0;\n  --b: 0;\n}"), i("[data-app='edit']"))
 	assert.Less(t, i("[data-app='edit']"), i("[data-channel='next']"))
 	assert.Less(t, i("[data-channel='next']"), i("[data-app='slides']"))
+}
+
+// TestAlsoFallbackOnlyWhenAttrUnset: the also media condition applies only
+// while the attribute is unset, so an explicit data-density always beats
+// the pointer fallback, whatever other axis the key adds.
+func TestAlsoFallbackOnlyWhenAttrUnset(t *testing.T) {
+	css := cssOf(t, big576With(t, `{ "x": { "$type": "number", "$value": 0,
+  "$extensions": { "com.c65llc.airframe": { "modes": { "density:compact": 1, "density:relaxed": 2, "appearance:dark+density:relaxed": 3 } } } } }`))
+	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root:not([data-density]) {\n    --x: 2;\n  }\n}\n")
+	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root[data-theme='dark']:not([data-density]) {\n    --x: 3;\n  }\n}\n")
+	assert.NotRegexp(t, `(?m)^\s*:root( |\[data-theme='dark'\] )\{\n\s*--x: [23];`, css, "no unconditioned fallback scope")
+
+	cfg := strings.Replace(testfix.Big576()["airframe.yaml"], "web: { attr: data-density, also:", "web: { also:", 1)
+	p := loadFS(t, project.MemFS{"airframe.yaml": cfg, "design-system/x.tokens.json": `{ "x": { "$type": "number", "$value": 0,
+  "$extensions": { "com.c65llc.airframe": { "modes": { "density:relaxed": 2 } } } } }`})
+	_, ds := Build(p, nil)
+	_, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
+	require.Error(t, err)
+	assert.Empty(t, ds, "Big576 has no platforms")
+	ce, ok := err.(*configError)
+	require.True(t, ok, "%v", err)
+	assert.Equal(t, "modes.density.web.also.relaxed", ce.path)
+}
+
+// TestNoBlockForBaseValue: a key naming a base value (its only selector is
+// bare :root) is rejected at parse, so CSS never writes a block for it.
+func TestNoBlockForBaseValue(t *testing.T) {
+	p, ds, err := project.Load(project.MemFS{
+		"airframe.yaml": testfix.Big576()["airframe.yaml"],
+		"design-system/x.tokens.json": `{ "x": { "$type": "number", "$value": 0,
+  "$extensions": { "com.c65llc.airframe": { "modes": { "appearance:light": 1, "app:slides+appearance:light": 2 } } } } }`,
+	})
+	require.NoError(t, err)
+	require.Len(t, ds, 2)
+	for _, d := range ds {
+		assert.Equal(t, "mode-base-value", d.Rule)
+	}
+	css := cssOf(t, p)
+	assert.Equal(t, 1, strings.Count(css, "{"), css)
+	assert.Contains(t, css, ":root {\n  --x: 0;\n}\n")
+}
+
+func TestCSSAliasToUnemittedToken(t *testing.T) {
+	p := big576With(t, `{
+  "x": { "$type": "number", "$value": 1, "$extensions": { "com.c65llc.airframe": { "emit": ["json"] } } },
+  "y": { "$type": "number", "$value": "{x}" } }`)
+	_, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
+	require.Error(t, err)
+	assert.Equal(t, "--y aliases x, which is not emitted to css", err.Error())
+
+	fsys := memFS(t, minimalDir)
+	fsys["design-system/tokens/extra.tokens.json"] = `{
+  "x": { "$type": "number", "$value": 1, "$extensions": { "com.c65llc.airframe": { "tier": "primitive", "emit": ["json"] } } },
+  "y": { "$type": "number", "$value": "{x}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } } }`
+	out, ds := Build(loadFS(t, fsys), nil)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "emit-failed", ds[0].Rule)
+	assert.Contains(t, ds[0].Message, "--y aliases x, which is not emitted to css")
+	assert.NotContains(t, out, minimalCSS)
+	assert.Contains(t, out, minimalJSON)
+}
+
+func TestCSSUnformattableValueFails(t *testing.T) {
+	p := big576With(t, `{ "x": { "$type": "number", "$value": 1 } }`)
+	p.Tokens.Tokens["x"].Modes["appearance:dark"] = &tokens.Value{Lit: struct{}{}}
+	_, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
+	require.Error(t, err)
+	assert.Equal(t, "--x: cannot write its value as CSS (mode appearance:dark)", err.Error())
 }

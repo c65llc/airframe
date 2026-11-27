@@ -131,3 +131,22 @@ func (k ModeKey) Matches(ctx Context) bool {
 
 // Pairs is the number of axis:value pairs in k, its specificity.
 func (k ModeKey) Pairs() int { return len(k.pairs()) }
+
+// IsBase reports whether v is the axis's base value: its only web selector
+// is exactly ":root", so CSS cannot tell it from "axis unset" and a mode
+// key must not name it.
+func (a Axis) IsBase(v string) bool {
+	sels := a.Web.Selectors[v]
+	return len(sels) == 1 && strings.TrimSpace(sels[0]) == ":root"
+}
+
+// BasePair is the first pair of k that names its axis's base value, if any.
+func (c *Config) BasePair(k ModeKey) (axis, value string, ok bool) {
+	for _, p := range k.pairs() {
+		name, val, _ := strings.Cut(p, ":")
+		if ax, found := c.axis(name); found && ax.IsBase(val) {
+			return name, val, true
+		}
+	}
+	return "", "", false
+}
