@@ -40,7 +40,14 @@ func diagnostic(rule, file, msg string) diag.Diagnostic {
 // Load reads airframe.yaml, every <content>/**/*.tokens.json and the optional
 // <content>/invariants.yaml. Problems with the project's own files come back
 // as diagnostics; the error is reserved for I/O failures other than a file
-// not existing. A nil Project accompanies any diagnostic that stops loading.
+// not existing.
+//
+// The Project and the diagnostics together say how far loading got:
+//   - A nil Project means loading stopped (config-missing, invalid config,
+//     no-tokens). There is nothing to lint; report the diagnostics.
+//   - A non-nil Project with diagnostics is a partial load. Lint what loaded
+//     and report these diagnostics too: Tokens holds whatever parsed after
+//     token-file errors, and Invariants is nil after an invariants error.
 func Load(fsys fs.FS) (*Project, []diag.Diagnostic, error) {
 	cfgData, err := fs.ReadFile(fsys, config.File)
 	if errors.Is(err, fs.ErrNotExist) {

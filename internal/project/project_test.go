@@ -76,11 +76,14 @@ func TestLoadCustomContentDir(t *testing.T) {
 }
 
 func TestLoadInvariantErrorsCarryPath(t *testing.T) {
-	_, ds, err := Load(MemFS{
+	p, ds, err := Load(MemFS{
 		"airframe.yaml": cfg, "design-system/c.tokens.json": tokA,
 		"design-system/invariants.yaml": "- id: x\n  kind: nope\n",
 	})
 	require.NoError(t, err)
+	require.NotNil(t, p, "an invariants error is a partial load")
+	assert.Nil(t, p.Invariants)
+	assert.NotNil(t, p.Tokens)
 	require.Len(t, ds, 1)
 	assert.Equal(t, "schema-invalid", ds[0].Rule)
 	assert.Equal(t, "design-system/invariants.yaml", ds[0].File)
@@ -106,4 +109,20 @@ func TestMemFS(t *testing.T) {
 	assert.True(t, ents[0].IsDir())
 	_, err = fs.ReadFile(m, "nope")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+func TestLoadPartialTokenError(t *testing.T) {
+	p, ds, err := Load(MemFS{
+		"airframe.yaml":               cfg,
+		"design-system/a.tokens.json": "{ not json",
+		"design-system/b.tokens.json": tokB,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, p, "a token-file error is a partial load")
+	require.Len(t, ds, 1)
+	assert.Equal(t, "json-syntax", ds[0].Rule)
+	assert.Equal(t, "design-system/a.tokens.json", ds[0].File)
+	require.NotNil(t, p.Tokens)
+	assert.Contains(t, p.Tokens.Tokens, "space.s")
+	assert.Equal(t, []string{"design-system/a.tokens.json", "design-system/b.tokens.json"}, p.TokenFiles)
 }
