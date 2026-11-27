@@ -287,11 +287,44 @@ func TestModeFileEdges(t *testing.T) {
   "y": { "$type": "dimension", "$value": { "value": 1, "unit": "px" } },
   "only": { "$type": "number", "$value": 5 } }`,
 	})
-	assert.ElementsMatch(t, []string{"mode-override-conflict", "mode-unknown", "schema-invalid"}, rules(ds))
+	assert.ElementsMatch(t, []string{"mode-override-conflict", "mode-unknown", "schema-invalid", "schema-invalid"}, rules(ds))
 	assert.Empty(t, s.Tokens["x"].Modes, "a file with an unknown mode contributes nothing")
 	assert.Empty(t, s.Tokens["y"].Modes, "a type clash is not merged")
-	only := s.Tokens["only"]
-	assert.Nil(t, only.Default)
-	assert.Equal(t, 5.0, only.Modes["appearance:dark"].Lit)
+	var noBase []diag.Diagnostic
+	for _, d := range ds {
+		if strings.Contains(d.Message, "no $value") {
+			noBase = append(noBase, d)
+		}
+	}
+	require.Len(t, noBase, 1, "a token with mode values but no base $value is reported")
+	assert.Equal(t, `token "only" has mode values but no $value`, noBase[0].Message)
+	assert.Equal(t, "themes/dark.tokens.json", noBase[0].File)
+	assert.Equal(t, 3, noBase[0].Line)
 	assert.Equal(t, []string{"x", "x-y", "y", "only"}, s.Order)
+}
+
+func TestOverrideDescriptiveFields(t *testing.T) {
+	s, ds := parse(t, map[string]string{
+		"base.tokens.json": `{ "x": { "$type": "number", "$value": 1,
+  "$extensions": { "com.c65llc.airframe": { "tier": "core" } } } }`,
+		"themes/dark.tokens.json": `{ "$extensions": { "com.c65llc.airframe": { "mode": "appearance:dark" } },
+  "x": { "$value": 2,
+    "$extensions": { "com.c65llc.airframe": {
+      "exempt": { "touch-floor": "icon" },
+      "tier": "component",
+      "modes": { "app:slides": 3 } } } } }`,
+	})
+	require.Equal(t, []string{"schema-invalid", "schema-invalid"}, rules(ds))
+	for i, line := range []int{4, 5} {
+		assert.Equal(t, `only $value, modes and density may appear on an override of "x"`, ds[i].Message)
+		assert.Equal(t, "themes/dark.tokens.json", ds[i].File)
+		assert.Equal(t, line, ds[i].Line)
+	}
+	assert.Equal(t, "x.$extensions.com.c65llc.airframe.exempt", ds[0].Path)
+	assert.Equal(t, "x.$extensions.com.c65llc.airframe.tier", ds[1].Path)
+	tok := s.Tokens["x"]
+	assert.Equal(t, "core", tok.Tier)
+	assert.Nil(t, tok.Exempt)
+	assert.Equal(t, 2.0, tok.Modes["appearance:dark"].Lit)
+	assert.Equal(t, 3.0, tok.Modes["app:slides+appearance:dark"].Lit)
 }
