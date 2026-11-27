@@ -34,6 +34,11 @@ inputs:
     required: false
     default: .
 
+outputs:
+  path:
+    description: Absolute path of the verified airframe binary the action downloaded and ran.
+    value: ${{ steps.install.outputs.path }}
+
 runs:
   using: composite
   steps:

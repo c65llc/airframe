@@ -97,12 +97,15 @@ jobs:
           set -u
           # A curl shim on PATH records the URL the script would download and
           # fails, so the archive name it computed can be checked.
-          shim="$RUNNER_TEMP/shim"
+          temp="$RUNNER_TEMP"
+          # Git Bash: D:\a\_temp would split PATH on the drive colon.
+          if [ "$RUNNER_OS" = Windows ]; then temp=$(cygpath -u "$RUNNER_TEMP"); fi
+          shim="$temp/shim"
           mkdir -p "$shim"
           # shellcheck disable=SC2016 # the shim body must expand at run time, not here
           printf '#!/usr/bin/env bash\necho "curl $*" >> "$SHIM_LOG"\nexit 22\n' > "$shim/curl"
           chmod +x "$shim/curl"
-          export SHIM_LOG="$RUNNER_TEMP/shim.log"
+          export SHIM_LOG="$temp/shim.log"
           check() { # os arch expected-archive
             : > "$SHIM_LOG"
             AF_VERSION=v0.1.0 AF_OS="$1" AF_ARCH="$2" AF_RELEASES=http://example.invalid \
