@@ -337,7 +337,7 @@ func TestModeBaseValue(t *testing.T) {
 	cfg, cds := config.Load([]byte(`version: 1
 modes:
   appearance: { values: [light, dark], web: { light: ":root", dark: [":root[data-theme='dark']"] } }
-  app: { values: [slides, wiki], web: { attr: data-app } }
+  app: { values: [drafts, slides, wiki], base: drafts, web: { attr: data-app } }
 `))
 	require.Empty(t, cds)
 	s, ds := Parse(cfg, map[string][]byte{"a.tokens.json": []byte(`{ "x": { "$type": "number", "$value": 0,
@@ -352,4 +352,49 @@ modes:
 	assert.Equal(t, "mode-base-value", ds[1].Rule)
 	assert.Equal(t, 4, ds[1].Line)
 	assert.Equal(t, []config.ModeKey{"appearance:dark"}, sortedKeys(s.Tokens["x"].Modes), "rejected keys are dropped")
+}
+
+// baseDensityConfig has a density axis whose base is standard.
+func baseDensityConfig() *config.Config {
+	return &config.Config{Version: 1, Axes: []config.Axis{
+		{Name: "density", Values: []string{"compact", "standard", "relaxed"}, Base: "standard"},
+	}}
+}
+
+// TestDensityShorthandBaseEqualAllowed: the density shorthand may list the
+// base value when it equals $value; it is dropped, not kept as a mode key.
+func TestDensityShorthandBaseEqualAllowed(t *testing.T) {
+	s, ds := Parse(baseDensityConfig(), map[string][]byte{"t.tokens.json": []byte(specToken)})
+	require.Empty(t, ds)
+	assert.Equal(t, []config.ModeKey{"density:compact", "density:relaxed"}, sortedKeys(s.Tokens["tabstrip-h"].Modes))
+
+	// An alias equal to the $value alias is equal too.
+	s, ds = Parse(baseDensityConfig(), map[string][]byte{"t.tokens.json": []byte(`{
+  "gap": { "$type": "dimension", "$value": { "value": 4, "unit": "px" } },
+  "pad": { "$type": "dimension", "$value": "{gap}",
+    "$extensions": { "com.c65llc.airframe": { "density": { "standard": "{gap}", "relaxed": { "value": 8, "unit": "px" } } } } } }`)})
+	require.Empty(t, ds)
+	assert.Equal(t, []config.ModeKey{"density:relaxed"}, sortedKeys(s.Tokens["pad"].Modes))
+}
+
+// TestDensityShorthandBaseDiffers: a base entry that differs from $value
+// is mode-base-value at its line, and is dropped.
+func TestDensityShorthandBaseDiffers(t *testing.T) {
+	s, ds := Parse(baseDensityConfig(), map[string][]byte{"t.tokens.json": []byte(`{ "h": {
+  "$type": "dimension",
+  "$value": { "value": 40, "unit": "px" },
+  "$extensions": { "com.c65llc.airframe": { "density": {
+    "compact": 44,
+    "standard": 48 } } } } }`)})
+	d := only(t, ds, "mode-base-value")
+	assert.Equal(t, 6, d.Line)
+	assert.Equal(t, "h.$extensions.com.c65llc.airframe.density.standard", d.Path)
+	assert.Contains(t, d.Message, "density:standard is the base density")
+	assert.Equal(t, []config.ModeKey{"density:compact"}, sortedKeys(s.Tokens["h"].Modes))
+
+	// An explicit modes key naming the base stays an error even when equal.
+	_, ds = Parse(baseDensityConfig(), map[string][]byte{"t.tokens.json": []byte(`{ "h": {
+  "$type": "number", "$value": 1,
+  "$extensions": { "com.c65llc.airframe": { "modes": { "density:standard": 1 } } } } }`)})
+	only(t, ds, "mode-base-value")
 }

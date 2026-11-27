@@ -7,8 +7,10 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -44,6 +46,7 @@ type Tier struct {
 type Axis struct {
 	Name    string
 	Values  []string
+	Base    string // the value $value is, rendered when no attribute is set
 	Source  string // path after "from ", for a deferred axis
 	Binding string // "runtime" or "build"
 	Group   string
@@ -185,7 +188,11 @@ func build(root *yaml.Node) (*Config, *buildError) {
 	if mn := field(root, "modes"); mn != nil {
 		ks, vs := mapping(mn)
 		for i, k := range ks {
-			c.Axes = append(c.Axes, buildAxis(k.Value, vs[i]))
+			a, err := buildAxis(k, vs[i])
+			if err != nil {
+				return nil, err
+			}
+			c.Axes = append(c.Axes, a)
 		}
 	}
 
@@ -209,7 +216,9 @@ func build(root *yaml.Node) (*Config, *buildError) {
 	return c, nil
 }
 
-func buildAxis(name string, n *yaml.Node) Axis {
+func buildAxis(key, n *yaml.Node) (Axis, *buildError) {
+	name := key.Value
+	at := "modes." + name
 	a := Axis{Name: name, Binding: "runtime"}
 	if v := field(n, "values"); v != nil {
 		if v.Kind == yaml.ScalarNode {
@@ -224,6 +233,8 @@ func buildAxis(name string, n *yaml.Node) Axis {
 	if g := field(n, "group"); g != nil {
 		a.Group = g.Value
 	}
+	var alsoNode *yaml.Node
+	selNodes := map[string]*yaml.Node{}
 	if w := field(n, "web"); w != nil {
 		a.Web = WebMode{Selectors: map[string][]string{}, Also: map[string]string{}}
 		ks, vs := mapping(w)
@@ -232,17 +243,87 @@ func buildAxis(name string, n *yaml.Node) Axis {
 			case "attr":
 				a.Web.Attr = vs[i].Value
 			case "also":
+				alsoNode = vs[i]
 				aks, avs := mapping(vs[i])
 				for j, ak := range aks {
 					a.Web.Also[ak.Value] = avs[j].Value
 				}
 			default:
 				a.Web.Selectors[k.Value] = stringList(vs[i])
+				selNodes[k.Value] = vs[i]
 			}
 		}
 	}
-	return a
+
+	// The bare-:root value, if any, is the base: CSS cannot tell it from
+	// "attribute unset". It must be that value's only selector.
+	rootValue := ""
+	for _, v := range slices.Sorted(maps.Keys(a.Web.Selectors)) {
+		sels := a.Web.Selectors[v]
+		if !slices.ContainsFunc(sels, isBareRoot) {
+			continue
+		}
+		if len(sels) > 1 {
+			return a, &buildError{
+				msg:  fmt.Sprintf("modes.%s.web.%s: a bare :root must be the value's only selector (it is the base, the render when no attribute is set)", name, v),
+				path: at + ".web." + v, line: selNodes[v].Line,
+			}
+		}
+		if rootValue != "" {
+			return a, &buildError{
+				msg:  fmt.Sprintf("modes.%s.web: %s and %s are both bare :root; an axis has one base", name, rootValue, v),
+				path: at + ".web." + v, line: selNodes[v].Line,
+			}
+		}
+		rootValue = v
+	}
+	a.Base = rootValue
+	if b := field(n, "base"); b != nil {
+		switch {
+		case !a.Deferred() && !slices.Contains(a.Values, b.Value):
+			return a, &buildError{
+				msg:  fmt.Sprintf("axis %s: base %s is not one of its values", name, b.Value),
+				path: at + ".base", line: b.Line,
+			}
+		case rootValue != "" && rootValue != b.Value:
+			return a, &buildError{
+				msg:  fmt.Sprintf("axis %s: base %s disagrees with %s, whose only web selector is bare :root", name, b.Value, rootValue),
+				path: at + ".base", line: b.Line,
+			}
+		}
+		a.Base = b.Value
+	}
+	if a.Base == "" && !a.Deferred() {
+		return a, &buildError{
+			msg:  fmt.Sprintf("axis %s needs a base: value — the value rendered when no attribute is set", name),
+			path: at, line: key.Line,
+		}
+	}
+
+	if alsoNode != nil {
+		// The also media condition is a fallback for while the attribute
+		// is unset, so it needs the attribute, and every non-base value
+		// must be spelled by it: an explicit selector would bypass the
+		// :not([attr]) the fallback depends on.
+		if a.Web.Attr == "" {
+			return a, &buildError{
+				msg:  fmt.Sprintf("axis %s: web also needs the axis's web attr, so the fallback can apply only while it is unset", name),
+				path: at + ".web.also", line: alsoNode.Line,
+			}
+		}
+		for _, v := range slices.Sorted(maps.Keys(a.Web.Selectors)) {
+			if v != rootValue {
+				return a, &buildError{
+					msg:  fmt.Sprintf("axis %s: with web also, %s must be spelled by the attr (%s), not an explicit selector", name, v, a.Web.Attr),
+					path: at + ".web." + v, line: selNodes[v].Line,
+				}
+			}
+		}
+	}
+	return a, nil
 }
+
+func isBareRoot(s string) bool { return strings.TrimSpace(s) == ":root" }
 
 var driveLetter = regexp.MustCompile(`^[A-Za-z]:`)
 

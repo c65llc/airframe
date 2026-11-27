@@ -41,6 +41,6 @@ func TestBig576Shape(t *testing.T) {
 	assert.Equal(t, map[string]int{"primitive": 86, "semantic": 42, "component": 72}, tiers)
 	assert.Equal(t, []config.ModeKey{
 		"app:tasks", "app:tasks+appearance:dark", "appearance:dark", "channel:next",
-		"density:compact", "density:relaxed", "density:standard",
+		"density:compact", "density:relaxed",
 	}, slices.Sorted(maps.Keys(keys)))
 }

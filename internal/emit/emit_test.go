@@ -150,10 +150,11 @@ func TestBuildEmitsOneBlockPerUsedKey(t *testing.T) {
 	out, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
 	require.NoError(t, err)
 	css := string(out["design-system/generated/css/tokens.css"])
-	// The 7 used keys plus the default expand to: "" 1, appearance:dark 2,
+	// The 6 used keys plus the default expand to: "" 1, appearance:dark 2,
 	// app:tasks 1, app:tasks+appearance:dark 2, channel:next 1,
-	// density:compact 1, density:standard 1, density:relaxed 2.
-	assert.Len(t, scopeLine.FindAllString(css, -1), 11)
+	// density:compact 1, density:relaxed 2. density:standard is the base,
+	// which $value already is.
+	assert.Len(t, scopeLine.FindAllString(css, -1), 10)
 	assert.NotContains(t, css, "data-accent-swatch", "an unused axis emits nothing")
 	assert.Equal(t, 3, strings.Count(css, "@media"))
 }

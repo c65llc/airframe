@@ -341,7 +341,7 @@ type rawValue struct {
 	key     string // as written, already combined with the file mode
 	node    *ojson.Node
 	at      string
-	density bool
+	density string // the density value, for a density shorthand entry
 }
 
 // merge adds one declaration to the Set.
@@ -417,23 +417,30 @@ func (p *parser) merge(d decl) {
 	}
 	if e.density != nil {
 		for _, k := range e.density.Keys {
-			raws = append(raws, rawValue{key: combine(d.fileMode, "density:"+k), node: e.density.Fields[k], at: extAt + ".density." + k, density: true})
+			raws = append(raws, rawValue{key: combine(d.fileMode, "density:"+k), node: e.density.Fields[k], at: extAt + ".density." + k, density: k})
 		}
 	}
 
 	unit := ""
+	var own *Value // this declaration's $value
 	for _, r := range raws {
 		key, err := p.cfg.ParseModeKey(r.key)
 		if err != nil {
 			p.report("mode-unknown", d.file, r.at, r.node.Line, "mode key %q: %v", r.key, err)
 			continue
 		}
-		if axis, val, base := p.cfg.BasePair(key); base {
+		// The density shorthand may list the base density when it equals
+		// $value (a full table reads better); it is dropped. A differing
+		// one would contradict $value, the base render.
+		_, _, densityBase := p.cfg.BasePair(config.ModeKey("density:" + r.density))
+		densityBase = densityBase && r.density != ""
+		axis, val, base := p.cfg.BasePair(key)
+		if base && !densityBase {
 			p.report("mode-base-value", d.file, r.at, r.node.Line, "%s:%s is the base %s; write the key without it", axis, val, axis)
 			continue
 		}
 		hint := ""
-		if r.density {
+		if r.density != "" {
 			hint = unit
 			if hint == "" {
 				hint = unitOf(tok.Default)
@@ -444,8 +451,16 @@ func (p *parser) merge(d decl) {
 			p.invalid(d.file, serr.path, serr.line, "%s", serr.msg)
 			continue
 		}
+		if densityBase {
+			if own == nil || !sameValue(v, own) {
+				p.report("mode-base-value", d.file, r.at, r.node.Line,
+					"density:%s is the base density, which $value already is; drop it or make it equal $value", r.density)
+			}
+			continue
+		}
 		if r.at == at+".$value" {
 			unit = unitOf(v)
+			own = v
 		}
 		p.put(tok, key, v, d.file, at)
 	}

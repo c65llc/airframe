@@ -145,15 +145,10 @@ func axisNamed(cfg *config.Config, name string) (config.Axis, bool) {
 // :root:not([attr]), a fallback only while the attribute is unset.
 func options(ax config.Axis, val string) ([]option, error) {
 	pair := ax.Name + ":" + val
-	also := strings.TrimSpace(ax.Web.Also[val])
 	// The also media condition is a fallback for while the attribute is
-	// unset, so an explicit attribute value always wins; it needs the attr.
-	if also != "" && ax.Web.Attr == "" {
-		return nil, &configError{
-			path: "modes." + ax.Name + ".web.also." + val,
-			msg:  fmt.Sprintf("%s: web also needs the axis's web attr, so the fallback can apply only while it is unset", pair),
-		}
-	}
+	// unset, so an explicit attribute value always wins; config.Load
+	// guarantees the axis has the attr it needs.
+	also := strings.TrimSpace(ax.Web.Also[val])
 	var out []option
 	if sels := ax.Web.Selectors[val]; len(sels) > 0 {
 		for _, s := range sels {

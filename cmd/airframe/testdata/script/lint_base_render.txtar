@@ -1,0 +1,63 @@
+# The render with no attribute set is the base context, and invariants
+# lint it: a 40px base button target under a 44px touch floor fails even
+# though every listed density clears it. The standard entry contradicts
+# $value, the base density, so it is mode-base-value too.
+exec airframe init
+cp component.tokens.json design-system/tokens/component.tokens.json
+exits 1 airframe lint
+stdout 'error dimension-below: touch-floor: button-target is 40px at density:standard \(min 44px\)'
+stdout 'error mode-base-value: density:standard is the base density'
+! stdout 'density:compact \(min'
+
+# Listing the base density equal to $value is allowed, and lint is clean.
+cp component-ok.tokens.json design-system/tokens/component.tokens.json
+exec airframe build
+exec airframe lint
+! stdout 'error'
+
+-- component.tokens.json --
+{
+  "button": {
+    "target": {
+      "$type": "dimension",
+      "$value": {
+        "value": 40,
+        "unit": "px"
+      },
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button",
+          "density": {
+            "compact": 44,
+            "standard": 48,
+            "relaxed": 56
+          }
+        }
+      }
+    }
+  }
+}
+-- component-ok.tokens.json --
+{
+  "button": {
+    "target": {
+      "$type": "dimension",
+      "$value": {
+        "value": 48,
+        "unit": "px"
+      },
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button",
+          "density": {
+            "compact": 44,
+            "standard": 48,
+            "relaxed": 56
+          }
+        }
+      }
+    }
+  }
+}

@@ -19,10 +19,10 @@ import (
 const big576Config = `version: 1
 modes:
   appearance: { values: [light, dark], binding: runtime, web: { light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"] } }
-  density:    { values: [compact, standard, relaxed], binding: runtime, web: { attr: data-density, also: { relaxed: "@media (pointer: coarse)" } } }
-  app:        { values: [drafts, edit, review, slides, tasks, wiki], binding: build, web: { attr: data-app }, group: accent }
-  swatch:     { values: [ember, moss, tide, plum, sand, slate, rose, ink], binding: runtime, web: { attr: data-accent-swatch }, group: accent }
-  channel:    { values: [stable, next], binding: build, web: { attr: data-channel } }
+  density:    { values: [compact, standard, relaxed], base: standard, binding: runtime, web: { attr: data-density, also: { relaxed: "@media (pointer: coarse)" } } }
+  app:        { values: [drafts, edit, review, slides, tasks, wiki], base: drafts, binding: build, web: { attr: data-app }, group: accent }
+  swatch:     { values: [ember, moss, tide, plum, sand, slate, rose, ink], base: ember, binding: runtime, web: { attr: data-accent-swatch }, group: accent }
+  channel:    { values: [stable, next], base: stable, binding: build, web: { attr: data-channel } }
 accentGroups: { required: [accent, accent-ink, accent-contrast, accent-on-ink, accent-soft] }
 `
 
@@ -184,8 +184,10 @@ func componentTokens() string {
 
 // Big576 is a project of five loaded axes (appearance 2, density 3, app 6,
 // swatch 8, channel 2: 576 contexts), 200 tokens (86 primitive, 42
-// semantic, 72 component) using seven distinct mode keys, and the spec's
-// four invariants. It loads with no diagnostics and every invariant holds.
+// semantic, 72 component) using six distinct mode keys, and the spec's
+// four invariants. The density shorthand also lists the base density,
+// equal to $value, which is dropped rather than kept as a key. It loads
+// with no diagnostics and every invariant holds.
 func Big576() project.MemFS {
 	raw := map[string]string{
 		"airframe.yaml":                       big576Config,

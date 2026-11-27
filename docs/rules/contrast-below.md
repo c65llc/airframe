@@ -5,7 +5,7 @@ since: v0.1.0
 
 # contrast-below
 
-A contrast invariant's foreground on its background falls below the minimum ratio in some context.
+A contrast invariant's foreground on its background falls below the minimum ratio in some context. Axes the invariant does not iterate sit at their base value, so the render with no attribute set is always checked.
 
 **Why**
 

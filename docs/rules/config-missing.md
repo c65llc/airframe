@@ -21,5 +21,5 @@ Run `airframe init`, or run Airframe from the directory that holds `airframe.yam
 version: 1
 content: design-system
 modes:
-  appearance: { values: [light, dark] }
+  appearance: { values: [light, dark], base: light }
 ```

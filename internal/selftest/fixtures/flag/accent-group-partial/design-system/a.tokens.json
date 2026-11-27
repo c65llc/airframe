@@ -1,6 +1,6 @@
 {
   "amber": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.12, 75]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
   "teal": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.1, 190]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
-  "accent": {"$type": "color", "$value": "{amber}", "$extensions": {"com.c65llc.airframe": {"tier": "semantic", "modes": {"app:slides": "{teal}"}}}},
+  "accent": {"$type": "color", "$value": "{amber}", "$extensions": {"com.c65llc.airframe": {"tier": "semantic", "modes": {"app:wiki": "{teal}"}}}},
   "accent-ink": {"$type": "color", "$value": "{amber}", "$extensions": {"com.c65llc.airframe": {"tier": "semantic"}}}
 }

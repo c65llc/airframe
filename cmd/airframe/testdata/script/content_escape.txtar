@@ -11,4 +11,4 @@ version: 1
 content: ../x
 modes:
   appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
-  density: {values: [compact, standard, relaxed], binding: runtime, web: {attr: data-density}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}

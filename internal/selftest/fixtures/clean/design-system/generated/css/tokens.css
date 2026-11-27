@@ -66,8 +66,3 @@
     --button-target: 56px;
   }
 }
-
-:root[data-density='standard'] {
-  --button-gap: var(--gap-sm);
-  --button-target: 48px;
-}

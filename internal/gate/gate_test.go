@@ -22,7 +22,7 @@ import (
 
 const cfg = `version: 1
 modes:
-  appearance: {values: [light, dark]}
+  appearance: {values: [light, dark], base: light}
 `
 
 // lintFS formats every file in fsys (so not-formatted stays quiet), then

@@ -229,6 +229,9 @@ func ruleDensityMissing(p *project.Project, c *Context) ([]diag.Diagnostic, diag
 		}
 		var missing []string
 		for _, v := range density.Values {
+			if density.IsBase(v) {
+				continue // $value is the base density's value
+			}
 			if _, ok := t.Modes[config.ModeKey(density.Name+":"+v)]; !ok {
 				missing = append(missing, v)
 			}

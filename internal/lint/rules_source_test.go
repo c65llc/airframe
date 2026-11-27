@@ -17,9 +17,9 @@ import (
 
 const testConfig = `version: 1
 modes:
-  appearance: { values: [light, dark] }
-  density:    { values: [compact, standard, relaxed] }
-  app:        { values: [slides, wiki], group: accent }
+  appearance: { values: [light, dark], base: light }
+  density:    { values: [compact, standard, relaxed], base: standard }
+  app:        { values: [drafts, slides, wiki], base: drafts, group: accent }
   swatch:     { values: from brands/swatches.tokens.json, group: accent }
 accentGroups: { required: [accent, accent-ink, accent-contrast, accent-on-ink, accent-soft] }
 `
@@ -161,13 +161,14 @@ func TestDensityMissing(t *testing.T) {
 		want []string
 	}{
 		{"partial", ext(`"tier": "component", "component": "tabstrip", "density": { "compact": 32 }`),
-			[]string{`component dimension "tab-h" has no density value for standard, relaxed; give every density a value or set chrome: "<reason>"`}},
+			[]string{`component dimension "tab-h" has no density value for relaxed; give every density a value or set chrome: "<reason>"`}},
+		{"base_is_value_ok", ext(`"tier": "component", "component": "tabstrip", "density": { "compact": 32, "relaxed": 40 }`), nil},
 		{"none", ext(`"tier": "component", "component": "tabstrip"`),
-			[]string{`component dimension "tab-h" has no density value for compact, standard, relaxed; give every density a value or set chrome: "<reason>"`}},
+			[]string{`component dimension "tab-h" has no density value for compact, relaxed; give every density a value or set chrome: "<reason>"`}},
 		{"all_three_ok", ext(`"tier": "component", "component": "tabstrip", "density": { "compact": 32, "standard": 36, "relaxed": 40 }`), nil},
 		{"chrome_reason_ok", ext(`"tier": "component", "component": "tabstrip", "chrome": "window title bar is fixed by the OS"`), nil},
 		{"blank_chrome", ext(`"tier": "component", "component": "tabstrip", "chrome": "  "`),
-			[]string{`component dimension "tab-h" has no density value for compact, standard, relaxed; give every density a value or set chrome: "<reason>"`}},
+			[]string{`component dimension "tab-h" has no density value for compact, relaxed; give every density a value or set chrome: "<reason>"`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

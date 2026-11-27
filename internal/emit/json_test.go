@@ -5,6 +5,7 @@ package emit
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,9 +22,12 @@ func TestJSONGolden(t *testing.T) {
 func TestJSONShape(t *testing.T) {
 	out := buildMinimal(t)
 	var doc struct {
-		Version int                 `json:"version"`
-		Modes   map[string][]string `json:"modes"`
-		Tokens  map[string]struct {
+		Version int `json:"version"`
+		Modes   map[string]struct {
+			Values []string `json:"values"`
+			Base   string   `json:"base"`
+		} `json:"modes"`
+		Tokens map[string]struct {
 			Type      string                     `json:"type"`
 			Tier      string                     `json:"tier"`
 			Component string                     `json:"component"`
@@ -33,7 +37,9 @@ func TestJSONShape(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(out[minimalJSON], &doc))
 	assert.Equal(t, 1, doc.Version)
-	assert.Equal(t, []string{"compact", "standard", "relaxed"}, doc.Modes["density"])
+	assert.Equal(t, []string{"compact", "standard", "relaxed"}, doc.Modes["density"].Values)
+	assert.Equal(t, "standard", doc.Modes["density"].Base)
+	assert.Equal(t, "light", doc.Modes["appearance"].Base)
 
 	accentInk := doc.Tokens["accent-ink"]
 	assert.Equal(t, "color", accentInk.Type)
@@ -79,4 +85,21 @@ func TestJSONModeClosure(t *testing.T) {
 	assert.JSONEq(t, `5`, string(m["density:compact"]))
 	assert.JSONEq(t, `5`, string(m["appearance:dark+density:compact"]))
 	assert.Len(t, m, 3)
+}
+
+// TestJSONModesDeferredAxis: a deferred axis is listed with no values, and
+// with its base when it declares one.
+func TestJSONModesDeferredAxis(t *testing.T) {
+	fsys := memFS(t, minimalDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:",
+		"  swatch: {values: from brands/s.tokens.json, base: moss, web: {attr: data-s}}\n  tint: {values: from brands/t.tokens.json, web: {attr: data-t}}\nplatforms:", 1)
+	p := loadFS(t, fsys)
+	out, err := JSON(p, p.Config.Platforms[1])
+	require.NoError(t, err)
+	var doc struct {
+		Modes map[string]json.RawMessage `json:"modes"`
+	}
+	require.NoError(t, json.Unmarshal(out[minimalJSON], &doc))
+	assert.JSONEq(t, `{"values": [], "base": "moss"}`, string(doc.Modes["swatch"]))
+	assert.JSONEq(t, `{"values": []}`, string(doc.Modes["tint"]))
 }

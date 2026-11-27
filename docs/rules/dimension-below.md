@@ -5,7 +5,7 @@ since: v0.1.0
 
 # dimension-below
 
-A dimension that a `min-dimension` invariant matches resolves below its minimum in some context.
+A dimension that a `min-dimension` invariant matches resolves below its minimum in some context. The contexts include the base one, the render with no attribute set, where the token is its `$value`.
 
 **Why**
 

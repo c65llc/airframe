@@ -20,9 +20,9 @@ import (
 // is deferred (swatch), so accentGroup expands to app alone.
 const invConfig = `version: 1
 modes:
-  appearance: { values: [light, dark] }
-  density:    { values: [compact, standard, relaxed] }
-  app:        { values: [slides, tasks], group: accent }
+  appearance: { values: [light, dark], base: light }
+  density:    { values: [compact, standard, relaxed], base: standard }
+  app:        { values: [slides, tasks], base: slides, group: accent }
   swatch:     { values: from brands/swatches.tokens.json, group: accent }
 `
 
@@ -42,7 +42,7 @@ func TestContrastBelow(t *testing.T) {
 	// on accent-soft is 4.99:1, so it passes 4.5 and fails 7.
 	tokens := `{
   "accent-ink": { "$type": "color", "$value": ` + lch(0.52, 0.12, 75) + `,
-    ` + ext(`"modes": { "app:slides": `+lch(0.25, 0.05, 75)+` }`) + ` },
+    ` + ext(`"modes": { "app:tasks": `+lch(0.25, 0.05, 75)+` }`) + ` },
   "accent-soft": { "$type": "color", "$value": ` + lch(0.96, 0.03, 75) + `,
     ` + ext(`"modes": { "appearance:dark": `+lch(0.96, 0.03, 75)+` }`) + ` }
 }`
@@ -57,8 +57,8 @@ func TestContrastBelow(t *testing.T) {
 	}
 	ds, tally := ruleFindings(t, loadInv(t, tokens, inv("7")), "contrast-below")
 	assert.Equal(t, []string{
-		"selection-text-contrast: accent-ink on accent-soft is 4.99:1 at app:tasks+appearance:light (min 7)",
-		"selection-text-contrast: accent-ink on accent-soft is 4.99:1 at app:tasks+appearance:dark (min 7)",
+		"selection-text-contrast: accent-ink on accent-soft is 4.99:1 at app:slides+appearance:light (min 7)",
+		"selection-text-contrast: accent-ink on accent-soft is 4.99:1 at app:slides+appearance:dark (min 7)",
 	}, messages(ds))
 	require.Len(t, ds, 2)
 	assert.Equal(t, "contrast-below", ds[0].Rule)
@@ -223,7 +223,7 @@ func TestInvariantSchemaInvalid(t *testing.T) {
 }
 
 func TestAccentFlipNeedsAppearance(t *testing.T) {
-	cfg := "version: 1\nmodes:\n  app: { values: [slides, tasks], group: accent }\n"
+	cfg := "version: 1\nmodes:\n  app: { values: [slides, tasks], base: slides, group: accent }\n"
 	p := loadWith(t, cfg, map[string]string{
 		"a.tokens.json":   `{ "accent": { "$type": "color", "$value": ` + lch(0.6, 0.1, 200) + ` } }`,
 		"invariants.yaml": "- { id: a, kind: same-hue-across-appearances, tokens: [accent], forEach: accentGroup }\n",

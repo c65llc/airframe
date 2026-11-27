@@ -83,15 +83,16 @@ func (c *Config) CheckAxes(names []string) error {
 
 // Contexts returns the product of the values of the named axes, in config
 // order with the first-named-in-config axis varying slowest. Every other
-// axis sits at its first value. Deferred axes and unknown names are left
-// out, so callers must CheckAxes first or a typo shrinks the product silently.
+// axis sits at its base value, so the render with no attribute set is
+// always among the contexts. Deferred axes and unknown names are left out,
+// so callers must CheckAxes first or a typo shrinks the product silently.
 func (c *Config) Contexts(axes []string) []Context {
 	out := []Context{{}}
 	for _, a := range c.Axes {
 		if a.Deferred() || len(a.Values) == 0 {
 			continue
 		}
-		vals := a.Values[:1]
+		vals := []string{a.baseValue()}
 		if slices.Contains(axes, a.Name) {
 			vals = a.Values
 		}
@@ -109,6 +110,15 @@ func (c *Config) Contexts(axes []string) []Context {
 		out = next
 	}
 	return out
+}
+
+// baseValue is a's base, or its first value for an Axis built by hand
+// without one (Load never returns such an axis).
+func (a Axis) baseValue() string {
+	if a.Base != "" {
+		return a.Base
+	}
+	return a.Values[0]
 }
 
 func (k ModeKey) pairs() []string {
@@ -142,13 +152,9 @@ func (k ModeKey) Context() Context {
 // Pairs is the number of axis:value pairs in k, its specificity.
 func (k ModeKey) Pairs() int { return len(k.pairs()) }
 
-// IsBase reports whether v is the axis's base value: its only web selector
-// is exactly ":root", so CSS cannot tell it from "axis unset" and a mode
-// key must not name it.
-func (a Axis) IsBase(v string) bool {
-	sels := a.Web.Selectors[v]
-	return len(sels) == 1 && strings.TrimSpace(sels[0]) == ":root"
-}
+// IsBase reports whether v is the axis's base value: the value $value is,
+// rendered when no attribute is set, so a mode key must not name it.
+func (a Axis) IsBase(v string) bool { return a.Base != "" && v == a.Base }
 
 // BasePair is the first pair of k that names its axis's base value, if any.
 func (c *Config) BasePair(k ModeKey) (axis, value string, ok bool) {

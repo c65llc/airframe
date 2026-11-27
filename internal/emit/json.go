@@ -19,9 +19,11 @@ import (
 
 // JSON writes the neutral token contract:
 //
-//	{ "$comment": header, "version": 1, "modes": {axis: [values]},
+//	{ "$comment": header, "version": 1, "modes": {axis: {values, base}},
 //	  "tokens": {name: {type, tier, component, value, modes: {key: value}}} }
 //
+// Every axis is listed with its values ([] for a deferred axis, whose values
+// a later stage loads) and its base, the value "value" is, when it has one.
 // Tokens are sorted by name, mode keys by (pair count, key). Every value is
 // resolved to its DTCG literal. A token lists every mode key that can change
 // its value: its own, those of the tokens it reaches through aliases, and
@@ -30,9 +32,12 @@ import (
 func JSON(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 	modes := &object{}
 	for _, a := range p.Config.Axes {
-		if !a.Deferred() {
-			modes.set(a.Name, a.Values)
+		axis := &object{}
+		axis.set("values", append([]string{}, a.Values...)) // [] for a deferred axis
+		if a.Base != "" {
+			axis.set("base", a.Base)
 		}
+		modes.set(a.Name, axis)
 	}
 	toks := &object{}
 	for _, t := range emitted(p, "json") {

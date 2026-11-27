@@ -125,16 +125,14 @@ func TestAlsoFallbackOnlyWhenAttrUnset(t *testing.T) {
 	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root[data-theme='dark']:not([data-density]) {\n    --x: 3;\n  }\n}\n")
 	assert.NotRegexp(t, `(?m)^\s*:root( |\[data-theme='dark'\] )\{\n\s*--x: [23];`, css, "no unconditioned fallback scope")
 
+	// Without the attr there is no unset state to fall back in; Load
+	// refuses it, so the emitter never sees it.
 	cfg := strings.Replace(testfix.Big576()["airframe.yaml"], "web: {attr: data-density, also:", "web: {also:", 1)
-	p := loadFS(t, project.MemFS{"airframe.yaml": cfg, "design-system/x.tokens.json": `{ "x": { "$type": "number", "$value": 0,
-  "$extensions": { "com.c65llc.airframe": { "modes": { "density:relaxed": 2 } } } } }`})
-	_, ds := Build(p, nil)
-	_, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
-	require.Error(t, err)
-	assert.Empty(t, ds, "Big576 has no platforms")
-	ce, ok := err.(*configError)
-	require.True(t, ok, "%v", err)
-	assert.Equal(t, "modes.density.web.also.relaxed", ce.path)
+	_, ds, err := project.Load(project.MemFS{"airframe.yaml": cfg})
+	require.NoError(t, err)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "modes.density.web.also", ds[0].Path)
 }
 
 // TestNoBlockForBaseValue: a key naming a base value (its only selector is
