@@ -358,6 +358,14 @@ func underRoot(key, v, at string, line int) (string, *buildError) {
 			path: at, line: line,
 		}
 	}
+	// An output must be written somewhere: "", "." and "./" name the
+	// root itself; content, unlike out, may be the root.
+	if key == "out" && clean == "." {
+		return "", &buildError{
+			msg:  fmt.Sprintf("out %q: out must name a file or directory under the root", v),
+			path: at, line: line,
+		}
+	}
 	if strings.HasSuffix(v, "/") && clean != "." {
 		clean += "/"
 	}

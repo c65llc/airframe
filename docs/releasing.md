@@ -29,8 +29,8 @@ GitHub pre-release and moves no floating tag.
 
 ## Cutting a release
 
-A maintainer with push access to `c65llc/airframe` does this; agents never
-push tags or publish releases.
+A maintainer with push access to `c65llc/airframe` does this; tags and
+releases are cut only with the repository owner's explicit approval.
 
 1. **Check the draft.** Open the repository's Releases page. The draft at the
    top is named after the version release-drafter resolved from the PR labels

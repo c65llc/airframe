@@ -409,3 +409,16 @@ func TestAxisValueNamesReserved(t *testing.T) {
 		assert.Contains(t, d.Message, v+" is reserved", v)
 	}
 }
+
+func TestOutMustNameAPath(t *testing.T) {
+	for _, in := range []string{"", ".", "./", "a/.."} {
+		for _, src := range []string{
+			"version: 1\nplatforms:\n  web:\n    emit: css\n    out: '" + in + "'\n",
+			"version: 1\nplatforms:\n  web:\n    emit: [css]\n    out:\n      css: '" + in + "'\n",
+		} {
+			d := loadErr(t, src)
+			assert.Contains(t, d.Path, "platforms.web.out", src)
+			assert.Contains(t, d.Message, "out must name a file or directory under the root", src)
+		}
+	}
+}

@@ -7,6 +7,8 @@ since: v0.1.0
 
 A token's hue moves more than 1° between appearances, which a `same-hue-across-appearances` invariant forbids.
 
+The rule compares the values of the axis named `appearance`, so it needs one with at least two values loaded; an invariant of this kind in a config without it is `schema-invalid`.
+
 **Why**
 
 An accent is one hue in every theme; only lightness and chroma move. Without this check an accent ramp can drift between light and dark, because nothing asserts that both themes are one accent. The finding names the invariant, the token, both appearances and the hue distance.
