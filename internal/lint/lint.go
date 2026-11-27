@@ -114,16 +114,39 @@ var loadIDs = []string{
 	"no-tokens", "schema-invalid", "token-name-invalid", "type-unsupported", "yaml-syntax",
 }
 
+// warnIDs are reported while building rather than by a registered rule,
+// always as warnings: emit-unsupported names a format a later release
+// builds.
+var warnIDs = []string{"emit-unsupported"}
+
 // AllIDs returns every rule ID Airframe can report, sorted: each registered
-// rule's and each load-time ID. It is the one list the self-test and the
+// rule's, each load-time ID and each build-time warning ID. It is the one list the self-test and the
 // rule docs are checked against.
 func AllIDs() []string {
-	out := slices.Clone(loadIDs)
+	out := slices.Concat(loadIDs, warnIDs)
 	for _, r := range allRules {
 		out = append(out, r.ID)
 	}
 	slices.Sort(out)
 	return slices.Compact(out)
+}
+
+// BuildWarningIDs returns the IDs reported while building, always as
+// warnings.
+func BuildWarningIDs() []string { return slices.Clone(warnIDs) }
+
+// DefaultSeverity is id's severity when the config says nothing: a
+// registered rule's Default, warn for a build warning, else error.
+func DefaultSeverity(id string) diag.Severity {
+	for _, r := range allRules {
+		if r.ID == id {
+			return r.Default
+		}
+	}
+	if slices.Contains(warnIDs, id) {
+		return diag.Warn
+	}
+	return diag.Error
 }
 
 // Rules returns every rule, sorted by ID.

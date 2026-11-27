@@ -44,8 +44,9 @@ func (e *configError) Error() string { return e.msg }
 // Build runs every emitter the filter selects and returns the outputs by
 // repo-relative path. A filter entry selects a platform by name (all its
 // formats) or a format by name (on every platform); an empty filter selects
-// everything. Formats with no emitter yet are skipped. A failing format is
-// reported and left out; the others still build.
+// everything. A format with no emitter yet is reported as emit-unsupported
+// (a warning) and skipped. A failing format is reported and left out; the
+// others still build.
 func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagnostic) {
 	out := map[string][]byte{}
 	var ds []diag.Diagnostic
@@ -60,6 +61,14 @@ func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagn
 			}
 			em, ok := Emitters[format]
 			if !ok {
+				// config.Load accepts only known formats, so this is
+				// one a later release builds.
+				ds = append(ds, diag.Diagnostic{
+					Rule: "emit-unsupported", Severity: diag.Warn, File: config.File,
+					Path:    "platforms." + pl.Name + ".emit",
+					Message: fmt.Sprintf("platform %s: format %s is not built until a later release", pl.Name, format),
+					Docs:    diag.DocsURL("emit-unsupported"),
+				})
 				continue
 			}
 			files, err := em(p, pl)

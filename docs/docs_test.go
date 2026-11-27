@@ -15,15 +15,11 @@ import (
 	"github.com/c65llc/airframe/internal/lint"
 )
 
-// defaults is each rule ID's default severity: a registered rule's own,
-// "error" for a load-time ID.
+// defaults is each rule ID's default severity.
 func defaults() map[string]string {
 	out := map[string]string{}
 	for _, id := range lint.AllIDs() {
-		out[id] = "error"
-	}
-	for _, r := range lint.Rules() {
-		out[r.ID] = string(r.Default)
+		out[id] = string(lint.DefaultSeverity(id))
 	}
 	return out
 }

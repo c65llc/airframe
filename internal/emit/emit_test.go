@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/c65llc/airframe/internal/config"
+	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/testfix"
 	"github.com/c65llc/airframe/internal/tokens"
@@ -190,4 +191,25 @@ func TestEmitListSkipsFormat(t *testing.T) {
 	require.Empty(t, ds)
 	assert.NotContains(t, string(out[minimalCSS]), "only-json")
 	assert.Contains(t, string(out[minimalJSON]), `"only-json"`)
+}
+
+// TestBuildReportsUnsupported: a format config accepts but this release
+// does not build is reported once per platform and format, as a warning;
+// the built formats still build.
+func TestBuildReportsUnsupported(t *testing.T) {
+	fsys := memFS(t, minimalDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}", 1)
+	out, ds := Build(loadFS(t, fsys), nil)
+	require.Len(t, ds, 2)
+	for i, f := range []string{"swift", "colorsets"} {
+		assert.Equal(t, "emit-unsupported", ds[i].Rule)
+		assert.Equal(t, diag.Warn, ds[i].Severity)
+		assert.Equal(t, "airframe.yaml", ds[i].File)
+		assert.Equal(t, "platforms.apple.emit", ds[i].Path)
+		assert.Equal(t, "platform apple: format "+f+" is not built until a later release", ds[i].Message)
+	}
+	assert.Contains(t, out, minimalCSS)
+
+	_, ds = Build(loadFS(t, fsys), []string{"css"})
+	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")
 }

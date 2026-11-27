@@ -679,6 +679,10 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 	code := ExitOK
 	if len(bds) > 0 {
 		diag.WriteText(inv.stderr, bds, nil)
+	}
+	// A warning (a format not built yet) is reported but does not fail
+	// the build.
+	if slices.ContainsFunc(bds, func(d diag.Diagnostic) bool { return d.Severity == diag.Error }) {
 		code = ExitFindings
 	}
 	for _, name := range slices.Sorted(maps.Keys(gen)) {
@@ -931,7 +935,8 @@ type ruleEntry struct {
 }
 
 // ruleEntries lists every rule ID, sorted. A load-time ID is always an
-// error, and its summary is the line under its docs page's title.
+// error and a build-time one a warning; their summary is the line under
+// the docs page's title.
 func ruleEntries() []ruleEntry {
 	registered := map[string]lint.Rule{}
 	for _, r := range lint.Rules() {
@@ -939,7 +944,10 @@ func ruleEntries() []ruleEntry {
 	}
 	var out []ruleEntry
 	for _, id := range lint.AllIDs() {
-		e := ruleEntry{ID: id, Kind: "load", Default: diag.Error, Docs: diag.DocsURL(id)}
+		e := ruleEntry{ID: id, Kind: "load", Default: lint.DefaultSeverity(id), Docs: diag.DocsURL(id)}
+		if slices.Contains(lint.BuildWarningIDs(), id) {
+			e.Kind = "build"
+		}
 		if r, ok := registered[id]; ok {
 			e.Kind, e.Default, e.Summary = "check", r.Default, r.Summary
 		} else if page, ok := docs.Rule(id); ok {

@@ -104,7 +104,7 @@ func TestPlatformOutMapAndEmitList(t *testing.T) {
 }
 
 func TestScalarOutNeedsOneEmit(t *testing.T) {
-	_, ds := Load([]byte("version: 1\nplatforms:\n  p:\n    emit: [a, b]\n    out: x\n"))
+	_, ds := Load([]byte("version: 1\nplatforms:\n  p:\n    emit: [css, json]\n    out: x\n"))
 	require.Len(t, ds, 1)
 	assert.Equal(t, "schema-invalid", ds[0].Rule)
 	assert.Equal(t, 5, ds[0].Line)
@@ -355,4 +355,25 @@ func TestSpec62ExampleLoads(t *testing.T) {
 		bases[a.Name] = a.Base
 	}
 	assert.Equal(t, map[string]string{"appearance": "light", "density": "standard", "app": "drafts", "swatch": "", "channel": "stable"}, bases)
+}
+
+func TestEmitFormatUnknown(t *testing.T) {
+	d := loadErr(t, "version: 1\nplatforms:\n  web:\n    emit: [css,\n      csss]\n")
+	assert.Equal(t, "platforms.web.emit", d.Path)
+	assert.Equal(t, 5, d.Line)
+	assert.Contains(t, d.Message, "csss")
+	d = loadErr(t, "version: 1\nplatforms:\n  web: {emit: csss}\n")
+	assert.Equal(t, 3, d.Line)
+}
+
+func TestEmitFutureFormatsAccepted(t *testing.T) {
+	c := mustLoad(t, "version: 1\nplatforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: kotlin}\n  windows: {emit: [xaml]}\n")
+	assert.Equal(t, []string{"swift", "colorsets"}, c.Platforms[0].Emit)
+}
+
+func TestOutKeyMustBeEmitted(t *testing.T) {
+	d := loadErr(t, "version: 1\nplatforms:\n  web:\n    emit: css\n    out:\n      csss: x.css\n")
+	assert.Equal(t, "platforms.web.out.csss", d.Path)
+	assert.Equal(t, 6, d.Line)
+	assert.Contains(t, d.Message, "csss")
 }

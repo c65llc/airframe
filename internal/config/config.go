@@ -346,8 +346,28 @@ func underRoot(key, v, at string, line int) (string, *buildError) {
 	return clean, nil
 }
 
+// Formats are the emit formats airframe.yaml may name: css and json are
+// built now; swift, colorsets, kotlin and xaml are accepted so a config can
+// declare them, and are reported as not yet built until their emitters land.
+var Formats = []string{"css", "json", "swift", "colorsets", "kotlin", "xaml"}
+
 func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 	p := Platform{Name: key.Value, Emit: stringList(field(n, "emit")), Consumers: stringList(field(n, "consumers"))}
+	if e := field(n, "emit"); e != nil {
+		items := []*yaml.Node{e}
+		if e.Kind == yaml.SequenceNode {
+			items = e.Content
+		}
+		for _, it := range items {
+			if !slices.Contains(Formats, it.Value) {
+				return p, &buildError{
+					msg: fmt.Sprintf("platform %s: unknown emit format %s; known: %s",
+						p.Name, it.Value, strings.Join(Formats, ", ")),
+					path: "platforms." + p.Name + ".emit", line: it.Line,
+				}
+			}
+		}
+	}
 	if o := field(n, "out"); o != nil {
 		p.Out = map[string]string{}
 		if o.Kind == yaml.ScalarNode {
@@ -365,6 +385,13 @@ func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 		} else {
 			ks, vs := mapping(o)
 			for i, k := range ks {
+				if !slices.Contains(p.Emit, k.Value) {
+					return p, &buildError{
+						msg: fmt.Sprintf("platform %s: out names %s, which is not one of its emit formats (%s)",
+							p.Name, k.Value, strings.Join(p.Emit, ", ")),
+						path: "platforms." + p.Name + ".out." + k.Value, line: k.Line,
+					}
+				}
 				clean, err := underRoot("out", vs[i].Value, "platforms."+p.Name+".out."+k.Value, vs[i].Line)
 				if err != nil {
 					return p, err
