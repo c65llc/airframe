@@ -125,3 +125,12 @@ dist/airframe_*/airframe version
 - **Signing and provenance.** Releases are verified by SHA-256 only. Signing
   `checksums.txt` (cosign keyless) and publishing GitHub artifact attestations
   / SLSA provenance, with the action verifying them, is a follow-up.
+
+## Tags are never reused
+
+The `c65llc` organization enforces immutable releases on every repository. Once
+a version is published, its tag can never be created again, not even after the
+repository is deleted and recreated under the same name. A release that has to
+be redone ships as the next patch version. That is why the first published
+release of this repository is `v0.1.1`: `v0.1.0` was published before the
+repository was rebuilt and its tag is permanently reserved.

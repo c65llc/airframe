@@ -6,9 +6,9 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.1.0 is the first release: the core. Nothing here is stable yet.
+v0.1.1 is the first release: the core. Nothing here is stable yet.
 
-**What v0.1.0 does**
+**What v0.1.1 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
 - **Lints the token source.** Tiers (a primitive aliases nothing; a semantic token reads primitives; a component token reads semantics), literals in semantic tokens, density coverage, accent groups, hue families, alias cycles and type mismatches, ambiguous or conflicting mode values, stale generated files and unformatted sources. `airframe rules` lists every rule; each has a page at `https://airframe.c65llc.com/rules/<rule>/`.
@@ -17,9 +17,9 @@ v0.1.0 is the first release: the core. Nothing here is stable yet.
 - **Speaks a gate protocol.** `airframe lint --format gate` prints a JSON verdict for CI gates, and `--json` prints the findings.
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
 
-**Planned (not in v0.1.0)**
+**Planned (not in v0.1.1)**
 
-- Native emitters: Swift and asset-catalog colorsets, Kotlin/Compose, C#/XAML. `airframe.yaml` already accepts `swift`, `colorsets`, `kotlin` and `xaml`; v0.1.0 builds nothing for them and says so (`emit-unsupported`, a warning).
+- Native emitters: Swift and asset-catalog colorsets, Kotlin/Compose, C#/XAML. `airframe.yaml` already accepts `swift`, `colorsets`, `kotlin` and `xaml`; v0.1.1 builds nothing for them and says so (`emit-unsupported`, a warning).
 - Consumer rules: reading tokens where they are used (every platform's code, not just the token files) to enforce tiers and ownership at the consumer.
 - Components and a reference surface for asking which token to use and whether a file may read it.
 
@@ -61,7 +61,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.1.0
+    version: v0.1.1
     args: lint --format gate
 ```
 
