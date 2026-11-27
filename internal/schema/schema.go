@@ -32,10 +32,14 @@ var configSchema []byte
 //go:embed tokens.schema.json
 var tokensSchema []byte
 
-// sources maps a document kind to its schema. Task 7 adds "invariants".
+//go:embed invariants.schema.json
+var invariantsSchema []byte
+
+// sources maps a document kind to its schema.
 var sources = map[string][]byte{
-	"config": configSchema,
-	"tokens": tokensSchema,
+	"config":     configSchema,
+	"tokens":     tokensSchema,
+	"invariants": invariantsSchema,
 }
 
 var (
