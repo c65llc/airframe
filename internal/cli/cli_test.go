@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -86,16 +87,40 @@ func TestWriteFileCreatesParentsAtomically(t *testing.T) {
 	require.Len(t, ents, 1, "no temporary file left behind")
 	fi, err := ents[0].Info()
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o644), fi.Mode().Perm())
+	assertPerm(t, runtime.GOOS, 0o644, fi.Mode().Perm())
 
 	// An existing file keeps its permission bits.
 	require.NoError(t, os.Chmod(filepath.Join(dir, "a", "b", "c.css"), 0o600))
 	require.NoError(t, writeFile(root, "a/b/c.css", []byte("z\n")))
 	fi, err = os.Stat(filepath.Join(dir, "a", "b", "c.css"))
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+	assertPerm(t, runtime.GOOS, 0o600, fi.Mode().Perm())
 
 	assert.Error(t, writeFile(root, "../escape.css", []byte("x\n")))
+}
+
+// assertPerm checks a file's permission bits. Windows has no Unix modes:
+// Go reports 0666 for a writable file and 0444 for a read-only one, so
+// there only the owner-write bit (the read-only attribute) is compared.
+func assertPerm(t *testing.T, goos string, want, got os.FileMode) {
+	t.Helper()
+	if goos == "windows" {
+		assert.Equal(t, want&0o200, got&0o200, "read-only attribute: want %v, got %v", want, got)
+		return
+	}
+	assert.Equal(t, want, got)
+}
+
+func TestAssertPermOnWindows(t *testing.T) {
+	// What Windows reports for the two files above passes there.
+	assertPerm(t, "windows", 0o644, 0o666)
+	assertPerm(t, "windows", 0o600, 0o666)
+	ft := &testing.T{}
+	assertPerm(ft, "windows", 0o644, 0o444)
+	assert.True(t, ft.Failed(), "a read-only file is not a writable one")
+	ft = &testing.T{}
+	assertPerm(ft, "linux", 0o644, 0o666)
+	assert.True(t, ft.Failed(), "elsewhere the full bits are compared")
 }
 
 // TestBuildRefusesSymlinkOutOfRoot: a generated directory that is a symlink
