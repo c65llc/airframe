@@ -65,7 +65,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
     args: lint --format gate
 ```
 
-The action downloads that release's binary for the runner, verifies it against the release checksums and runs it. While the repository is private, the action's unauthenticated download cannot fetch releases from another repository's workflow; until it is public, install the binary in a step of your own.
+The action downloads that release's binary for the runner, verifies it against the release checksums and runs it.
 
 ## License
 

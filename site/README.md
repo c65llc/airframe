@@ -22,4 +22,4 @@ Open [the local preview](http://127.0.0.1:8000/). The copy button uses the brows
 
 The three ribs form an A and represent the primitive, semantic, and component tiers from base to top. The corner brackets, midnight `#101E30`, mist `#F5F7F8`, Inter, and JetBrains Mono come from Starboard’s visual vocabulary. Airframe uses C65’s ember `#DD8554` as its signature color and uses Starboard’s mint `#68DBC6` for terminal feedback. The light lockup uses darker ember `#A34C28`.
 
-Product links go to the Airframe repository and its releases. If the repository is private, visitors need GitHub access before they can view the source or download releases.
+Product links go to the Airframe repository and its releases. The repository is public, so visitors can view the source and download releases without signing in.

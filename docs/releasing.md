@@ -103,14 +103,13 @@ exercised after `v0.1.0` is published: run the action against it
 (`uses: ./` with `version: v0.1.0`) on all three operating systems and
 confirm it passes.
 
-## Private repository caveat
+## The action downloads without a token
 
-While `c65llc/airframe` is private, the composite Action's download is
-unauthenticated (`curl` against `github.com/.../releases/download`), so it
-cannot fetch releases from another repository: a workflow in a different repo
-using `uses: c65llc/airframe@v0` gets a 404 on the archive. The action works
-only once the repository, or at least its releases, is public (or if a
-future version passes a token).
+The composite Action's download is unauthenticated (`curl` against
+`github.com/.../releases/download`), which works because `c65llc/airframe` and
+its releases are public. If the repository were ever made private again, a
+workflow in another repository using `uses: c65llc/airframe@v0` would get a 404
+on the archive until the action passes a token.
 
 ## Local dry run
 
