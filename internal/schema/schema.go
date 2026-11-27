@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	jskind "github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
@@ -90,6 +91,9 @@ func Validate(kind string, doc any) []diag.Diagnostic {
 			root = n.Content[0]
 		}
 		value = nil
+		if ds := checkKeys(root, nil); len(ds) > 0 {
+			return ds
+		}
 		if root != nil && root.Kind != 0 {
 			if err := root.Decode(&value); err != nil {
 				return []diag.Diagnostic{invalid(err.Error(), "", root.Line)}
@@ -126,14 +130,11 @@ func Validate(kind string, doc any) []diag.Diagnostic {
 		}
 		loc := e.InstanceLocation
 		// An unknown key is reported at the key itself, one finding per key.
-		if ap, ok := e.ErrorKind.(interface{ KeywordPath() []string }); ok && len(ap.KeywordPath()) == 1 && ap.KeywordPath()[0] == "additionalProperties" {
-			props := additionalProps(e)
-			for _, k := range props {
+		if ap, ok := e.ErrorKind.(*jskind.AdditionalProperties); ok {
+			for _, k := range ap.Properties {
 				add(&out, seen, fmt.Sprintf("unknown key %q", k), append(append([]string{}, loc...), k), root)
 			}
-			if len(props) > 0 {
-				return
-			}
+			return
 		}
 		add(&out, seen, e.ErrorKind.LocalizedString(p), loc, root)
 	}
@@ -141,19 +142,41 @@ func Validate(kind string, doc any) []diag.Diagnostic {
 	return out
 }
 
-// additionalProps extracts the offending keys from an additionalProperties
-// error; its message has the form "additional properties 'a', 'b' not allowed".
-func additionalProps(e *jsonschema.ValidationError) []string {
-	msg := e.ErrorKind.LocalizedString(message.NewPrinter(language.English))
-	const pre, post = "additional properties ", " not allowed"
-	if !strings.HasPrefix(msg, pre) || !strings.HasSuffix(msg, post) {
+// checkKeys walks a YAML node tree and reports mapping keys that cannot be
+// represented in JSON (non-strings) and duplicate keys, each at its own line.
+func checkKeys(n *yaml.Node, path []string) []diag.Diagnostic {
+	if n == nil {
 		return nil
 	}
-	var keys []string
-	for _, f := range strings.Split(strings.TrimSuffix(strings.TrimPrefix(msg, pre), post), ", ") {
-		keys = append(keys, strings.Trim(f, "'"))
+	var out []diag.Diagnostic
+	switch n.Kind {
+	case yaml.DocumentNode, yaml.SequenceNode:
+		for i, c := range n.Content {
+			out = append(out, checkKeys(c, append(path, strconv.Itoa(i)))...)
+		}
+	case yaml.MappingNode:
+		seen := map[string]bool{}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			k, v := n.Content[i], n.Content[i+1]
+			if k.Tag == "!!merge" {
+				continue
+			}
+			here := strings.Join(append(append([]string{}, path...), k.Value), ".")
+			if k.Kind != yaml.ScalarNode || k.Tag != "!!str" {
+				out = append(out, invalid("mapping keys must be strings", here, k.Line))
+				continue
+			}
+			if seen[k.Value] {
+				d := invalid(fmt.Sprintf("duplicate key %q", k.Value), here, k.Line)
+				d.Rule = "yaml-syntax"
+				d.Docs = diag.DocsURL(d.Rule)
+				out = append(out, d)
+			}
+			seen[k.Value] = true
+			out = append(out, checkKeys(v, append(path, k.Value))...)
+		}
 	}
-	return keys
+	return out
 }
 
 func add(out *[]diag.Diagnostic, seen map[string]bool, msg string, loc []string, root *yaml.Node) {

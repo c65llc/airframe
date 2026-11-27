@@ -70,3 +70,16 @@ func TestMatches(t *testing.T) {
 	assert.True(t, k.Matches(Context{"appearance": "dark", "app": "wiki"}))
 	assert.False(t, k.Matches(Context{"appearance": "light"}))
 }
+
+func TestCheckAxesOK(t *testing.T) {
+	assert.NoError(t, specConfig(t).CheckAxes([]string{"appearance", "density"}))
+	assert.NoError(t, specConfig(t).CheckAxes(nil))
+}
+
+func TestCheckAxesUnknown(t *testing.T) {
+	assert.EqualError(t, specConfig(t).CheckAxes([]string{"appearance", "apperance"}), `unknown axis "apperance"`)
+}
+
+func TestCheckAxesDeferred(t *testing.T) {
+	assert.EqualError(t, specConfig(t).CheckAxes([]string{"swatch"}), "axis swatch has no values loaded")
+}

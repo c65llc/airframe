@@ -66,9 +66,25 @@ func (c *Config) ParseModeKey(s string) (ModeKey, error) {
 	return ModeKey(strings.Join(pairs, "+")), nil
 }
 
+// CheckAxes returns an error naming the first of names that is not a
+// configured axis or whose values are not loaded yet.
+func (c *Config) CheckAxes(names []string) error {
+	for _, n := range names {
+		ax, ok := c.axis(n)
+		if !ok {
+			return fmt.Errorf("unknown axis %q", n)
+		}
+		if ax.Deferred() {
+			return fmt.Errorf("axis %s has no values loaded", n)
+		}
+	}
+	return nil
+}
+
 // Contexts returns the product of the values of the named axes, in config
 // order with the first-named-in-config axis varying slowest. Every other
-// axis sits at its first value. Deferred axes and unknown names are left out.
+// axis sits at its first value. Deferred axes and unknown names are left
+// out, so callers must CheckAxes first or a typo shrinks the product silently.
 func (c *Config) Contexts(axes []string) []Context {
 	out := []Context{{}}
 	for _, a := range c.Axes {

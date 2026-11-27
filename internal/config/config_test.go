@@ -157,3 +157,30 @@ func TestValidatePlainValue(t *testing.T) {
 	require.Len(t, ds, 1)
 	assert.Zero(t, ds[0].Line)
 }
+
+func TestUnknownKeyWithPunctuation(t *testing.T) {
+	_, ds := Load([]byte("version: 1\nfoo: 1\n\"it's, odd\": 2\n"))
+	require.Len(t, ds, 2)
+	byPath := map[string]diag.Diagnostic{}
+	for _, d := range ds {
+		byPath[d.Path] = d
+	}
+	assert.Equal(t, 3, byPath["it's, odd"].Line)
+	assert.Equal(t, 2, byPath["foo"].Line)
+}
+
+func TestNonStringKey(t *testing.T) {
+	_, ds := Load([]byte("version: 1\n1: x\n"))
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "mapping keys must be strings", ds[0].Message)
+	assert.Equal(t, 2, ds[0].Line)
+}
+
+func TestDuplicateKey(t *testing.T) {
+	_, ds := Load([]byte("version: 1\ncontent: a\ncontent: b\n"))
+	require.Len(t, ds, 1)
+	assert.Equal(t, "yaml-syntax", ds[0].Rule)
+	assert.Equal(t, `duplicate key "content"`, ds[0].Message)
+	assert.Equal(t, 3, ds[0].Line)
+}
