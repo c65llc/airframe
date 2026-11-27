@@ -73,8 +73,11 @@ func TestGateWithoutProject(t *testing.T) {
 
 func TestWriteFileCreatesParentsAtomically(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, writeFile(dir, "a/b/c.css", []byte("x\n")))
-	require.NoError(t, writeFile(dir, "a/b/c.css", []byte("y\n")))
+	root, err := os.OpenRoot(dir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = root.Close() })
+	require.NoError(t, writeFile(root, "a/b/c.css", []byte("x\n")))
+	require.NoError(t, writeFile(root, "a/b/c.css", []byte("y\n")))
 	got, err := os.ReadFile(filepath.Join(dir, "a", "b", "c.css"))
 	require.NoError(t, err)
 	assert.Equal(t, "y\n", string(got))
@@ -84,6 +87,36 @@ func TestWriteFileCreatesParentsAtomically(t *testing.T) {
 	fi, err := ents[0].Info()
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0o644), fi.Mode().Perm())
+
+	// An existing file keeps its permission bits.
+	require.NoError(t, os.Chmod(filepath.Join(dir, "a", "b", "c.css"), 0o600))
+	require.NoError(t, writeFile(root, "a/b/c.css", []byte("z\n")))
+	fi, err = os.Stat(filepath.Join(dir, "a", "b", "c.css"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), fi.Mode().Perm())
+
+	assert.Error(t, writeFile(root, "../escape.css", []byte("x\n")))
+}
+
+// TestBuildRefusesSymlinkOutOfRoot: a generated directory that is a symlink
+// to a directory outside the project stops the build, and nothing is
+// written outside.
+func TestBuildRefusesSymlinkOutOfRoot(t *testing.T) {
+	dir, outside := t.TempDir(), t.TempDir()
+	code, _, stderr := run("--root", dir, "init")
+	require.Equal(t, ExitOK, code, stderr)
+	gen := filepath.Join(dir, "design-system", "generated")
+	require.NoError(t, os.RemoveAll(gen))
+	if err := os.Symlink(outside, gen); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	code, _, stderr = run("--root", dir, "build")
+	assert.Equal(t, ExitUsage, code, stderr)
+	assert.NotEmpty(t, stderr)
+	ents, err := os.ReadDir(outside)
+	require.NoError(t, err)
+	assert.Empty(t, ents, "nothing written outside the root")
 }
 
 func TestLevenshtein(t *testing.T) {

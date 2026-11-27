@@ -164,13 +164,11 @@ func build(root *yaml.Node) (*Config, *buildError) {
 	if n := field(root, "content"); n != nil {
 		// content is a directory under the project root, compared and
 		// joined in its clean form.
-		c.Content = path.Clean(n.Value)
-		if path.IsAbs(c.Content) || c.Content == ".." || strings.HasPrefix(c.Content, "../") {
-			return nil, &buildError{
-				msg:  fmt.Sprintf("content %s must be a directory under the project root", n.Value),
-				path: "content", line: n.Line,
-			}
+		clean, err := underRoot("content", n.Value, "content", n.Line)
+		if err != nil {
+			return nil, err
 		}
+		c.Content = strings.TrimSuffix(clean, "/")
 	}
 
 	if tn := field(root, "tiers"); tn != nil {
@@ -246,6 +244,27 @@ func buildAxis(name string, n *yaml.Node) Axis {
 	return a
 }
 
+var driveLetter = regexp.MustCompile(`^[A-Za-z]:`)
+
+// underRoot cleans v, a project-relative slash path the config names under
+// key (keeping a trailing slash, which marks a directory output), and
+// rejects one that could leave the project root: absolute, with a
+// ".." escaping it, with a backslash, or with a drive-letter prefix.
+func underRoot(key, v, at string, line int) (string, *buildError) {
+	clean := path.Clean(v)
+	if path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") ||
+		strings.Contains(v, `\`) || driveLetter.MatchString(v) {
+		return "", &buildError{
+			msg:  fmt.Sprintf("%s %s must be a slash path under the project root", key, v),
+			path: at, line: line,
+		}
+	}
+	if strings.HasSuffix(v, "/") && clean != "." {
+		clean += "/"
+	}
+	return clean, nil
+}
+
 func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 	p := Platform{Name: key.Value, Emit: stringList(field(n, "emit")), Consumers: stringList(field(n, "consumers"))}
 	if o := field(n, "out"); o != nil {
@@ -257,11 +276,19 @@ func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 					path: "platforms." + p.Name + ".out", line: o.Line,
 				}
 			}
-			p.Out[p.Emit[0]] = o.Value
+			clean, err := underRoot("out", o.Value, "platforms."+p.Name+".out", o.Line)
+			if err != nil {
+				return p, err
+			}
+			p.Out[p.Emit[0]] = clean
 		} else {
 			ks, vs := mapping(o)
 			for i, k := range ks {
-				p.Out[k.Value] = vs[i].Value
+				clean, err := underRoot("out", vs[i].Value, "platforms."+p.Name+".out."+k.Value, vs[i].Line)
+				if err != nil {
+					return p, err
+				}
+				p.Out[k.Value] = clean
 			}
 		}
 	}

@@ -1,0 +1,31 @@
+# A platform out may not leave the project root: the config is invalid and
+# build writes nothing.
+mkdir $WORK/proj
+cd $WORK/proj
+exits 1 airframe build
+stderr 'airframe.yaml:7: error schema-invalid: out ../outside/tokens.css must be a slash path under the project root \(platforms.web.out\)'
+! exists $WORK/outside/tokens.css
+! exists $WORK/outside
+exits 1 airframe lint
+stdout 'schema-invalid'
+
+-- proj/airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], binding: runtime, web: {attr: data-density}}
+platforms:
+  web: {emit: css, out: ../outside/tokens.css}
+-- proj/design-system/a.tokens.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 4,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}

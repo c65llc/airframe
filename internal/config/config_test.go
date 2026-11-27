@@ -209,3 +209,36 @@ func TestContentMustStayUnderTheRoot(t *testing.T) {
 		assert.Contains(t, ds[0].Message, in, in)
 	}
 }
+
+func TestContentRejectsBackslashAndDrive(t *testing.T) {
+	for _, in := range []string{`a\\b`, "C:/x", "c:x"} {
+		c, ds := Load([]byte("version: 1\ncontent: '" + in + "'\n"))
+		assert.Nil(t, c, in)
+		require.Len(t, ds, 1, in)
+		assert.Equal(t, "schema-invalid", ds[0].Rule, in)
+		assert.Equal(t, "content", ds[0].Path, in)
+		assert.Equal(t, 2, ds[0].Line, in)
+	}
+}
+
+func TestOutEscapeRejected(t *testing.T) {
+	for _, in := range []string{"../x", "/etc/x", "C:/x", `a\\b`, "a/../../x"} {
+		for _, src := range []string{
+			"version: 1\nplatforms:\n  web:\n    emit: css\n    out: '" + in + "'\n",
+			"version: 1\nplatforms:\n  web:\n    emit: [css]\n    out:\n      css: '" + in + "'\n",
+		} {
+			c, ds := Load([]byte(src))
+			assert.Nil(t, c, src)
+			require.Len(t, ds, 1, src)
+			assert.Equal(t, "schema-invalid", ds[0].Rule, src)
+			assert.Contains(t, ds[0].Path, "platforms.web.out", src)
+			assert.Contains(t, []int{5, 6}, ds[0].Line, src)
+			assert.Contains(t, ds[0].Message, "under the project root", src)
+		}
+	}
+}
+
+func TestOutIsCleaned(t *testing.T) {
+	c := mustLoad(t, "version: 1\nplatforms:\n  web: {emit: css, out: ./gen//tokens.css}\n")
+	assert.Equal(t, "gen/tokens.css", c.Platforms[0].Out["css"])
+}

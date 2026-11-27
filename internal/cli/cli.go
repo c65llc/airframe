@@ -18,9 +18,11 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -412,31 +414,52 @@ func (inv *invocation) load() (string, *project.Project, []diag.Diagnostic, erro
 	return dir, p, ds, nil
 }
 
-// writeFile writes data to the project-relative path rel under dir
+// writeFile writes data to the project-relative slash path rel inside root
 // atomically: a temporary file in the same directory, renamed into place.
-// It creates the parent directories.
-func writeFile(dir, rel string, data []byte) error {
-	name := filepath.Join(dir, filepath.FromSlash(rel))
+// It creates the parent directories. Every step goes through root, so
+// neither ".." nor a symlink can carry the write outside the project. An
+// existing file keeps its permission bits; a new one gets 0644.
+func writeFile(root *os.Root, rel string, data []byte) error {
+	name := filepath.FromSlash(rel)
 	parent := filepath.Dir(name)
-	if err := os.MkdirAll(parent, 0o755); err != nil {
+	if err := root.MkdirAll(parent, 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(parent, "."+filepath.Base(name)+".tmp-*")
-	if err != nil {
+	perm := os.FileMode(0o644)
+	if fi, err := root.Stat(name); err == nil {
+		perm = fi.Mode().Perm()
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return err
 	}
-	_, err = tmp.Write(data)
+	var tmp *os.File
+	var tmpName string
+	for range 10 {
+		tmpName = filepath.Join(parent, "."+filepath.Base(name)+".tmp-"+strconv.FormatUint(rand.Uint64(), 36))
+		f, err := root.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		tmp = f
+		break
+	}
+	if tmp == nil {
+		return fmt.Errorf("write %s: no free temporary name", rel)
+	}
+	_, err := tmp.Write(data)
 	if cerr := tmp.Close(); err == nil {
 		err = cerr
 	}
 	if err == nil {
-		err = os.Chmod(tmp.Name(), 0o644)
+		err = root.Chmod(tmpName, perm)
 	}
 	if err == nil {
-		err = os.Rename(tmp.Name(), name)
+		err = root.Rename(tmpName, name)
 	}
 	if err != nil {
-		_ = os.Remove(tmp.Name())
+		_ = root.Remove(tmpName)
 	}
 	return err
 }
@@ -466,15 +489,33 @@ func runInit(inv *invocation) int {
 	if dir == "" {
 		dir = "."
 	}
-	if _, err := os.Stat(filepath.Join(dir, config.File)); err == nil {
-		_, _ = fmt.Fprintf(inv.stderr, "airframe init: %s already exists; init never overwrites a project\n",
-			filepath.Join(dir, config.File))
-		return ExitUsage
-	} else if !errors.Is(err, fs.ErrNotExist) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return inv.fail(err)
 	}
-	for _, name := range slices.Sorted(maps.Keys(files)) {
-		if err := writeFile(dir, name, files[name]); err != nil {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return inv.fail(err)
+	}
+	defer func() { _ = root.Close() }()
+	names := slices.Sorted(maps.Keys(files))
+	// Check every path first, so init writes all of the profile or nothing.
+	var existing []string
+	for _, name := range names {
+		_, err := root.Lstat(filepath.FromSlash(name))
+		switch {
+		case err == nil:
+			existing = append(existing, name)
+		case !errors.Is(err, fs.ErrNotExist):
+			return inv.fail(err)
+		}
+	}
+	if len(existing) > 0 {
+		_, _ = fmt.Fprintf(inv.stderr, "airframe init: already exist, and init never overwrites: %s\n",
+			strings.Join(existing, ", "))
+		return ExitUsage
+	}
+	for _, name := range names {
+		if err := writeFile(root, name, files[name]); err != nil {
 			return inv.fail(err)
 		}
 		_, _ = fmt.Fprintln(inv.stdout, name)
@@ -499,6 +540,11 @@ func runFmt(inv *invocation) int {
 		diag.WriteText(inv.stderr, ds, nil)
 		return ExitFindings
 	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return inv.fail(err)
+	}
+	defer func() { _ = root.Close() }()
 	check := *inv.bools["check"]
 	code := ExitOK
 	for _, name := range format.Paths(p) {
@@ -514,7 +560,7 @@ func runFmt(inv *invocation) int {
 		}
 		if check {
 			code = ExitFindings
-		} else if err := writeFile(dir, name, got); err != nil {
+		} else if err := writeFile(root, name, got); err != nil {
 			return inv.fail(err)
 		}
 		_, _ = fmt.Fprintln(inv.stdout, name)
@@ -614,7 +660,8 @@ func runBuild(inv *invocation) int {
 }
 
 // build writes, or with check lists, every output the filter selects that
-// differs from the file on disk (CRLF line endings do not count). It
+// differs from the file on disk (CRLF line endings do not count); a missing
+// output is stale, any other read error stops the build (exit 2). It
 // refuses a project that did not load cleanly: building from what was read
 // would drop the rest. A failing emitter is reported on stderr and fails
 // the run; the other outputs are still written.
@@ -623,6 +670,11 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 		diag.WriteText(inv.stderr, ds, nil)
 		return ExitFindings
 	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return inv.fail(err)
+	}
+	defer func() { _ = root.Close() }()
 	gen, bds := emit.Build(p, filter)
 	code := ExitOK
 	if len(bds) > 0 {
@@ -630,7 +682,11 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 		code = ExitFindings
 	}
 	for _, name := range slices.Sorted(maps.Keys(gen)) {
+		// A missing output is stale; any other read error stops the build.
 		disk, err := fs.ReadFile(p.FS, name)
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return inv.fail(err)
+		}
 		if err == nil && bytes.Equal(lf(disk), gen[name]) {
 			continue
 		}
@@ -639,7 +695,7 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 			code = ExitFindings
 			continue
 		}
-		if err := writeFile(dir, name, gen[name]); err != nil {
+		if err := writeFile(root, name, gen[name]); err != nil {
 			return inv.fail(err)
 		}
 		_, _ = fmt.Fprintln(inv.stdout, "wrote", name)

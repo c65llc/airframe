@@ -26,7 +26,7 @@ stdout '^token-unclassified  '
 
 # A second init refuses to overwrite the project.
 exits 2 airframe init
-stderr 'airframe.yaml already exists'
+stderr 'already exist, and init never overwrites: airframe.yaml, design-system/invariants.yaml'
 
 # An unknown profile is a usage error.
 mkdir other

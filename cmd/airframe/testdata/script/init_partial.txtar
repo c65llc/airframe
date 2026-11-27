@@ -1,0 +1,13 @@
+# init checks every profile path before writing: an existing token file
+# without airframe.yaml still refuses, and nothing is written.
+exits 2 airframe init
+stderr 'already exist, and init never overwrites: design-system/tokens/semantic.tokens.json$'
+! stdout .
+! exists airframe.yaml
+! exists design-system/invariants.yaml
+cmp design-system/tokens/semantic.tokens.json mine.json
+
+-- design-system/tokens/semantic.tokens.json --
+{"mine": true}
+-- mine.json --
+{"mine": true}
