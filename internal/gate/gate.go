@@ -66,8 +66,8 @@ type document struct {
 }
 
 // Write writes r as gate JSON with a two-space indent. Checks are the
-// rules that scanned something, in r's tally order; notApplicable the ones
-// whose tally says why they had no input. scanned.files is files, the
+// rules that scanned something, in r's tally order; every other rule is in
+// notApplicable with its tally's reason, so each rule is in exactly one. scanned.files is files, the
 // number of files the project loaded; scanned.items sums every rule's
 // items. Findings are every reported diagnostic; exemptions come from r,
 // which already leaves out those of rules set off. Empty lists are written
@@ -86,8 +86,7 @@ func Write(w io.Writer, r lint.Result, st selftest.Result, files int) error {
 		doc.Scanned.Items += t.Items
 		if t.Items > 0 {
 			doc.Checks = append(doc.Checks, check{ID: t.Rule, Scanned: t.Items})
-		}
-		if t.NotApplicable != "" {
+		} else {
 			doc.NotApplicable = append(doc.NotApplicable, notApplicable{ID: t.Rule, Reason: t.NotApplicable})
 		}
 	}

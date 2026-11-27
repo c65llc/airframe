@@ -9,7 +9,7 @@ A file does not match its schema: an unknown key, a missing field, or a value of
 
 **Why**
 
-Airframe reads `airframe.yaml`, the token files and `invariants.yaml` strictly. An unknown key is usually a typo whose intent would otherwise be silently ignored. An invariant with a missing field is reported here rather than checked against zero values.
+Airframe reads `airframe.yaml`, the token files and `invariants.yaml` strictly. An unknown key is usually a typo whose intent would otherwise be silently ignored. An invariant with a missing field is reported here rather than checked against zero values, and so is one whose selector picks no token (a min-dimension `match`, or hue-reserved `only` globs, naming nothing), since a typo'd absolute would otherwise read as not applicable.
 
 **Fix**
 

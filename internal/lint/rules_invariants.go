@@ -182,6 +182,15 @@ func badInvariant(p *project.Project, inv invariants.Invariant, format string, a
 	}
 }
 
+// emptySelector is a schema-invalid finding at inv's entry for a selector
+// (min-dimension match, hue-reserved only) that picks no token: a typo'd
+// absolute, never a not-applicable one.
+func emptySelector(p *project.Project, inv invariants.Invariant, msg string) diag.Diagnostic {
+	return diag.Diagnostic{
+		Rule: "schema-invalid", Severity: diag.Error, File: invPath(p), Path: inv.ID, Line: inv.Line, Message: msg,
+	}
+}
+
 // finding is an invariant rule's finding on token t. Invariant findings are
 // not token-exemptible: an invariant is the design system's own absolute.
 func finding(rule string, t *tokens.Token, msg string) diag.Diagnostic {
@@ -345,11 +354,13 @@ func ruleHueReserved(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Ta
 			continue
 		}
 		only := strings.Join(inv.Only, ", ")
+		selected := false
 		eachToken(p, func(t *tokens.Token) {
 			if t.Type != "color" {
 				return
 			}
 			allowed := matchesAny(t.Name, inv.Only)
+			selected = selected || allowed
 			seen := map[*tokens.Value]bool{}
 			for i, ctx := range contexts {
 				v := c.resolve(p, t.Name, ctx, keys[i])
@@ -368,6 +379,9 @@ func ruleHueReserved(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Ta
 					deg(inv.Tolerance), deg(inv.Hue), only)))
 			}
 		})
+		if !selected {
+			out = append(out, emptySelector(p, inv, fmt.Sprintf("%s: only [%s] selects no tokens", inv.ID, only)))
+		}
 	}
 	return out, k.tally()
 }
@@ -480,10 +494,12 @@ func ruleDimensionBelow(p *project.Project, c *Context) ([]diag.Diagnostic, diag
 			out = append(out, badInvariant(p, inv, ": match: bad pattern %q", g))
 			continue
 		}
+		selected := false
 		eachToken(p, func(t *tokens.Token) {
 			if t.Type != "dimension" || !matchesAny(t.Name, []string{inv.Match}) {
 				return
 			}
+			selected = true
 			seen := map[*tokens.Value]bool{}
 			for i, ctx := range contexts {
 				v := c.resolve(p, t.Name, ctx, keys[i])
@@ -508,6 +524,9 @@ func ruleDimensionBelow(p *project.Project, c *Context) ([]diag.Diagnostic, diag
 					inv.ID, t.Name, shown, at(shownKey(ctx, axes, c.varies(p, t.Name))), num(inv.Min))))
 			}
 		})
+		if !selected {
+			out = append(out, emptySelector(p, inv, fmt.Sprintf("%s: match %s selects no tokens", inv.ID, inv.Match)))
+		}
 	}
 	return out, k.tally()
 }

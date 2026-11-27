@@ -81,3 +81,18 @@ func TestOffRuleExemptionsDropped(t *testing.T) {
 	assert.NotNil(t, res.Exemptions, "an empty list, never nil")
 	assert.Empty(t, res.Exemptions, "an off rule's exemptions suppressed nothing")
 }
+
+// A rule that scanned nothing and gave no reason of its own is marked not
+// applicable, so it can never read as a clean check.
+func TestEmptyScanIsNotApplicable(t *testing.T) {
+	res := Run(load(t, map[string]string{"a.tokens.json": `{ "gap": { "$type": "number", "$value": 4 } }`}), nil, Options{})
+	reasons := map[string]string{}
+	for _, tl := range res.Tallies {
+		if tl.Items == 0 {
+			assert.NotEmpty(t, tl.NotApplicable, tl.Rule)
+		}
+		reasons[tl.Rule] = tl.NotApplicable
+	}
+	assert.Equal(t, "no tokens in scope", reasons["literal-in-semantic"])
+	assert.Equal(t, "no contrast invariants declared", reasons["contrast-below"], "a rule's own reason stays")
+}

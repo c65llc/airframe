@@ -6,6 +6,8 @@ package gate
 import (
 	"bytes"
 	"encoding/json"
+	"io/fs"
+	"os"
 	"strings"
 	"testing"
 
@@ -101,9 +103,7 @@ func TestGateShape(t *testing.T) {
 		na = append(na, n.ID+": "+n.Reason)
 	}
 	assert.Contains(t, na, "contrast-below: no contrast invariants declared", "a declared-nothing contrast")
-	for _, c := range d.Checks {
-		assert.NotContains(t, na, c.ID, "a check is never also not applicable")
-	}
+	assert.Contains(t, na, "literal-in-semantic: no tokens in scope", "an empty scan never reads as a check")
 
 	assert.Empty(t, d.Findings)
 	assert.Contains(t, raw, `"findings": []`, "empty lists are [], never null")
@@ -149,4 +149,46 @@ func TestGateNilListsAndStable(t *testing.T) {
 	}
 	assert.NotContains(t, a.String(), "null")
 	assert.NotContains(t, a.String(), "failures", "failures appear only when there are some")
+}
+
+// TestEveryRuleInExactlyOneGateList: each rule is either a check (it
+// scanned something) or not applicable, never both and never neither, on
+// the self-test's clean fixture, a one-token project and every flag fixture
+// that loads.
+func TestEveryRuleInExactlyOneGateList(t *testing.T) {
+	projects := map[string]fs.FS{
+		"one-token": project.MemFS{
+			"airframe.yaml":               cfg,
+			"design-system/a.tokens.json": `{ "gap": { "$type": "number", "$value": 4 } }`,
+		},
+		"clean": os.DirFS("../selftest/fixtures/clean"),
+	}
+	flags, err := os.ReadDir("../selftest/fixtures/flag")
+	require.NoError(t, err)
+	for _, e := range flags {
+		projects["flag/"+e.Name()] = os.DirFS("../selftest/fixtures/flag/" + e.Name())
+	}
+	linted := 0
+	for name, fsys := range projects {
+		p, ds, err := project.Load(fsys)
+		require.NoError(t, err, name)
+		if p == nil {
+			continue // loading stopped: no rule ran
+		}
+		linted++
+		_, d := write(t, lint.Run(p, ds, lint.Options{}), selftest.Result{}, len(p.Sources))
+		seen := map[string]int{}
+		for _, c := range d.Checks {
+			seen[c.ID]++
+		}
+		for _, n := range d.NotApplicable {
+			seen[n.ID]++
+			assert.NotEmpty(t, n.Reason, "%s: %s", name, n.ID)
+		}
+		for _, r := range lint.Rules() {
+			assert.Equal(t, 1, seen[r.ID], "%s: %s must be in exactly one of checks / notApplicable", name, r.ID)
+		}
+		assert.Len(t, seen, len(lint.Rules()), name)
+	}
+	assert.Greater(t, linted, 20, "most flag fixtures load")
 }

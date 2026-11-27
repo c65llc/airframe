@@ -31,7 +31,8 @@ const (
 // Result is a self-test run. Flagged counts the rule IDs that fired on
 // their flag fixture; Ignored counts the IDs that stayed silent on the
 // clean fixture. OK is true when every ID did both. Failures says, one line
-// each, what went wrong, naming the rule ID.
+// each, what went wrong, naming the rule ID; a finding whose rule ID is not
+// in lint.AllIDs is a failure too.
 type Result struct {
 	Flagged, Ignored int
 	OK               bool
@@ -44,6 +45,17 @@ func Run() Result { return run(fixtures, lint.AllIDs()) }
 func run(fsys fs.FS, ids []string) Result {
 	var r Result
 	fail := func(format string, a ...any) { r.Failures = append(r.Failures, fmt.Sprintf(format, a...)) }
+	unknown := map[string]bool{}
+	// checkIDs fails once per rule ID outside ids: it has no fixture and
+	// no docs page.
+	checkIDs := func(ds []diag.Diagnostic) {
+		for _, d := range ds {
+			if !slices.Contains(ids, d.Rule) && !unknown[d.Rule] {
+				unknown[d.Rule] = true
+				fail("unknown rule ID emitted: %s", d.Rule)
+			}
+		}
+	}
 
 	for _, id := range ids {
 		dir := path.Join(flagDir, id)
@@ -56,6 +68,7 @@ func run(fsys fs.FS, ids []string) Result {
 			fail("flag: %s: %v", dir, err)
 			continue
 		}
+		checkIDs(ds)
 		if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Rule == id }) {
 			r.Flagged++
 		} else {
@@ -76,6 +89,7 @@ func run(fsys fs.FS, ids []string) Result {
 	if err != nil {
 		fail("clean: %s: %v", cleanDir, err)
 	} else {
+		checkIDs(ds)
 		fired := map[string]bool{}
 		for _, d := range ds {
 			if fired[d.Rule] {

@@ -112,7 +112,8 @@ func TestHueReservedDanger(t *testing.T) {
 }
 
 func TestHueReservedAtZero(t *testing.T) {
-	tokens := `{ "pink": { "$type": "color", "$value": ` + lch(0.6, 0.15, 358) + ` } }`
+	tokens := `{ "pink": { "$type": "color", "$value": ` + lch(0.6, 0.15, 358) + ` },
+  "red": { "$type": "color", "$value": ` + lch(0.6, 0.15, 0) + ` } }`
 	ds, _ := ruleFindings(t, loadInv(t, tokens, "- { id: red, kind: hue-reserved, hue: 0, tolerance: 4, only: [red] }\n"), "hue-reserved")
 	assert.Equal(t, []string{"red: pink has hue 358.0°, within 4.0° of reserved hue 0.0° (only red)"}, messages(ds))
 }
@@ -277,4 +278,30 @@ func BenchmarkInvariants576(b *testing.B) {
 	for range b.N {
 		Run(p, nil, Options{})
 	}
+}
+
+// A min-dimension whose match selects no dimension token is a typo'd
+// absolute: schema-invalid at the invariant's line, not "not applicable".
+func TestMinDimensionMatchSelectsNothing(t *testing.T) {
+	tokens := `{ "button-h": { "$type": "dimension", "$value": { "value": 20, "unit": "px" } } }`
+	ds, _ := ruleFindings(t, loadInv(t, tokens, "- { id: touch-floor, kind: min-dimension, match: \"*-traget\", min: 44 }\n"), "dimension-below")
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "touch-floor: match *-traget selects no tokens", ds[0].Message)
+	assert.Equal(t, "design-system/invariants.yaml", ds[0].File)
+	assert.Equal(t, 1, ds[0].Line)
+}
+
+// A hue-reserved whose only globs select no colour token is reported the
+// same way; the tokens near the hue are still checked.
+func TestHueReservedOnlySelectsNothing(t *testing.T) {
+	tokens := `{ "brand": { "$type": "color", "$value": ` + lch(0.6, 0.14, 26) + ` } }`
+	invs := "- { id: danger-hue-reserved, kind: hue-reserved, hue: 25, tolerance: 8, only: [dagner, dagner-*] }\n"
+	ds, _ := ruleFindings(t, loadInv(t, tokens, invs), "hue-reserved")
+	require.Len(t, ds, 2)
+	assert.Equal(t, "hue-reserved", ds[0].Rule)
+	assert.Equal(t, "schema-invalid", ds[1].Rule)
+	assert.Equal(t, "danger-hue-reserved: only [dagner, dagner-*] selects no tokens", ds[1].Message)
+	assert.Equal(t, "design-system/invariants.yaml", ds[1].File)
+	assert.Equal(t, 1, ds[1].Line)
 }

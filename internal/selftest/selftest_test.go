@@ -6,6 +6,8 @@ package selftest
 import (
 	"io/fs"
 	"os"
+	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -110,4 +112,13 @@ func TestCleanIsMinimal(t *testing.T) {
 		return err
 	}))
 	assert.Equal(t, want, got)
+}
+
+// Any rule ID outside lint.AllIDs is a failure: it has no fixture and no
+// docs page.
+func TestSelfTestUnknownRuleID(t *testing.T) {
+	ids := slices.DeleteFunc(lint.AllIDs(), func(id string) bool { return id == "not-formatted" })
+	r := run(sub(t, func(p string) bool { return strings.HasPrefix(p, "fixtures/flag/not-formatted/") }), ids)
+	assert.False(t, r.OK)
+	assert.Equal(t, []string{"unknown rule ID emitted: not-formatted"}, r.Failures)
 }

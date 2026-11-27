@@ -13,7 +13,7 @@ Some hues carry meaning, such as danger red. If a brand or accent colour lands w
 
 **Fix**
 
-Move the colour's hue outside the tolerance, or, if the token really does mean what the hue means, add it to the invariant's `only` list.
+Move the colour's hue outside the tolerance, or, if the token really does mean what the hue means, add it to the invariant's `only` list. `only` globs that select no colour token are reported as `schema-invalid`.
 
 **Example**
 

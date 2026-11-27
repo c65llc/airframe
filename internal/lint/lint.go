@@ -138,7 +138,9 @@ func Rules() []Rule {
 // through unchanged, joined by p.Tokens.Check's findings and every rule's.
 // A rule's severity is config lint.rules over its Default; an off rule's
 // findings are dropped, and so are the exemptions it recorded, since they
-// suppressed nothing; it is still tallied. Strict then turns warnings
+// suppressed nothing; it is still tallied. A rule that scanned nothing and
+// gave no reason is marked not applicable ("no <noun> in scope"), so an
+// empty scan never reads as a clean check. Strict then turns warnings
 // into errors. Every diagnostic is linked to its rule's page and sorted.
 func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 	all := slices.Clone(loadDiags)
@@ -151,6 +153,13 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 	for _, r := range Rules() {
 		ds, tally := r.Run(p, ctx)
 		tally.Rule = r.ID
+		if tally.Items == 0 && tally.NotApplicable == "" {
+			noun := tally.Noun
+			if noun == "" {
+				noun = "items"
+			}
+			tally.NotApplicable = "no " + noun + " in scope"
+		}
 		res.Tallies = append(res.Tallies, tally)
 		sev := r.Default
 		if s, ok := p.Config.Lint.Rules[r.ID]; ok {

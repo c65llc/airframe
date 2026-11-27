@@ -13,7 +13,7 @@ Touch targets have a floor that every density must respect. Here the floor is de
 
 **Fix**
 
-Raise the token's value (or its compact density value) to at least the minimum. If the token is not a target, rename it so the invariant's `match` pattern no longer covers it.
+Raise the token's value (or its compact density value) to at least the minimum. If the token is not a target, rename it so the invariant's `match` pattern no longer covers it. A `match` that selects no dimension token is reported as `schema-invalid`.
 
 **Example**
 
