@@ -217,6 +217,14 @@ func buildAxis(key, n *yaml.Node) (Axis, *buildError) {
 			a.Source = strings.TrimPrefix(v.Value, "from ")
 		} else {
 			a.Values = stringList(v)
+			for _, it := range v.Content {
+				if it.Value == "attr" || it.Value == "also" {
+					return a, &buildError{
+						msg:  fmt.Sprintf("axis %s: value %s is reserved (web.%s spells the axis, not a value)", name, it.Value, it.Value),
+						path: at + ".values", line: it.Line,
+					}
+				}
+			}
 		}
 	}
 	if b := field(n, "binding"); b != nil {
@@ -229,6 +237,18 @@ func buildAxis(key, n *yaml.Node) (Axis, *buildError) {
 	selNodes := map[string]*yaml.Node{}
 	if w := field(n, "web"); w != nil {
 		a.Web = WebMode{Selectors: map[string][]string{}, Also: map[string]string{}}
+		// notValue is a web key that should name one of the axis's
+		// values and does not. A deferred axis's values are not loaded,
+		// so its keys cannot be checked yet.
+		notValue := func(k *yaml.Node, key string) *buildError {
+			if a.Deferred() || slices.Contains(a.Values, k.Value) {
+				return nil
+			}
+			return &buildError{
+				msg:  fmt.Sprintf("%s is not a value of %s", key, name),
+				path: key, line: k.Line,
+			}
+		}
 		ks, vs := mapping(w)
 		for i, k := range ks {
 			switch k.Value {
@@ -238,9 +258,15 @@ func buildAxis(key, n *yaml.Node) (Axis, *buildError) {
 				alsoNode = vs[i]
 				aks, avs := mapping(vs[i])
 				for j, ak := range aks {
+					if err := notValue(ak, at+".web.also."+ak.Value); err != nil {
+						return a, err
+					}
 					a.Web.Also[ak.Value] = avs[j].Value
 				}
 			default:
+				if err := notValue(k, at+".web."+k.Value); err != nil {
+					return a, err
+				}
 				a.Web.Selectors[k.Value] = stringList(vs[i])
 				selNodes[k.Value] = vs[i]
 			}

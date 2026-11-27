@@ -389,3 +389,23 @@ func TestMultipleDocuments(t *testing.T) {
 	assert.Equal(t, 3, ds[0].Line)
 	assert.Equal(t, File, ds[0].File)
 }
+
+func TestWebSelectorKeyMustBeAValue(t *testing.T) {
+	d := loadErr(t, "version: 1\nmodes:\n  appearance:\n    values: [light, dark]\n    web:\n      light: \":root\"\n      darkk: \":root[data-theme='dark']\"\n")
+	assert.Equal(t, "modes.appearance.web.darkk is not a value of appearance", d.Message)
+	assert.Equal(t, "modes.appearance.web.darkk", d.Path)
+	assert.Equal(t, 7, d.Line)
+
+	d = loadErr(t, "version: 1\nmodes:\n  density:\n    values: [standard, relaxed]\n    base: standard\n    web:\n      attr: data-density\n      also: { relaxd: \"@media (pointer: coarse)\" }\n")
+	assert.Equal(t, "modes.density.web.also.relaxd is not a value of density", d.Message)
+	assert.Equal(t, 8, d.Line)
+}
+
+func TestAxisValueNamesReserved(t *testing.T) {
+	for _, v := range []string{"attr", "also"} {
+		d := loadErr(t, "version: 1\nmodes:\n  a:\n    values: [x, "+v+"]\n    base: x\n")
+		assert.Equal(t, "modes.a.values", d.Path, v)
+		assert.Equal(t, 4, d.Line, v)
+		assert.Contains(t, d.Message, v+" is reserved", v)
+	}
+}
