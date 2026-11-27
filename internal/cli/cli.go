@@ -261,29 +261,29 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 		cmd: Commands[i], root: *root, stdout: stdout, stderr: stderr,
 		bools: map[string]*bool{}, lists: map[string]*[]string{},
 	}
-	fs := flag.NewFlagSet(inv.cmd.Name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+	flags := flag.NewFlagSet(inv.cmd.Name, flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
 	for _, f := range inv.cmd.Flags {
 		if f.Arg == "" {
-			inv.bools[f.Name] = fs.Bool(f.Name, false, f.Summary)
+			inv.bools[f.Name] = flags.Bool(f.Name, false, f.Summary)
 			continue
 		}
 		values := new([]string)
 		inv.lists[f.Name] = values
-		fs.Var(listValue{values}, f.Name, f.Summary)
+		flags.Var(listValue{values}, f.Name, f.Summary)
 	}
 	// Flags may come after the arguments: parse, take one argument, and
 	// parse what follows it, until the arguments run out or a "--" ends
 	// the flags.
 	for args := rest[1:]; ; {
-		if err := fs.Parse(args); err != nil {
+		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
 				commandUsage(stdout, inv.cmd)
 				return ExitOK
 			}
 			return inv.usageError("%v", err)
 		}
-		left := fs.Args()
+		left := flags.Args()
 		if n := len(args) - len(left); n > 0 && args[n-1] == "--" {
 			inv.args = append(inv.args, left...)
 			break
