@@ -1,0 +1,176 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026 C65 LLC
+#
+# Action test — on Linux, macOS and Windows. action.yml downloads a RELEASE,
+# and none exists until v0.1.0, so this exercises the parts of the action that
+# do not need one, using the action's own script text (extracted from
+# action.yml, never a copy):
+#   - the install step's version validation and OS/arch mapping, which refuse
+#     bad input before anything is downloaded;
+#   - the run step, against a snapshot binary built by GoReleaser and put on
+#     PATH, over testdata/minimal (`lint --format github` must exit 0).
+# Then a token in a temp copy is mutated and `build --check` must exit 1.
+# The full download-and-verify path is exercised after v0.1.0 (see
+# docs/releasing.md).
+name: Action test
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  action:
+    name: action (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build a snapshot binary with GoReleaser
+        run: go run github.com/goreleaser/goreleaser/v2@v2.20.3 build --snapshot --clean --single-target
+
+      - name: Extract the action's scripts
+        run: |
+          set -euo pipefail
+          # The `run: |` block of each composite step, de-indented by 8.
+          extract() {
+            awk -v step="$1" '
+              $0 ~ "^    - name: " step "$" { on = 1; next }
+              on && /^      run: \|$/ { body = 1; next }
+              body && /^    - name: / { exit }
+              body { sub(/^        /, ""); print }
+            ' action.yml
+          }
+          mkdir -p "$RUNNER_TEMP/action"
+          extract 'Install airframe' > "$RUNNER_TEMP/action/install.sh"
+          extract 'Run airframe' > "$RUNNER_TEMP/action/run.sh"
+          test -s "$RUNNER_TEMP/action/install.sh"
+          test -s "$RUNNER_TEMP/action/run.sh"
+          wc -l "$RUNNER_TEMP/action/install.sh" "$RUNNER_TEMP/action/run.sh"
+
+      - name: Install step refuses an inexact version
+        run: |
+          set -u
+          for v in v0.1 0.1.0 v0.1.0-rc.1 latest ""; do
+            if out=$(AF_VERSION="$v" AF_OS=Linux AF_ARCH=X64 AF_RELEASES=http://127.0.0.1:9 bash "$RUNNER_TEMP/action/install.sh" 2>&1); then
+              echo "::error::version '$v' should have been refused"; exit 1
+            fi
+            [[ "$out" == *"version must be an exact release"* ]] || { echo "::error::wrong refusal for '$v': $out"; exit 1; }
+            echo "refused '$v'"
+          done
+
+      - name: Install step refuses an unsupported OS or architecture
+        run: |
+          set -u
+          if out=$(AF_VERSION=v0.1.0 AF_OS=Plan9 AF_ARCH=X64 bash "$RUNNER_TEMP/action/install.sh" 2>&1); then
+            echo "::error::OS Plan9 should have been refused"; exit 1
+          fi
+          [[ "$out" == *"unsupported runner OS"* ]] || { echo "::error::$out"; exit 1; }
+          if out=$(AF_VERSION=v0.1.0 AF_OS=Linux AF_ARCH=X86 bash "$RUNNER_TEMP/action/install.sh" 2>&1); then
+            echo "::error::arch X86 should have been refused"; exit 1
+          fi
+          [[ "$out" == *"unsupported runner architecture"* ]] || { echo "::error::$out"; exit 1; }
+          echo "unsupported OS and arch refused"
+
+      - name: Install step maps the runner to a published archive name
+        run: |
+          set -u
+          # A curl shim on PATH records the URL the script would download and
+          # fails, so the archive name it computed can be checked.
+          temp="$RUNNER_TEMP"
+          # Git Bash: D:\a\_temp would split PATH on the drive colon.
+          if [ "$RUNNER_OS" = Windows ]; then temp=$(cygpath -u "$RUNNER_TEMP"); fi
+          shim="$temp/shim"
+          mkdir -p "$shim"
+          # shellcheck disable=SC2016 # the shim body must expand at run time, not here
+          printf '#!/usr/bin/env bash\necho "curl $*" >> "$SHIM_LOG"\nexit 22\n' > "$shim/curl"
+          chmod +x "$shim/curl"
+          export SHIM_LOG="$temp/shim.log"
+          check() { # os arch expected-archive
+            : > "$SHIM_LOG"
+            AF_VERSION=v0.1.0 AF_OS="$1" AF_ARCH="$2" AF_RELEASES=http://example.invalid \
+              PATH="$shim:$PATH" bash "$RUNNER_TEMP/action/install.sh" >/dev/null 2>&1 || true
+            grep -q "/v0.1.0/$3" "$SHIM_LOG" || { echo "::error::$1/$2 should fetch $3; log:"; cat "$SHIM_LOG"; exit 1; }
+            echo "$1/$2 -> $3"
+          }
+          # Each runner checks the maps for its own OS (Windows paths need cygpath).
+          if [ "$RUNNER_OS" != Windows ]; then
+            check Linux X64 airframe_0.1.0_linux_amd64.tar.gz
+            check Linux ARM64 airframe_0.1.0_linux_arm64.tar.gz
+            check macOS ARM64 airframe_0.1.0_darwin_arm64.tar.gz
+            check macOS X64 airframe_0.1.0_darwin_amd64.tar.gz
+          else
+            check Windows X64 airframe_0.1.0_windows_amd64.zip
+            check Windows ARM64 airframe_0.1.0_windows_arm64.zip
+          fi
+
+      - name: Put the snapshot binary on PATH
+        run: |
+          set -euo pipefail
+          bin=$(find dist -type f \( -name airframe -o -name airframe.exe \) | head -n 1)
+          test -n "$bin"
+          echo "binary: $bin"
+          dir=$(dirname "$bin")
+          if [ "$RUNNER_OS" = Windows ]; then dir=$(cygpath -w "$PWD/$dir"); else dir="$PWD/$dir"; fi
+          echo "$dir" >> "$GITHUB_PATH"
+          echo "AF_BIN=$(command -v cygpath >/dev/null && cygpath -u "$PWD/$bin" || echo "$PWD/$bin")" >> "$GITHUB_ENV"
+
+      - name: The run step lints testdata/minimal (exit 0)
+        working-directory: testdata/minimal
+        env:
+          AF_ARGS: lint --format github
+        run: |
+          set -euo pipefail
+          "$AF_BIN" version
+          bash "$RUNNER_TEMP/action/run.sh"
+
+      - name: The run step refuses a multi-line args value
+        working-directory: testdata/minimal
+        run: |
+          if out=$(AF_ARGS=$'lint\n--format github' bash "$RUNNER_TEMP/action/run.sh" 2>&1); then
+            echo "::error::multi-line args should have been refused"; exit 1
+          fi
+          [[ "$out" == *"args must be a single line"* ]] || { echo "::error::$out"; exit 1; }
+
+      - name: build --check passes on the clean copy
+        run: |
+          set -euo pipefail
+          cp -R testdata/minimal "$RUNNER_TEMP/clean"
+          (cd "$RUNNER_TEMP/clean" && "$AF_BIN" build --check)
+
+      - name: build --check exits 1 after a token changes
+        run: |
+          set -u
+          cp -R testdata/minimal "$RUNNER_TEMP/drift"
+          f="$RUNNER_TEMP/drift/design-system/tokens/semantic.tokens.json"
+          sed 's/{gray\.50}/{gray.200}/' "$f" > "$f.new" && mv "$f.new" "$f"
+          if cmp -s "$f" testdata/minimal/design-system/tokens/semantic.tokens.json; then
+            echo "::error::the mutation changed nothing"; exit 1
+          fi
+          cd "$RUNNER_TEMP/drift"
+          set +e
+          "$AF_BIN" build --check
+          code=$?
+          set -e
+          echo "build --check exit code: $code"
+          [ "$code" -eq 1 ] || { echo "::error::expected exit 1, got $code"; exit 1; }

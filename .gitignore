@@ -1,1 +1,5 @@
 .superpowers/
+/airframe
+/dist/
+*.test
+*.out

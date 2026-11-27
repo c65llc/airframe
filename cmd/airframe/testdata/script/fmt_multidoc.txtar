@@ -1,0 +1,39 @@
+# A file fmt cannot format is named on stderr and fails the run; the others
+# are still formatted.
+exits 1 airframe fmt
+stderr '^design-system/invariants.yaml: '
+stdout '^design-system/a.tokens.json$'
+cmp design-system/invariants.yaml multidoc.yaml
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+-- design-system/a.tokens.json --
+{"gap":{"$type":"number","$value":4,"$extensions": {"com.c65llc.airframe": {"tier":"primitive"}}}}
+-- design-system/invariants.yaml --
+- id: a
+  kind: contrast
+  fg: x
+  bg: y
+  min: 4.5
+---
+- id: b
+  kind: contrast
+  fg: x
+  bg: y
+  min: 3
+-- multidoc.yaml --
+- id: a
+  kind: contrast
+  fg: x
+  bg: y
+  min: 4.5
+---
+- id: b
+  kind: contrast
+  fg: x
+  bg: y
+  min: 3

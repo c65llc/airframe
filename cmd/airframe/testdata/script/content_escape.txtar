@@ -1,0 +1,14 @@
+# content may not leave the project root.
+exits 1 airframe lint
+stdout 'airframe.yaml:2: error schema-invalid: '
+stdout 'content'
+
+exits 1 airframe lint --format github
+stdout '^::error file=airframe.yaml,line=2,title=schema-invalid::'
+
+-- airframe.yaml --
+version: 1
+content: ../x
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}

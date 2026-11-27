@@ -1,0 +1,42 @@
+# fmt --check lists the unformatted files and changes nothing; fmt rewrites them.
+exits 1 airframe fmt --check
+stdout '^design-system/a.tokens.json$'
+! stdout 'airframe.yaml'
+cmp design-system/a.tokens.json unformatted.json
+
+exec airframe fmt
+stdout '^design-system/a.tokens.json$'
+cmp design-system/a.tokens.json formatted.json
+exec airframe fmt --check
+! stdout .
+
+# A file differing only in CRLF line endings is left as it is.
+crlf design-system/a.tokens.json
+exec airframe fmt --check
+! stdout .
+exec airframe fmt
+! stdout .
+! cmp design-system/a.tokens.json formatted.json
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+-- design-system/a.tokens.json --
+{"gap":{"$extensions": {"com.c65llc.airframe": {"tier":"primitive"}},"$value":4,"$type":"number"}}
+-- unformatted.json --
+{"gap":{"$extensions": {"com.c65llc.airframe": {"tier":"primitive"}},"$value":4,"$type":"number"}}
+-- formatted.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 4,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}

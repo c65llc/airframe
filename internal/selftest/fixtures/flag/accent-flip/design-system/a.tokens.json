@@ -1,0 +1,1 @@
+{"accent": {"$type": "color", "$value": {"colorSpace": "oklch", "components": [0.6, 0.12, 75]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive", "modes": {"appearance:dark": {"colorSpace": "oklch", "components": [0.6, 0.12, 200]}}}}}}

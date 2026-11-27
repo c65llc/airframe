@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "invariants.yaml",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "kind"],
+    "properties": {
+      "id": { "type": "string", "minLength": 1 },
+      "kind": { "enum": ["same-hue-across-appearances", "hue-reserved", "contrast", "min-dimension"] },
+      "tokens": { "type": "array", "items": { "type": "string" } },
+      "forEach": {
+        "oneOf": [
+          { "type": "string", "minLength": 1 },
+          { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        ]
+      },
+      "hue": { "type": "number" },
+      "tolerance": { "type": "number", "minimum": 0 },
+      "min": { "type": "number" },
+      "only": { "type": "array", "items": { "type": "string" } },
+      "fg": { "type": "string" },
+      "bg": { "type": "string" },
+      "match": { "type": "string" },
+      "densities": {
+        "oneOf": [
+          { "type": "string" },
+          { "type": "array", "items": { "type": "string" } }
+        ]
+      }
+    }
+  }
+}

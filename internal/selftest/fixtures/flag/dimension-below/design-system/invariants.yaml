@@ -1,0 +1,1 @@
+- {id: touch-floor, kind: min-dimension, match: "*-target", min: 44, densities: all}

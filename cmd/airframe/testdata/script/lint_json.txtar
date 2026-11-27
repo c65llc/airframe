@@ -1,0 +1,22 @@
+# lint --json is Starboard's versioned report: version, errors, warnings.
+exec airframe init
+exec airframe lint --json
+stdout '^  "version": 1,$'
+stdout '^  "errors": \[\],$'
+stdout '^  "warnings": \[\]$'
+! stdout 'accent-flip  '
+
+# A finding lands in errors with its rule, file and docs link.
+cp unformatted.json design-system/tokens/extra.tokens.json
+exits 1 airframe lint --json
+stdout '"rule": "not-formatted"'
+stdout '"severity": "error"'
+stdout '"file": "design-system/tokens/extra.tokens.json"'
+stdout '"docs": "https://airframe.c65llc.com/rules/not-formatted/"'
+
+# --json and --format disagree: a usage error.
+exits 2 airframe lint --json --format github
+exits 2 airframe lint --format yaml
+
+-- unformatted.json --
+{"spare":{"$type":"number","$value":4,"$extensions": {"com.c65llc.airframe": {"tier":"primitive"}}}}

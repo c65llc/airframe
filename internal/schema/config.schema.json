@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "airframe.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version"],
+  "properties": {
+    "version": { "const": 1 },
+    "content": { "type": "string", "minLength": 1 },
+    "tiers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "readableBy": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "modes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["values"],
+        "properties": {
+          "values": {
+            "type": ["string", "array"],
+            "pattern": "^from \\S+$",
+            "items": { "type": "string", "minLength": 1 },
+            "minItems": 1,
+            "uniqueItems": true
+          },
+          "base": { "type": "string", "minLength": 1 },
+          "binding": { "enum": ["runtime", "build"] },
+          "group": { "type": "string", "minLength": 1 },
+          "web": {
+            "type": "object",
+            "properties": {
+              "attr": { "type": "string", "minLength": 1 },
+              "also": { "type": "object", "additionalProperties": { "type": "string" } }
+            },
+            "additionalProperties": {
+              "type": ["string", "array"],
+              "items": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "accentGroups": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "platforms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "emit": {
+            "type": ["string", "array"],
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "out": {
+            "type": ["string", "object"],
+            "additionalProperties": { "type": "string" }
+          },
+          "consumers": { "type": "array", "items": { "type": "string" } },
+          "fanOut": { "type": "string" },
+          "options": { "type": "object" },
+          "names": { "type": "string" }
+        }
+      }
+    },
+    "naming": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "lint": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "type": "object",
+          "additionalProperties": { "enum": ["error", "warn", "off"] }
+        }
+      }
+    }
+  }
+}

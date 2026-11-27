@@ -1,0 +1,14 @@
+# rules, schema and version need no project.
+exec airframe rules
+stdout '^tier-violation +error +'
+stdout '^no-tokens +error +'
+
+exec airframe rules --json
+stdout '"version": 1'
+stdout '"id": "tier-violation"'
+stdout '"docs": "https://airframe.c65llc.com/rules/tier-violation/"'
+
+exec airframe schema config
+stdout '"\$schema"'
+exec airframe schema tokens
+exec airframe schema invariants

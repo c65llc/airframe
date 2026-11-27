@@ -1,0 +1,4 @@
+{
+  "a": {"$type": "number", "$value": "{b}", "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
+  "b": {"$type": "number", "$value": "{a}", "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}}
+}

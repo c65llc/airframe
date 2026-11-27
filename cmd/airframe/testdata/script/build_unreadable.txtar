@@ -1,0 +1,27 @@
+# A missing output is stale, but one that cannot be read stops the build.
+mkdir design-system/generated/css/tokens.css
+exits 2 airframe build --check
+stderr 'tokens.css'
+exits 2 airframe build
+stderr 'tokens.css'
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+platforms:
+  web: {emit: css}
+-- design-system/a.tokens.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 4,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}

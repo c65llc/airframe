@@ -1,0 +1,48 @@
+# An emit format nobody knows is schema-invalid.
+exec airframe init
+cp typo.yaml airframe.yaml
+exits 1 airframe lint
+stdout 'airframe.yaml:7: error schema-invalid: .*csss'
+
+# A format a later release builds is accepted and reported as a warning;
+# lint passes unless --strict.
+cp future.yaml airframe.yaml
+exec airframe lint
+stdout 'warn emit-unsupported: platform apple: format swift is not built until a later release'
+exits 1 airframe lint --strict
+exec airframe build
+stderr 'emit-unsupported'
+
+# An out key that is not one of the platform's formats is schema-invalid.
+cp outkey.yaml airframe.yaml
+exits 1 airframe lint
+stdout 'error schema-invalid: .*csss'
+
+-- typo.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web: {emit: csss}
+  json: {emit: [json]}
+-- future.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web: {emit: css}
+  json: {emit: [json]}
+  apple: {emit: [swift]}
+-- outkey.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web: {emit: css, out: {csss: x.css}}
+  json: {emit: [json]}

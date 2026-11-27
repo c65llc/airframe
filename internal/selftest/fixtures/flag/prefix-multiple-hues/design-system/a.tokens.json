@@ -1,0 +1,4 @@
+{"blue": {"$type": "color",
+  "1": {"$value": {"colorSpace": "oklch", "components": [0.6, 0.12, 250]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}},
+  "2": {"$value": {"colorSpace": "oklch", "components": [0.6, 0.12, 30]}, "$extensions": {"com.c65llc.airframe": {"tier": "primitive"}}}
+}}

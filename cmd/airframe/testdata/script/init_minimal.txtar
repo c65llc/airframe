@@ -1,0 +1,35 @@
+# init writes the minimal profile and builds it, so the new project lints clean
+# and the tally names every rule.
+exec airframe init
+stdout '^airframe.yaml$'
+stdout '^design-system/tokens/semantic.tokens.json$'
+stdout '^wrote design-system/generated/css/tokens.css$'
+exists design-system/invariants.yaml
+exists design-system/generated/json/tokens.json
+
+exec airframe lint
+! stderr .
+stdout '^accent-flip  '
+stdout '^accent-group-partial  '
+stdout '^contrast-below  '
+stdout '^density-missing  '
+stdout '^dimension-below  '
+stdout '^emitted-stale  '
+stdout '^exemption-without-reason  '
+stdout '^hue-reserved  '
+stdout '^literal-in-semantic  '
+stdout '^not-formatted  '
+stdout '^prefix-multiple-hues  '
+stdout '^tier-violation  '
+stdout '^token-unclassified  '
+! stdout ': error '
+
+# A second init refuses to overwrite the project.
+exits 2 airframe init
+stderr 'already exist, and init never overwrites: airframe.yaml, design-system/invariants.yaml'
+
+# An unknown profile is a usage error.
+mkdir other
+exits 2 airframe --root other init --profile nope
+stderr 'unknown profile nope'
+! exists other/airframe.yaml

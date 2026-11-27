@@ -1,0 +1,26 @@
+# A content directory with no token files is a finding, never a clean scan.
+exits 1 airframe lint
+stdout 'no-tokens'
+stdout 'design-sytem'
+
+exits 1 airframe lint --json
+stdout '"rule": "no-tokens"'
+
+-- airframe.yaml --
+version: 1
+content: design-sytem
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+-- design-system/a.tokens.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 4,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}

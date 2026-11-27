@@ -1,0 +1,28 @@
+# A second YAML document in airframe.yaml or invariants.yaml would be
+# ignored, so lint refuses it at its --- line.
+exec airframe init
+cp airframe.yaml good.yaml
+cp airframe.yaml.in airframe.yaml
+exits 1 airframe lint
+stdout 'airframe.yaml:9: error yaml-syntax: multiple YAML documents are not supported'
+
+cp good.yaml airframe.yaml
+cp invariants.yaml.in design-system/invariants.yaml
+exits 1 airframe lint
+stdout 'invariants.yaml:2: error yaml-syntax: multiple YAML documents are not supported'
+
+-- airframe.yaml.in --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web: {emit: css}
+  json: {emit: [json]}
+---
+lint: {rules: {contrast-below: off}}
+-- invariants.yaml.in --
+- {id: ink-on-surface, kind: contrast, fg: ink, bg: surface, min: 4.5, forEach: [appearance]}
+---
+- {id: never-read, kind: contrast, fg: ink, bg: surface, min: 21}

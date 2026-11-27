@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "*.tokens.json",
+  "description": "The DTCG subset Airframe reads, with Airframe's facts under $extensions[\"com.c65llc.airframe\"]. A member with $value is a token; any other non-$ member is a group. Token names are the group path joined with \"-\".",
+  "$ref": "#/$defs/root",
+  "$defs": {
+    "root": {
+      "type": "object",
+      "properties": {
+        "$type": { "$ref": "#/$defs/type" },
+        "$description": { "type": "string" },
+        "$deprecated": true,
+        "$extensions": {
+          "type": "object",
+          "properties": {
+            "com.c65llc.airframe": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "mode": {
+                  "description": "Every token in this file is an override under this mode key (axis:value pairs joined by +).",
+                  "$ref": "#/$defs/modeKey"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patternProperties": { "^[^$]": { "$ref": "#/$defs/member" } },
+      "additionalProperties": false
+    },
+    "member": {
+      "if": { "type": "object", "required": ["$value"] },
+      "then": { "$ref": "#/$defs/token" },
+      "else": { "$ref": "#/$defs/group" }
+    },
+    "group": {
+      "type": "object",
+      "properties": {
+        "$type": { "$ref": "#/$defs/type" },
+        "$description": { "type": "string" },
+        "$deprecated": true,
+        "$extensions": {
+          "type": "object",
+          "properties": { "com.c65llc.airframe": false }
+        }
+      },
+      "patternProperties": { "^[^$]": { "$ref": "#/$defs/member" } },
+      "additionalProperties": false
+    },
+    "type": {
+      "enum": ["color", "dimension", "number", "fontFamily", "fontWeight", "duration", "cubicBezier", "shadow"]
+    },
+    "token": {
+      "type": "object",
+      "required": ["$value"],
+      "additionalProperties": false,
+      "properties": {
+        "$value": { "$ref": "#/$defs/value" },
+        "$type": { "$ref": "#/$defs/type" },
+        "$description": { "type": "string" },
+        "$deprecated": true,
+        "$extensions": {
+          "type": "object",
+          "properties": { "com.c65llc.airframe": { "$ref": "#/$defs/airframe" } }
+        }
+      },
+      "allOf": [
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "color" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/color" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "dimension" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/dimension" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "enum": ["number"] } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "type": "number" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "fontFamily" } } },
+          "then": { "properties": { "$value": { "$ref": "#/$defs/fontFamily" } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "fontWeight" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/fontWeight" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "duration" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/duration" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "cubicBezier" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/cubicBezier" }] } } } },
+        { "if": { "required": ["$type"], "properties": { "$type": { "const": "shadow" } } },
+          "then": { "properties": { "$value": { "anyOf": [{ "$ref": "#/$defs/alias" }, { "$ref": "#/$defs/shadow" }] } } } }
+      ]
+    },
+    "airframe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tier": { "type": "string", "minLength": 1 },
+        "component": { "type": "string", "minLength": 1 },
+        "shared": { "type": "boolean" },
+        "chrome": { "type": "string", "minLength": 1 },
+        "density": {
+          "description": "Shorthand for modes[\"density:<value>\"]; a bare number takes the $value unit.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "modes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/modeKey" },
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "exempt": {
+          "description": "Rule ID to the reason the token is exempt; the reason is required.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1, "pattern": "\\S" }
+        },
+        "emit": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "retired": { "type": "boolean" }
+      }
+    },
+    "modeKey": {
+      "type": "string",
+      "pattern": "^[^:+\\s]+:[^:+\\s]+(\\+[^:+\\s]+:[^:+\\s]+)*$"
+    },
+    "value": {
+      "anyOf": [
+        { "$ref": "#/$defs/alias" },
+        { "$ref": "#/$defs/color" },
+        { "$ref": "#/$defs/dimension" },
+        { "type": "number" },
+        { "$ref": "#/$defs/fontFamily" },
+        { "$ref": "#/$defs/fontWeight" },
+        { "$ref": "#/$defs/duration" },
+        { "$ref": "#/$defs/cubicBezier" },
+        { "$ref": "#/$defs/shadow" }
+      ]
+    },
+    "alias": { "type": "string", "pattern": "^\\{[^{}.]+(\\.[^{}.]+)*\\}$" },
+    "color": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["colorSpace", "components"],
+      "properties": {
+        "colorSpace": { "const": "oklch" },
+        "components": {
+          "type": "array",
+          "prefixItems": [
+            { "type": "number", "minimum": 0, "maximum": 1 },
+            { "type": "number", "minimum": 0 },
+            { "type": "number", "minimum": 0, "maximum": 360 }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "alpha": { "type": "number", "minimum": 0, "maximum": 1 },
+        "hex": { "type": "string" }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit"],
+      "properties": { "value": { "type": "number" }, "unit": { "enum": ["px", "rem"] } }
+    },
+    "duration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "unit"],
+      "properties": { "value": { "type": "number" }, "unit": { "enum": ["ms", "s"] } }
+    },
+    "fontFamily": {
+      "anyOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      ]
+    },
+    "fontWeight": {
+      "anyOf": [
+        { "type": "number", "minimum": 1, "maximum": 1000 },
+        { "enum": ["thin", "hairline", "extra-light", "ultra-light", "light", "normal", "regular", "book", "medium", "semi-bold", "demi-bold", "bold", "extra-bold", "ultra-bold", "black", "heavy", "extra-black", "ultra-black"] }
+      ]
+    },
+    "cubicBezier": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number", "minimum": 0, "maximum": 1 },
+        { "type": "number" },
+        { "type": "number", "minimum": 0, "maximum": 1 },
+        { "type": "number" }
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "shadowLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["color", "offsetX", "offsetY", "blur", "spread"],
+      "properties": {
+        "color": { "$ref": "#/$defs/color" },
+        "offsetX": { "$ref": "#/$defs/dimension" },
+        "offsetY": { "$ref": "#/$defs/dimension" },
+        "blur": { "$ref": "#/$defs/dimension" },
+        "spread": { "$ref": "#/$defs/dimension" },
+        "inset": { "type": "boolean" }
+      }
+    },
+    "shadow": {
+      "anyOf": [
+        { "$ref": "#/$defs/shadowLayer" },
+        { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/shadowLayer" } }
+      ]
+    }
+  }
+}

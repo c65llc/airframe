@@ -1,0 +1,57 @@
+{
+  "button": {
+    "bg": {
+      "$type": "color",
+      "$value": "{accent}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    },
+    "ink": {
+      "$type": "color",
+      "$value": "{ink}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    },
+    "target": {
+      "$type": "dimension",
+      "$value": {
+        "value": 48,
+        "unit": "px"
+      },
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button",
+          "density": {
+            "compact": 44,
+            "standard": 48,
+            "relaxed": 56
+          }
+        }
+      }
+    },
+    "gap": {
+      "$type": "dimension",
+      "$value": "{gap.sm}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button",
+          "density": {
+            "compact": "{gap.sm}",
+            "standard": "{gap.sm}",
+            "relaxed": "{gap.lg}"
+          }
+        }
+      }
+    }
+  }
+}

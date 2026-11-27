@@ -1,0 +1,13 @@
+# Usage errors exit 2.
+exits 2 airframe frobnicate
+stderr 'unknown command frobnicate'
+stderr '^Usage: airframe'
+exits 2 airframe
+exits 2 airframe lint --nope
+exits 2 airframe show
+exits 2 airframe schema widgets
+exec airframe help
+stdout '^Usage: airframe'
+
+exec airframe version
+stdout '^airframe dev$'
