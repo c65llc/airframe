@@ -131,6 +131,6 @@ dist/airframe_*/airframe version
 The `c65llc` organization enforces immutable releases on every repository. Once
 a version is published, its tag can never be created again, not even after the
 repository is deleted and recreated under the same name. A release that has to
-be redone ships as the next patch version. That is why the first published
-release of this repository is `v0.1.1`: `v0.1.0` was published before the
-repository was rebuilt and its tag is permanently reserved.
+be redone ships as the next patch version. That is why the first release of
+this repository is `v0.1.2`: `v0.1.0` and `v0.1.1` were published before the
+repository was rebuilt, and their tags are permanently reserved.
