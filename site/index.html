@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Airframe is a Go CLI for defining, checking, and building design tokens from a typed source.">
+<meta name="theme-color" content="#101e30">
+<title>Airframe — Design tokens with structure</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/airframe-icon-180.png">
+<link rel="stylesheet" href="style.css">
+<script src="copy.js" defer></script>
+<a class="skip" href="#main">Skip to content</a>
+<header class="wrap site-header">
+  <a class="brand" href="./"><img src="assets/airframe-logo.svg" width="176" height="47" alt="Airframe"></a>
+  <nav aria-label="Main navigation">
+    <a href="#features">Features</a>
+    <a href="#workflow">Workflow</a>
+    <a href="https://github.com/c65llc/airframe">GitHub</a>
+  </nav>
+  <a class="button button-small" href="#workflow">Get started</a>
+</header>
+<main id="main">
+  <section class="hero wrap" aria-labelledby="headline">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1 id="headline">Design tokens<br>with <em>structure.</em></h1>
+        <p>Airframe is a Go CLI for defining, checking, and building design tokens from a typed source.</p>
+        <div class="actions">
+          <a class="button" href="#workflow">Get started</a>
+          <a class="button outline" href="https://github.com/c65llc/airframe">View on GitHub</a>
+        </div>
+      </div>
+      <figure class="blueprint" aria-label="Airframe’s three token tiers. Component tokens reference semantic tokens, which reference primitives.">
+        <div class="drawing" aria-hidden="true">
+          <div class="vertical-guides"></div>
+          <img class="ribs" src="assets/airframe-ribs.svg" alt="" width="100" height="100">
+          <div class="tier component"><span>Component</span></div>
+          <div class="tier semantic"><span>Semantic</span></div>
+          <div class="tier primitive"><span>Primitive</span></div>
+        </div>
+      </figure>
+    </div>
+    <div class="terminal lint-example" aria-label="Example of a clean lint report">
+      <div><span class="prompt" aria-hidden="true">$ </span><code>airframe lint --json</code></div>
+      <code class="success">{ "version": 1, "errors": [], "warnings": [] }</code>
+    </div>
+  </section>
+  <section class="features" id="features" aria-labelledby="features-title">
+    <div class="wrap">
+      <h2 class="corners" id="features-title">A single source for<br class="desktop-break"> your design tokens.</h2>
+      <div class="feature-grid">
+        <article><h3>Define the source</h3><p>Write typed tokens in DTCG JSON. Organize them into primitive, semantic, and component tiers, with explicit axes for modes like appearance and density.</p></article>
+        <article><h3>Catch drift in CI</h3><p>Check tier boundaries, alias types, contrast floors, and stale generated files. Use a machine-readable verdict to gate changes in CI.</p></article>
+        <article><h3>Build CSS and JSON</h3><p>Generate CSS custom properties scoped to each mode and a JSON contract with resolved values, all from the same source.</p></article>
+      </div>
+    </div>
+  </section>
+  <section class="workflow wrap" id="workflow" aria-labelledby="workflow-title">
+    <div class="workflow-copy corners">
+      <h2 id="workflow-title">From source<br class="desktop-break"> to build.</h2>
+      <p>Initialize a starter project, check the token source, and generate CSS and JSON. Install with Go or download a release.</p>
+      <a class="text-link" href="https://github.com/c65llc/airframe/releases">Browse releases</a>
+    </div>
+    <div class="terminal quickstart">
+      <div class="terminal-bar">
+        <span>Quick start</span>
+        <button type="button" class="copy" hidden>Copy commands</button>
+        <span class="visually-hidden" id="copy-status" role="status"></span>
+      </div>
+      <ol class="commands" aria-label="Quick start commands">
+        <li><span class="prompt" aria-hidden="true">$ </span><code>go install github.com/<wbr>c65llc/<wbr>airframe/<wbr>cmd/<wbr>airframe@latest</code></li>
+        <li><span class="prompt" aria-hidden="true">$ </span><code>airframe init</code></li>
+        <li><span class="prompt" aria-hidden="true">$ </span><code>airframe lint</code></li>
+        <li><span class="prompt" aria-hidden="true">$ </span><code>airframe build</code></li>
+      </ol>
+    </div>
+  </section>
+</main>
+<footer class="wrap site-footer">
+  <a class="brand" href="./"><img src="assets/airframe-logo.svg" width="140" height="38" alt="Airframe"></a>
+  <a class="parent" href="https://www.c65llc.com/">A tool from C65 LLC</a>
+  <nav aria-label="Footer navigation">
+    <a href="https://starboard.c65llc.com/">Starboard</a>
+    <a href="https://github.com/c65llc/airframe">GitHub</a>
+  </nav>
+</footer>
+</html>
