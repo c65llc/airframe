@@ -113,7 +113,7 @@ func TestBuildFilter(t *testing.T) {
 
 func TestBuildExplicitOut(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "web:  { emit: css }", "web:  { emit: css, out: dist/a.css }", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "web: {emit: css}", "web: {emit: css, out: dist/a.css}", 1)
 	out, ds := Build(loadFS(t, fsys), []string{"web"})
 	require.Empty(t, ds)
 	assert.Equal(t, []string{"dist/a.css"}, slices.Sorted(maps.Keys(out)))
@@ -173,7 +173,7 @@ func TestSelectorMustStartWithRoot(t *testing.T) {
 
 func TestAxisWithoutWebSpelling(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "web: { attr: data-density, also: { relaxed: \"@media (pointer: coarse)\" } }", "", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "web: {attr: data-density, also: {relaxed: \"@media (pointer: coarse)\"}}", "", 1)
 	_, ds := Build(loadFS(t, fsys), []string{"css"})
 	require.NotEmpty(t, ds)
 	assert.Equal(t, "schema-invalid", ds[0].Rule)

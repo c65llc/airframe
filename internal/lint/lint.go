@@ -99,6 +99,8 @@ var allRules = []Rule{
 		Summary: "A dimension a min-dimension invariant matches resolves below its minimum px in some context."},
 	{ID: "emitted-stale", Default: diag.Error, Run: ruleEmittedStale,
 		Summary: "A generated output differs from what airframe build would write, or is missing."},
+	{ID: "not-formatted", Default: diag.Error, Run: ruleNotFormatted,
+		Summary: "A token, config or invariants file differs from what airframe fmt would write."},
 	{ID: "exemption-without-reason", Default: diag.Error, Run: ruleExemptionWithoutReason,
 		Summary: "A token is exempt from a rule but gives no reason."},
 }

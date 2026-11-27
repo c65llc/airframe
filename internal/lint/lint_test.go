@@ -55,12 +55,18 @@ func byRule(ds []diag.Diagnostic, rule string) []diag.Diagnostic {
 	return out
 }
 
+// without drops one rule's findings, for fixtures written by hand that are
+// not in canonical form.
+func without(ds []diag.Diagnostic, rule string) []diag.Diagnostic {
+	return slices.DeleteFunc(slices.Clone(ds), func(d diag.Diagnostic) bool { return d.Rule == rule })
+}
+
 func TestRulesStableOrder(t *testing.T) {
 	ids := ruleIDs()
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
 		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
-		"emitted-stale", "exemption-without-reason", "hue-reserved", "literal-in-semantic",
+		"emitted-stale", "exemption-without-reason", "hue-reserved", "literal-in-semantic", "not-formatted",
 		"prefix-multiple-hues", "tier-violation", "token-unclassified",
 	}, ids)
 	for _, r := range Rules() {
@@ -80,6 +86,9 @@ func TestTalliesNameEveryRule(t *testing.T) {
 		case tl.Rule == "emitted-stale":
 			assert.Equal(t, "files", tl.Noun, tl.Rule)
 			assert.Equal(t, 1, tl.Files, tl.Rule)
+		case tl.Rule == "not-formatted":
+			assert.Equal(t, "files", tl.Noun, tl.Rule)
+			assert.Equal(t, 3, tl.Files, "airframe.yaml, the token file and invariants.yaml")
 		case slices.Contains(invariantRules, tl.Rule):
 			assert.Equal(t, "checks", tl.Noun, tl.Rule)
 			assert.Equal(t, 2, tl.Files, tl.Rule)
@@ -117,11 +126,11 @@ func TestLoadDiagnosticsPassThroughAndCheckRuns(t *testing.T) {
 	assert.Contains(t, res.Diagnostics, loadDiag)
 	unresolved := byRule(res.Diagnostics, "alias-unresolved")
 	require.Len(t, unresolved, 1, "Run calls Tokens.Check")
-	assert.Equal(t, 2, res.Errors)
+	assert.Len(t, without(res.Diagnostics, "not-formatted"), 2, "the load diagnostic and alias-unresolved")
 }
 
 func TestSeverityOverrideOffAndStrict(t *testing.T) {
-	cfg := testConfig + "lint:\n  rules: { token-unclassified: warn, literal-in-semantic: off }\n"
+	cfg := testConfig + "lint:\n  rules: { token-unclassified: warn, literal-in-semantic: off, not-formatted: off }\n"
 	files := map[string]string{"a.tokens.json": `{
   "plain": { "$type": "number", "$value": 1 },
   "ink": { "$type": "number", "$value": 2, ` + ext(`"tier": "semantic"`) + ` } }`}
@@ -190,7 +199,7 @@ func TestExemptionWithoutReason(t *testing.T) {
 func TestRunWithEmptyTokenSet(t *testing.T) {
 	p := load(t, map[string]string{"a.tokens.json": `{}`})
 	res := Run(p, nil, Options{})
-	assert.Empty(t, res.Diagnostics)
+	assert.Empty(t, without(res.Diagnostics, "not-formatted"), "the fixture's YAML is hand-aligned")
 	assert.NotNil(t, res.Diagnostics, "an empty run reports [] not null")
 	assert.Len(t, res.Tallies, len(Rules()))
 }

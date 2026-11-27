@@ -1,24 +1,126 @@
 {
-  "surface": { "$type": "color", "$value": "{gray.50}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-  "ink": { "$type": "color", "$value": "{gray.900}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-  "border": { "$type": "color", "$value": "{gray.200}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-  "accent": { "$type": "color", "$value": "{amber.500}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-  "accent-ink": { "$type": "color", "$value": "{accent}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-  "accent-glow": { "$type": "color", "$value": "{amber.glow}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
+  "surface": {
+    "$type": "color",
+    "$value": "{gray.50}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "ink": {
+    "$type": "color",
+    "$value": "{gray.900}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "border": {
+    "$type": "color",
+    "$value": "{gray.200}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "accent": {
+    "$type": "color",
+    "$value": "{amber.500}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "accent-ink": {
+    "$type": "color",
+    "$value": "{accent}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "accent-glow": {
+    "$type": "color",
+    "$value": "{amber.glow}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
   "gap": {
     "$type": "dimension",
-    "sm": { "$value": "{space.1}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-    "lg": { "$value": "{space.5}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } }
+    "sm": {
+      "$value": "{space.1}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    },
+    "lg": {
+      "$value": "{space.5}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    }
   },
   "text": {
-    "body": { "$type": "fontFamily", "$value": "{font.sans}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-    "strong": { "$type": "fontWeight", "$value": "{font.bold}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } }
+    "body": {
+      "$type": "fontFamily",
+      "$value": "{font.sans}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    },
+    "strong": {
+      "$type": "fontWeight",
+      "$value": "{font.bold}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    }
   },
   "motion": {
-    "ease": { "$type": "cubicBezier", "$value": "{ease.standard}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } },
-    "fast": { "$type": "duration", "$value": "{duration.fast}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } }
+    "ease": {
+      "$type": "cubicBezier",
+      "$value": "{ease.standard}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    },
+    "fast": {
+      "$type": "duration",
+      "$value": "{duration.fast}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    }
   },
   "elevation": {
-    "low": { "$type": "shadow", "$value": "{shadow.sm}", "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } }
+    "low": {
+      "$type": "shadow",
+      "$value": "{shadow.sm}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "semantic"
+        }
+      }
+    }
   }
 }
