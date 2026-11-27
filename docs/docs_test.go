@@ -5,6 +5,7 @@ package docs
 
 import (
 	"io/fs"
+	"os"
 	"path"
 	"strings"
 	"testing"
@@ -65,4 +66,28 @@ func TestRuleUnknown(t *testing.T) {
 	assert.False(t, ok)
 	_, ok = Rule("../embed")
 	assert.False(t, ok)
+}
+
+// TestReadmeMatchesRelease guards the README against drifting from what
+// the release does: it carries the install line, the quick start and the
+// Action usage, and names the unbuilt emitters only as planned.
+func TestReadmeMatchesRelease(t *testing.T) {
+	b, err := os.ReadFile("../README.md")
+	require.NoError(t, err)
+	readme := string(b)
+	for _, want := range []string{
+		"go install github.com/c65llc/airframe/cmd/airframe@latest",
+		"airframe init", "airframe lint", "airframe build", "airframe fmt",
+		"uses: c65llc/airframe@v0", "version: v0.1.0",
+		"**Planned (not in v0.1.0)**",
+	} {
+		assert.Contains(t, readme, want)
+	}
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.1.0)**")
+	require.True(t, ok)
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.1.0)**")
+	for _, unbuilt := range []string{"Swift", "Kotlin", "XAML"} {
+		assert.NotContains(t, built, unbuilt, "an unbuilt emitter is described before the planned list")
+		assert.Contains(t, planned, unbuilt)
+	}
 }
