@@ -29,10 +29,13 @@ const RuleID = "schema-invalid"
 //go:embed config.schema.json
 var configSchema []byte
 
-// sources maps a document kind to its schema. Tasks 6 and 7 add "tokens"
-// and "invariants" here.
+//go:embed tokens.schema.json
+var tokensSchema []byte
+
+// sources maps a document kind to its schema. Task 7 adds "invariants".
 var sources = map[string][]byte{
 	"config": configSchema,
+	"tokens": tokensSchema,
 }
 
 var (
@@ -74,8 +77,8 @@ func invalid(msg, path string, line int) diag.Diagnostic {
 	}
 }
 
-// Validate checks doc against the schema for kind ("config", later
-// "tokens" and "invariants"). doc is a decoded value or a *yaml.Node; with
+// Validate checks doc against the schema for kind ("config", "tokens",
+// later "invariants"). doc is a decoded value or a *yaml.Node; with
 // a node, each finding carries the line of the offending key. The File of
 // each finding is left for the caller to fill in.
 func Validate(kind string, doc any) []diag.Diagnostic {
