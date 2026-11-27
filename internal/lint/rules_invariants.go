@@ -198,12 +198,17 @@ func finding(rule string, t *tokens.Token, msg string) diag.Diagnostic {
 }
 
 // expandForEach replaces accentGroup with every loaded accent axis and
-// drops repeats; err names an axis that is unknown or not loaded.
+// drops repeats; err names an axis that is unknown or not loaded, or says
+// accentGroup expands to nothing (it would iterate no accent at all).
 func expandForEach(cfg *config.Config, names []string) ([]string, error) {
 	var out []string
 	for _, n := range names {
 		if n == accentGroup {
-			for _, a := range accentAxes(cfg, false) {
+			accents := accentAxes(cfg, false)
+			if len(accents) == 0 {
+				return nil, fmt.Errorf("%s names no loaded accent axis", accentGroup)
+			}
+			for _, a := range accents {
 				if !slices.Contains(out, a.Name) {
 					out = append(out, a.Name)
 				}

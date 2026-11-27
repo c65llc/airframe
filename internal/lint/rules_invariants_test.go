@@ -305,3 +305,27 @@ func TestHueReservedOnlySelectsNothing(t *testing.T) {
 	assert.Equal(t, "design-system/invariants.yaml", ds[1].File)
 	assert.Equal(t, 1, ds[1].Line)
 }
+
+// TestForEachAccentGroupEmpty: accentGroup that expands to no loaded
+// accent axis would iterate nothing, so the invariant is schema-invalid.
+func TestForEachAccentGroupEmpty(t *testing.T) {
+	tokens := `{ "fg": { "$type": "color", "$value": ` + lch(0.2, 0, 0) + ` },
+  "bg": { "$type": "color", "$value": ` + lch(0.9, 0, 0) + ` } }`
+	for _, cfg := range []string{
+		"version: 1\nmodes:\n  appearance: { values: [light, dark], base: light }\n",
+		"version: 1\nmodes:\n  appearance: { values: [light, dark], base: light }\n  swatch: { values: from s.tokens.json, group: accent }\n",
+	} {
+		for rule, inv := range map[string]string{
+			"contrast-below": "- { id: c, kind: contrast, fg: fg, bg: bg, min: 3, forEach: [accentGroup, appearance] }\n",
+			"accent-flip":    "- { id: c, kind: same-hue-across-appearances, tokens: [fg], forEach: accentGroup }\n",
+		} {
+			p := loadWith(t, cfg, map[string]string{"a.tokens.json": tokens, "invariants.yaml": inv})
+			ds, tally := ruleFindings(t, p, rule)
+			require.Len(t, ds, 1, rule)
+			assert.Equal(t, "schema-invalid", ds[0].Rule)
+			assert.Equal(t, `invariant "c": forEach: accentGroup names no loaded accent axis`, ds[0].Message)
+			assert.Equal(t, 1, ds[0].Line)
+			assert.Zero(t, tally.Items)
+		}
+	}
+}
