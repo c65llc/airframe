@@ -79,3 +79,12 @@ func TestInvariantUnknownKey(t *testing.T) {
 	assert.Equal(t, "schema-invalid", ds[0].Rule)
 	assert.Equal(t, 3, ds[0].Line)
 }
+
+func TestInvariantHasRecordsPresentKeys(t *testing.T) {
+	invs, ds := Parse([]byte("- id: x\n  kind: hue-reserved\n  hue: 0\n  tolerance: 4\n- id: y\n  kind: hue-reserved\n"))
+	require.Empty(t, ds)
+	require.Len(t, invs, 2)
+	assert.True(t, invs[0].Has["hue"], "hue: 0 is present")
+	assert.True(t, invs[0].Has["tolerance"])
+	assert.False(t, invs[1].Has["hue"], "an absent hue is not")
+}

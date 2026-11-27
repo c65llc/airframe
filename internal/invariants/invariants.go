@@ -21,7 +21,9 @@ import (
 const File = "invariants.yaml"
 
 // Invariant is one entry of invariants.yaml. Fields a kind does not use are
-// left at their zero value. Line is the line of the entry's list item.
+// left at their zero value. Line is the line of the entry's list item. Has
+// records which keys the entry sets, so a key whose value may legitimately
+// be zero (hue: 0) can be told from an absent one.
 type Invariant struct {
 	ID, Kind            string
 	Tokens              []string
@@ -30,6 +32,7 @@ type Invariant struct {
 	Only                []string
 	FG, BG, Match       string
 	Line                int
+	Has                 map[string]bool
 }
 
 var yamlLine = regexp.MustCompile(`line (\d+)`)
@@ -69,9 +72,10 @@ func Parse(data []byte) ([]Invariant, []diag.Diagnostic) {
 }
 
 func build(n *yaml.Node) Invariant {
-	inv := Invariant{Line: n.Line}
+	inv := Invariant{Line: n.Line, Has: map[string]bool{}}
 	for i := 0; i+1 < len(n.Content); i += 2 {
 		k, v := n.Content[i].Value, n.Content[i+1]
+		inv.Has[k] = true
 		switch k {
 		case "id":
 			inv.ID = v.Value

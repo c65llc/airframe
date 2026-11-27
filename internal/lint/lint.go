@@ -25,6 +25,11 @@ type Context struct {
 	Generated map[string][]byte
 
 	exemptions []Exemption
+	// resolved memoises Resolve per (token, full context) for the invariant
+	// rules; a nil value is a token that does not resolve there.
+	resolved map[resolveKey]*tokens.Value
+	// axesOf memoises the axes each token's value can vary on.
+	axesOf map[string]map[string]bool
 }
 
 // Exemption is one finding a token's exempt marker suppressed. File and
@@ -84,6 +89,14 @@ var allRules = []Rule{
 		Summary: "An accent mode value sets some of the roles accentGroups.required lists but not all."},
 	{ID: "prefix-multiple-hues", Default: diag.Error, Run: rulePrefixMultipleHues,
 		Summary: "Colour tokens sharing a first name segment span more than 8° of hue."},
+	{ID: "contrast-below", Default: diag.Error, Run: ruleContrastBelow,
+		Summary: "A contrast invariant's fg over bg falls below its minimum ratio in some context."},
+	{ID: "hue-reserved", Default: diag.Error, Run: ruleHueReserved,
+		Summary: "A colour within a reserved hue's tolerance belongs to a token the invariant does not allow."},
+	{ID: "accent-flip", Default: diag.Error, Run: ruleAccentFlip,
+		Summary: "A token's hue moves more than 1° between appearances, which same-hue-across-appearances forbids."},
+	{ID: "dimension-below", Default: diag.Error, Run: ruleDimensionBelow,
+		Summary: "A dimension a min-dimension invariant matches resolves below its minimum px in some context."},
 	{ID: "exemption-without-reason", Default: diag.Error, Run: ruleExemptionWithoutReason,
 		Summary: "A token is exempt from a rule but gives no reason."},
 }

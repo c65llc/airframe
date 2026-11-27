@@ -24,9 +24,18 @@ var flagAll = map[string]string{
     "3": { "$value": ` + oklch(150) + `, ` + ext(`"tier": "primitive"`) + ` } },
   "surface": { "$type": "color", "$value": ` + oklch(150) + `, ` + ext(`"tier": "semantic"`) + ` },
   "tab-h": { "$type": "dimension", "$value": { "value": 36, "unit": "px" }, ` + ext(`"tier": "component", "component": "tabstrip"`) + ` },
+  "glow": { "$type": "color", "$value": ` + oklch(150) + `, ` + ext(`"modes": { "appearance:dark": `+oklch(160)+` }`) + ` },
   ` + accentToken("accent", `"app:slides": `+oklch(30)) + `
 }`,
+	"invariants.yaml": `- { id: c, kind: contrast, fg: surface, bg: moss-1, min: 21 }
+- { id: h, kind: hue-reserved, hue: 150, tolerance: 2, only: ["moss-*"] }
+- { id: a, kind: same-hue-across-appearances, tokens: [glow] }
+- { id: d, kind: min-dimension, match: "tab-*", min: 44 }
+`,
 }
+
+// invariantRules count checks, read invariants.yaml as well as tokens.
+var invariantRules = []string{"accent-flip", "contrast-below", "dimension-below", "hue-reserved"}
 
 func ruleIDs() []string {
 	var out []string
@@ -50,7 +59,8 @@ func TestRulesStableOrder(t *testing.T) {
 	ids := ruleIDs()
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
-		"accent-group-partial", "density-missing", "exemption-without-reason", "literal-in-semantic",
+		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
+		"exemption-without-reason", "hue-reserved", "literal-in-semantic",
 		"prefix-multiple-hues", "tier-violation", "token-unclassified",
 	}, ids)
 	for _, r := range Rules() {
@@ -66,8 +76,13 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	for _, tl := range res.Tallies {
 		named = append(named, tl.Rule)
 		assert.Positive(t, tl.Items, tl.Rule)
-		assert.Equal(t, "tokens", tl.Noun, tl.Rule)
-		assert.Equal(t, 1, tl.Files, tl.Rule)
+		if slices.Contains(invariantRules, tl.Rule) {
+			assert.Equal(t, "checks", tl.Noun, tl.Rule)
+			assert.Equal(t, 2, tl.Files, tl.Rule)
+		} else {
+			assert.Equal(t, "tokens", tl.Noun, tl.Rule)
+			assert.Equal(t, 1, tl.Files, tl.Rule)
+		}
 		assert.Empty(t, tl.NotApplicable, tl.Rule)
 	}
 	assert.Equal(t, ruleIDs(), named)
