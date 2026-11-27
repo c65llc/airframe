@@ -136,9 +136,11 @@ func Rules() []Rule {
 // Run lints p, which must not be nil (when loading stopped there is
 // nothing to lint; report the load diagnostics alone). loadDiags pass
 // through unchanged, joined by p.Tokens.Check's findings and every rule's.
-// A rule's severity is config lint.rules over its Default; an off rule's
-// findings are dropped, and so are the exemptions it recorded, since they
-// suppressed nothing; it is still tallied. A rule that scanned nothing and
+// A rule's severity is config lint.rules over its Default, applied to the
+// findings under the rule's own ID; an off rule's own findings are dropped,
+// and so are the exemptions it recorded, since they suppressed nothing; it
+// is still tallied. Findings a rule reports under another ID (such as
+// schema-invalid) keep their severity whatever the rule's setting. A rule that scanned nothing and
 // gave no reason is marked not applicable ("no <noun> in scope"), so an
 // empty scan never reads as a clean check. Strict then turns warnings
 // into errors. Every diagnostic is linked to its rule's page and sorted.
@@ -167,10 +169,18 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 		}
 		if sev == diag.Off {
 			off[r.ID] = true
-			continue
 		}
+		// The configured severity is the rule's own: a finding it passes
+		// along under another ID (schema-invalid for an invariant it
+		// cannot compute, emit-failed for a build that broke) keeps its
+		// severity and is never dropped by turning the rule off.
 		for _, d := range ds {
-			d.Severity = sev
+			if d.Rule == r.ID {
+				if sev == diag.Off {
+					continue
+				}
+				d.Severity = sev
+			}
 			all = append(all, d)
 		}
 	}

@@ -114,3 +114,23 @@ func TestEmittedStaleReportsBuildFailure(t *testing.T) {
 	require.Len(t, got, 1, "the build's own diagnostic is reported, never a clean read")
 	assert.Equal(t, "airframe.yaml", got[0].File)
 }
+
+// TestOffRuleKeepsOtherIDs: turning emitted-stale off silences only its
+// own findings; the build's schema-invalid it passes along is still an
+// error.
+func TestOffRuleKeepsOtherIDs(t *testing.T) {
+	fsys := minimal(t)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], `":root[data-theme='dark']"`, `"html[data-theme='dark']"`, 1) +
+		"lint:\n  rules: {emitted-stale: off}\n"
+	res := lintFS(t, fsys, Options{})
+	got := byRule(res.Diagnostics, "schema-invalid")
+	require.Len(t, got, 1)
+	assert.Equal(t, diag.Error, got[0].Severity)
+	assert.Equal(t, 1, res.Errors)
+
+	// warn downgrades emitted-stale's own findings, not the build's.
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "emitted-stale: off", "emitted-stale: warn", 1)
+	got = byRule(lintFS(t, fsys, Options{}).Diagnostics, "schema-invalid")
+	require.Len(t, got, 1)
+	assert.Equal(t, diag.Error, got[0].Severity)
+}

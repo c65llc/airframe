@@ -1,0 +1,27 @@
+# A rule's configured severity applies to its own findings only: turning
+# contrast-below off does not hide a broken contrast invariant, which is
+# schema-invalid and always an error.
+exec airframe init
+cp airframe.yaml.in airframe.yaml
+cp invariants.yaml design-system/invariants.yaml
+exits 1 airframe lint
+stdout 'error schema-invalid: invariant "ink-on-surface": fg names unknown token "inkk"'
+
+-- airframe.yaml.in --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web: {emit: css}
+  json: {emit: [json]}
+lint:
+  rules: {contrast-below: off}
+-- invariants.yaml --
+- id: ink-on-surface
+  kind: contrast
+  fg: inkk
+  bg: surface
+  min: 4.5
+  forEach: [appearance]
