@@ -1,0 +1,65 @@
+# build writes the outputs; build --check names what a token edit made stale.
+exits 1 airframe build --check
+stdout '^design-system/generated/css/tokens.css$'
+! exists design-system/generated/css/tokens.css
+
+exec airframe build
+stdout '^wrote design-system/generated/css/tokens.css$'
+stdout '^wrote design-system/generated/json/tokens.json$'
+exists design-system/generated/css/tokens.css
+exec airframe build --check
+! stdout .
+
+cp gap8.tokens.json design-system/a.tokens.json
+exits 1 airframe build --check
+stdout '^design-system/generated/css/tokens.css$'
+stdout '^design-system/generated/json/tokens.json$'
+exits 1 airframe lint
+stdout 'emitted-stale'
+
+# --platform builds only that platform or format.
+exec airframe build --platform css
+stdout '^wrote design-system/generated/css/tokens.css$'
+! stdout 'json'
+exits 1 airframe build --check
+! stdout 'css'
+stdout '^design-system/generated/json/tokens.json$'
+
+exec airframe build
+exec airframe build --check
+! stdout .
+exec airframe lint
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], binding: runtime, web: {attr: data-density}}
+platforms:
+  web: {emit: css}
+  json: {emit: [json]}
+-- design-system/a.tokens.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 4,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}
+-- gap8.tokens.json --
+{
+  "gap": {
+    "$type": "number",
+    "$value": 8,
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}

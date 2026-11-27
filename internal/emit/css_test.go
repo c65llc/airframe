@@ -50,9 +50,9 @@ func TestCSSValueFormats(t *testing.T) {
 			{Color: grey, Inset: true, Blur: tokens.Dim{V: 4, Unit: "rem"}},
 		}, "0 1px 2px 0 oklch(20% 0.012 250 / 0.2), inset 0 0 4rem 0 oklch(20% 0.012 250 / 0.2)"},
 	} {
-		assert.Equal(t, tc.want, cssValue(&tokens.Value{Lit: tc.lit}), "%#v", tc.lit)
+		assert.Equal(t, tc.want, CSSValue(&tokens.Value{Lit: tc.lit}), "%#v", tc.lit)
 	}
-	assert.Equal(t, "var(--accent)", cssValue(&tokens.Value{Alias: "accent"}))
+	assert.Equal(t, "var(--accent)", CSSValue(&tokens.Value{Alias: "accent"}))
 }
 
 // big576With is the 576-context config with one extra tokens file.

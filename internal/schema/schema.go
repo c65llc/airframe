@@ -42,6 +42,15 @@ var sources = map[string][]byte{
 	"invariants": invariantsSchema,
 }
 
+// Kinds are the document kinds with a schema, in the order usage lists them.
+var Kinds = []string{"config", "tokens", "invariants"}
+
+// Source returns the JSON Schema of a document kind as embedded.
+func Source(kind string) ([]byte, bool) {
+	b, ok := sources[kind]
+	return b, ok
+}
+
 var (
 	mu       sync.Mutex
 	compiled = map[string]*jsonschema.Schema{}

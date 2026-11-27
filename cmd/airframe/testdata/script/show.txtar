@@ -1,0 +1,43 @@
+# show prints a token's facts, its value per key in CSS spelling, and the
+# alias chain.
+mkdir proj
+cd proj
+exec airframe init
+exec airframe show accent-ink
+stdout '^accent-ink$'
+stdout '^tier: semantic$'
+stdout '^component: -$'
+stdout '^type: color$'
+stdout '^  default: var\(--accent\)$'
+stdout '^    chain: accent-ink → accent → amber-500 → oklch\(63% 0.13 75\)$'
+
+# The DTCG path spelling finds the token too.
+exec airframe show amber.500
+stdout '^amber-500$'
+stdout '^tier: primitive$'
+
+exec airframe show accent-ink --json
+stdout '"name": "accent-ink"'
+stdout '"tier": "semantic"'
+stdout '"value": "var\(--accent\)"'
+stdout '"accent-ink",$'
+stdout '"resolved": "oklch\(63% 0.13 75\)"'
+
+# A near miss suggests the name; anything else is just unknown.
+exits 1 airframe show accent-inc
+stderr 'unknown token accent-inc; did you mean accent-ink\?'
+exits 1 airframe show zzzzzzzzzz
+stderr '^airframe show: unknown token zzzzzzzzzz$'
+
+# The project is found from a subdirectory, or named with --root; with
+# neither there is no project.
+cd design-system/tokens
+exec airframe show accent-ink
+stdout '^tier: semantic$'
+mkdir $WORK/elsewhere
+cd $WORK/elsewhere
+exits 1 airframe show accent-ink
+stderr 'config-missing'
+exec airframe --root $WORK/proj show accent-ink
+stdout '^tier: semantic$'
+exits 2 airframe --root $WORK/nope show accent-ink

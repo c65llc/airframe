@@ -83,3 +83,8 @@ func TestCheckAxesUnknown(t *testing.T) {
 func TestCheckAxesDeferred(t *testing.T) {
 	assert.EqualError(t, specConfig(t).CheckAxes([]string{"swatch"}), "axis swatch has no values loaded")
 }
+
+func TestModeKeyContext(t *testing.T) {
+	assert.Equal(t, Context{}, ModeKey("").Context())
+	assert.Equal(t, Context{"app": "slides", "appearance": "dark"}, ModeKey("app:slides+appearance:dark").Context())
+}

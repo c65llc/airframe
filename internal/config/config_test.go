@@ -184,3 +184,28 @@ func TestDuplicateKey(t *testing.T) {
 	assert.Equal(t, `duplicate key "content"`, ds[0].Message)
 	assert.Equal(t, 3, ds[0].Line)
 }
+
+func TestContentIsCleaned(t *testing.T) {
+	for in, want := range map[string]string{
+		"design-system":   "design-system",
+		"./design-system": "design-system",
+		"a//b/":           "a/b",
+		"a/../b":          "b",
+	} {
+		c := mustLoad(t, "version: 1\ncontent: "+in+"\n")
+		assert.Equal(t, want, c.Content, in)
+	}
+}
+
+func TestContentMustStayUnderTheRoot(t *testing.T) {
+	for _, in := range []string{"../x", "a/../../x", "..", "/abs/tokens"} {
+		c, ds := Load([]byte("version: 1\ncontent: " + in + "\n"))
+		assert.Nil(t, c, in)
+		require.Len(t, ds, 1, in)
+		assert.Equal(t, "schema-invalid", ds[0].Rule, in)
+		assert.Equal(t, "content", ds[0].Path, in)
+		assert.Equal(t, 2, ds[0].Line, in)
+		assert.Equal(t, File, ds[0].File, in)
+		assert.Contains(t, ds[0].Message, in, in)
+	}
+}

@@ -129,6 +129,16 @@ func (k ModeKey) Matches(ctx Context) bool {
 	return true
 }
 
+// Context is the context k names: one value per axis it pairs.
+func (k ModeKey) Context() Context {
+	ctx := Context{}
+	for _, p := range k.pairs() {
+		name, val, _ := strings.Cut(p, ":")
+		ctx[name] = val
+	}
+	return ctx
+}
+
 // Pairs is the number of axis:value pairs in k, its specificity.
 func (k ModeKey) Pairs() int { return len(k.pairs()) }
 

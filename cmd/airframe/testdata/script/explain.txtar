@@ -1,0 +1,14 @@
+# explain <rule> prints its docs page and needs no project.
+exec airframe explain tier-violation
+stdout '^# tier-violation$'
+stdout 'https://airframe.c65llc.com/rules/tier-violation/'
+! stdout '^since:'
+
+# explain <token> shows the token and which tiers may read it.
+exec airframe init
+exec airframe explain accent-ink
+stdout '^tier: semantic$'
+stdout '^readable by: component, consumers, emitters$'
+
+exits 1 airframe explain no-such-thing
+stderr 'unknown rule or token no-such-thing'

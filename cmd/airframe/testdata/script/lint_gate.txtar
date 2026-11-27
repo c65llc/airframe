@@ -1,0 +1,18 @@
+# lint --format gate self-tests, then reports the gate protocol JSON.
+exec airframe init
+exec airframe lint --format gate
+stdout '"gate": "airframe"'
+stdout '"ok": true'
+stdout '"files": 6,'
+stdout '"findings": \[\]'
+! stderr .
+
+# Findings fail the gate.
+cp unformatted.json design-system/tokens/extra.tokens.json
+exits 1 airframe lint --format gate
+stdout '"ok": true'
+stdout '"files": 7,'
+stdout '"rule": "not-formatted"'
+
+-- unformatted.json --
+{"spare":{"$type":"number","$value":4,"$extensions": {"com.c65llc.airframe": {"tier":"primitive"}}}}

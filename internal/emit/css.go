@@ -60,7 +60,7 @@ func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 			if v.Alias != "" && !inCSS[v.Alias] {
 				return nil, fmt.Errorf("--%s aliases %s, which is not emitted to css%s", t.Name, v.Alias, inMode(key))
 			}
-			val := cssValue(v)
+			val := CSSValue(v)
 			if val == "" {
 				return nil, fmt.Errorf("--%s: cannot write its value as CSS%s", t.Name, inMode(key))
 			}
@@ -264,9 +264,9 @@ var genericFamilies = map[string]bool{
 	"ui-rounded": true, "math": true, "emoji": true, "fangsong": true,
 }
 
-// cssValue is v as a CSS value: var(--target) for an alias, else the
+// CSSValue is v as a CSS value: var(--target) for an alias, else the
 // literal. It is "" when the value cannot be written (CSS reports that).
-func cssValue(v *tokens.Value) string {
+func CSSValue(v *tokens.Value) string {
 	if v.Alias != "" {
 		return "var(--" + v.Alias + ")"
 	}

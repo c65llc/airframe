@@ -7,6 +7,7 @@ package config
 
 import (
 	"fmt"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -161,7 +162,15 @@ func build(root *yaml.Node) (*Config, *buildError) {
 	c := &Config{Content: "design-system", Tiers: map[string]Tier{}, Lint: LintConfig{Rules: map[string]diag.Severity{}}}
 	c.Version = 1
 	if n := field(root, "content"); n != nil {
-		c.Content = n.Value
+		// content is a directory under the project root, compared and
+		// joined in its clean form.
+		c.Content = path.Clean(n.Value)
+		if path.IsAbs(c.Content) || c.Content == ".." || strings.HasPrefix(c.Content, "../") {
+			return nil, &buildError{
+				msg:  fmt.Sprintf("content %s must be a directory under the project root", n.Value),
+				path: "content", line: n.Line,
+			}
+		}
 	}
 
 	if tn := field(root, "tiers"); tn != nil {
