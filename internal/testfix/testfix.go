@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/c65llc/airframe/internal/format"
 	"github.com/c65llc/airframe/internal/project"
 )
 
@@ -186,11 +187,21 @@ func componentTokens() string {
 // semantic, 72 component) using seven distinct mode keys, and the spec's
 // four invariants. It loads with no diagnostics and every invariant holds.
 func Big576() project.MemFS {
-	return project.MemFS{
+	raw := map[string]string{
 		"airframe.yaml":                       big576Config,
 		"design-system/invariants.yaml":       big576Invariants,
 		"design-system/primitive.tokens.json": primitives(),
 		"design-system/semantic.tokens.json":  semantics(),
 		"design-system/component.tokens.json": componentTokens(),
 	}
+	// Every file goes through the formatter so the fixture is canonical.
+	m := project.MemFS{}
+	for k, v := range raw {
+		b, err := format.File(k, []byte(v))
+		if err != nil {
+			panic(fmt.Sprintf("testfix: format %s: %v", k, err))
+		}
+		m[k] = string(b)
+	}
+	return m
 }

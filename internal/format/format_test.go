@@ -67,6 +67,18 @@ func TestYAMLKeepsComments(t *testing.T) {
 	assert.True(t, strings.HasSuffix(s, "b: 2\n") && !strings.HasSuffix(s, "\n\n"))
 }
 
+func TestYAMLMultiDocumentIsError(t *testing.T) {
+	_, err := YAML([]byte("a: 1\n---\nb: 2\n"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "multiple YAML documents are not supported")
+}
+
+func TestYAMLCommentsOnlyUnchanged(t *testing.T) {
+	got, err := YAML([]byte("# just a note\r\n# another\n\n\n"))
+	require.NoError(t, err)
+	assert.Equal(t, "# just a note\n# another\n", string(got))
+}
+
 func TestFormatCRLFOnlyIsFormatted(t *testing.T) {
 	p := loadMinimal(t)
 	crlf := strings.ReplaceAll(string(p.Sources["design-system/tokens/semantic.tokens.json"]), "\n", "\r\n")

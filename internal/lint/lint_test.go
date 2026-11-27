@@ -127,6 +127,7 @@ func TestLoadDiagnosticsPassThroughAndCheckRuns(t *testing.T) {
 	unresolved := byRule(res.Diagnostics, "alias-unresolved")
 	require.Len(t, unresolved, 1, "Run calls Tokens.Check")
 	assert.Len(t, without(res.Diagnostics, "not-formatted"), 2, "the load diagnostic and alias-unresolved")
+	assert.Equal(t, 4, res.Errors, "those two plus not-formatted on airframe.yaml and a.tokens.json")
 }
 
 func TestSeverityOverrideOffAndStrict(t *testing.T) {

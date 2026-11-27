@@ -253,7 +253,7 @@ func TestInvariants576Under2s(t *testing.T) {
 	res := runBig576(t)
 	elapsed := time.Since(start)
 	assert.Less(t, elapsed, 2*time.Second)
-	assert.Empty(t, without(res.Diagnostics, "not-formatted"), "Big576 is clean")
+	assert.Empty(t, res.Diagnostics, "Big576 is clean")
 	items := map[string]int{}
 	for _, tl := range res.Tallies {
 		items[tl.Rule] = tl.Items

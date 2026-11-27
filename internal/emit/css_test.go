@@ -125,7 +125,7 @@ func TestAlsoFallbackOnlyWhenAttrUnset(t *testing.T) {
 	assert.Contains(t, css, "\n@media (pointer: coarse) {\n  :root[data-theme='dark']:not([data-density]) {\n    --x: 3;\n  }\n}\n")
 	assert.NotRegexp(t, `(?m)^\s*:root( |\[data-theme='dark'\] )\{\n\s*--x: [23];`, css, "no unconditioned fallback scope")
 
-	cfg := strings.Replace(testfix.Big576()["airframe.yaml"], "web: { attr: data-density, also:", "web: { also:", 1)
+	cfg := strings.Replace(testfix.Big576()["airframe.yaml"], "web: {attr: data-density, also:", "web: {also:", 1)
 	p := loadFS(t, project.MemFS{"airframe.yaml": cfg, "design-system/x.tokens.json": `{ "x": { "$type": "number", "$value": 0,
   "$extensions": { "com.c65llc.airframe": { "modes": { "density:relaxed": 2 } } } } }`})
 	_, ds := Build(p, nil)

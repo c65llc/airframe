@@ -7,6 +7,8 @@ package format
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"path"
 	"slices"
 	"strings"
@@ -66,12 +68,20 @@ func reorder(n *ojson.Node) {
 // YAML canonicalises a YAML file through a yaml.v3 node round trip: 2-space
 // indent, comments kept, LF, exactly one final newline.
 func YAML(data []byte) ([]byte, error) {
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) { // no document: empty or comments only
+			return normalise(data), nil
+		}
 		return nil, err
 	}
-	if doc.Kind == 0 { // empty document
-		return []byte{}, nil
+	var extra yaml.Node
+	switch err := dec.Decode(&extra); {
+	case err == nil:
+		return nil, errors.New("multiple YAML documents are not supported")
+	case !errors.Is(err, io.EOF):
+		return nil, err
 	}
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
@@ -82,9 +92,17 @@ func YAML(data []byte) ([]byte, error) {
 	if err := enc.Close(); err != nil {
 		return nil, err
 	}
-	out := bytes.ReplaceAll(buf.Bytes(), []byte("\r\n"), []byte("\n"))
-	out = append(bytes.TrimRight(out, "\n"), '\n')
-	return out, nil
+	return normalise(buf.Bytes()), nil
+}
+
+// normalise is LF line endings and exactly one final newline; empty input
+// stays empty.
+func normalise(b []byte) []byte {
+	out := bytes.TrimRight(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")), "\n")
+	if len(out) == 0 {
+		return []byte{}
+	}
+	return append(out, '\n')
 }
 
 // Paths lists, sorted, the repo-relative files Project formats: airframe.yaml,
