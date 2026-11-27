@@ -301,8 +301,10 @@ func (p *parser) readExt(file, at string, n *ojson.Node) ext {
 			}
 			for _, rule := range o.Keys {
 				r := o.Fields[rule]
-				if r.Kind != ojson.String || strings.TrimSpace(r.Str) == "" {
-					p.invalid(file, at+".exempt."+rule, r.Line, "exemption from %s needs a non-empty reason", rule)
+				// An empty reason is kept: lint reports it as
+				// exemption-without-reason, and it suppresses nothing.
+				if r.Kind != ojson.String {
+					p.invalid(file, at+".exempt."+rule, r.Line, "exemption from %s needs a reason string", rule)
 					continue
 				}
 				if e.exempt == nil {

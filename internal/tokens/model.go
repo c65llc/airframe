@@ -46,7 +46,8 @@ type Shadow struct {
 // Token is one design token. Name is the DTCG path joined with "-". Default
 // is the plain $value (nil when the token is only ever given in mode files,
 // or when its $value was invalid); Modes holds the overrides by canonical
-// mode key. Exempt maps a rule ID to its non-empty reason. File and Line
+// mode key. Exempt maps a rule ID to its reason as written; an empty
+// reason exempts nothing and lint reports it. File and Line
 // locate the token's base declaration.
 type Token struct {
 	Name                                       string
@@ -71,8 +72,9 @@ type Set struct {
 	origin map[*Value]string // the file each value was declared in
 }
 
-// fileOf is the file v was declared in.
-func (s *Set) fileOf(v *Value) string { return s.origin[v] }
+// FileOf is the file v was declared in: a mode value may come from a
+// different file than its token's base declaration.
+func (s *Set) FileOf(v *Value) string { return s.origin[v] }
 
 // values lists t's values with their keys: the default first (key ""),
 // then the modes in key order.

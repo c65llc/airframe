@@ -95,10 +95,10 @@ func (s *Set) Check() []diag.Diagnostic {
 			target := s.Tokens[v.Alias]
 			switch {
 			case target == nil:
-				out = append(out, finding("alias-unresolved", s.fileOf(v), name, v.Line,
+				out = append(out, finding("alias-unresolved", s.FileOf(v), name, v.Line,
 					"token %q aliases %q, which is not defined%s", name, v.Alias, inMode(keys[i])))
 			case target.Type != t.Type:
-				out = append(out, finding("alias-type-mismatch", s.fileOf(v), name, v.Line,
+				out = append(out, finding("alias-type-mismatch", s.FileOf(v), name, v.Line,
 					"token %q (%s) aliases %q (%s, %s:%d)%s", name, t.Type, target.Name, target.Type,
 					target.File, target.Line, inMode(keys[i])))
 			}
@@ -265,7 +265,7 @@ func (s *Set) cycles() []diag.Diagnostic {
 					if c, _ := union(used...); len(c) > 0 {
 						when = " when " + string(keyOf(c))
 					}
-					out = append(out, finding("alias-cycle", s.fileOf(lines[0]), names[0], lines[0].Line,
+					out = append(out, finding("alias-cycle", s.FileOf(lines[0]), names[0], lines[0].Line,
 						"alias cycle %s%s", path, when))
 					break
 				}
@@ -307,7 +307,7 @@ func (s *Set) ambiguities(t *Token) []diag.Diagnostic {
 					continue
 				}
 				v := t.Modes[b]
-				out = append(out, finding("mode-ambiguous", s.fileOf(v), t.Name, v.Line,
+				out = append(out, finding("mode-ambiguous", s.FileOf(v), t.Name, v.Line,
 					"token %q: mode keys %s and %s both match %s with different values; add a value for %s",
 					t.Name, a, b, keyOf(both), keyOf(both)))
 				break

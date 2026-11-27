@@ -217,16 +217,18 @@ func TestExtensionFields(t *testing.T) {
   "x": { "$type": "number", "$value": 1, "$description": "the x",
     "$extensions": { "com.c65llc.airframe": {
       "shared": true, "retired": true, "chrome": "toolbar",
-      "exempt": { "touch-floor": "decorative", "other": "" } } } }
+      "exempt": { "touch-floor": "decorative", "other": "", "bad": 1 } } } }
 }`})
 	d := only(t, ds, "schema-invalid")
-	assert.Contains(t, d.Message, "reason")
+	assert.Equal(t, "exemption from bad needs a reason string", d.Message)
 	tok := s.Tokens["x"]
 	assert.True(t, tok.Shared)
 	assert.True(t, tok.Retired)
 	assert.Equal(t, "toolbar", tok.Chrome)
 	assert.Equal(t, "the x", tok.Description)
-	assert.Equal(t, map[string]string{"touch-floor": "decorative"}, tok.Exempt)
+	assert.Equal(t, map[string]string{"touch-floor": "decorative", "other": ""}, tok.Exempt,
+		"an empty reason is kept for lint to report as exemption-without-reason")
+	assert.Equal(t, "a.tokens.json", s.FileOf(tok.Default))
 }
 
 func TestOrderAcrossFiles(t *testing.T) {
