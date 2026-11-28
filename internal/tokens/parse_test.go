@@ -398,3 +398,42 @@ func TestDensityShorthandBaseDiffers(t *testing.T) {
   "$extensions": { "com.c65llc.airframe": { "modes": { "density:standard": 1 } } } } }`)})
 	only(t, ds, "mode-base-value")
 }
+
+func TestTokenNamesParsed(t *testing.T) {
+	s := mustParse(t, map[string]string{
+		"a.tokens.json": `{ "x": { "$type": "number", "$value": 1,
+  "$extensions": { "com.c65llc.airframe": { "names": { "swift": "spacingXs", "kotlin": "SpacingXs" } } } } }`,
+	})
+	assert.Equal(t, map[string]string{"swift": "spacingXs", "kotlin": "SpacingXs"}, s.Tokens["x"].Names)
+}
+
+func TestTokenNamesBadValue(t *testing.T) {
+	for name, names := range map[string]string{
+		"empty":   `{ "swift": "" }`,
+		"number":  `{ "swift": 3 }`,
+		"unknown": `{ "swfit": "x" }`,
+		"notobj":  `["swift"]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, ds := parse(t, map[string]string{
+				"a.tokens.json": "{ \"x\": { \"$type\": \"number\", \"$value\": 1,\n  \"$extensions\": { \"com.c65llc.airframe\": { \"names\": " + names + " } } } }",
+			})
+			d := only(t, ds, "schema-invalid")
+			assert.Equal(t, 2, d.Line)
+			assert.Empty(t, s.Tokens["x"].Names)
+		})
+	}
+}
+
+func TestTokenNamesOnOverrideRejected(t *testing.T) {
+	s, ds := parse(t, map[string]string{
+		"base.tokens.json": `{ "x": { "$type": "number", "$value": 1 } }`,
+		"themes/dark.tokens.json": `{ "$extensions": { "com.c65llc.airframe": { "mode": "appearance:dark" } },
+  "x": { "$value": 2,
+    "$extensions": { "com.c65llc.airframe": { "names": { "swift": "x2" } } } } }`,
+	})
+	d := only(t, ds, "schema-invalid")
+	assert.Equal(t, `only $value, modes and density may appear on an override of "x"`, d.Message)
+	assert.Equal(t, 4, d.Line)
+	assert.Nil(t, s.Tokens["x"].Names)
+}

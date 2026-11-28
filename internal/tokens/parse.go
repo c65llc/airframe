@@ -243,6 +243,7 @@ type ext struct {
 	shared, retired         bool
 	emit                    []string
 	exempt                  map[string]string
+	names                   map[string]string
 	modes                   *ojson.Node
 	density                 *ojson.Node
 }
@@ -318,6 +319,26 @@ func (p *parser) readExt(file, at string, n *ojson.Node) ext {
 					e.exempt = map[string]string{}
 				}
 				e.exempt[rule] = r.Str
+			}
+		case "names":
+			o := object(k, v)
+			if o == nil {
+				continue
+			}
+			for _, f := range o.Keys {
+				nv := o.Fields[f]
+				if !slices.Contains(config.Formats, f) {
+					p.invalid(file, at+".names."+f, nv.Line, "names key %q is not an emit format; known: %s", f, strings.Join(config.Formats, ", "))
+					continue
+				}
+				if nv.Kind != ojson.String || nv.Str == "" {
+					p.invalid(file, at+".names."+f, nv.Line, "names.%s must be a non-empty string", f)
+					continue
+				}
+				if e.names == nil {
+					e.names = map[string]string{}
+				}
+				e.names[f] = nv.Str
 			}
 		case "modes":
 			e.modes = object(k, v)
@@ -402,7 +423,7 @@ func (p *parser) merge(d decl) {
 		tok = &Token{
 			Name: d.name, Path: d.path, Type: typ, Tier: e.tier, Component: e.component,
 			Chrome: e.chrome, Shared: e.shared, Retired: e.retired, Exempt: e.exempt,
-			Emit: e.emit, File: d.file, Line: d.node.Line, Modes: map[config.ModeKey]*Value{},
+			Emit: e.emit, Names: e.names, File: d.file, Line: d.node.Line, Modes: map[config.ModeKey]*Value{},
 		}
 		if desc, ok := d.node.Fields["$description"]; ok && desc.Kind == ojson.String {
 			tok.Description = desc.Str
@@ -475,7 +496,7 @@ func (p *parser) merge(d decl) {
 
 // metaKeys are the extension fields that describe a token rather than
 // give it a value; only its first declaration may set them.
-var metaKeys = []string{"tier", "component", "chrome", "shared", "retired", "emit", "exempt"}
+var metaKeys = []string{"tier", "component", "chrome", "shared", "retired", "emit", "exempt", "names"}
 
 // overrideOnly reports each descriptive field on a later declaration of a
 // token that already exists: those fields would otherwise be dropped.

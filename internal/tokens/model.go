@@ -58,8 +58,11 @@ type Token struct {
 	Modes                                      map[config.ModeKey]*Value
 	Exempt                                     map[string]string
 	Emit                                       []string
-	File                                       string
-	Line                                       int
+	// Names maps an emit format to this token's spelling in it, which wins
+	// over the config's naming template.
+	Names map[string]string
+	File  string
+	Line  int
 }
 
 // Set is every token parsed from a project's token files. Order lists the

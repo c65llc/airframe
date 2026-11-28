@@ -108,6 +108,12 @@
           "additionalProperties": { "type": "string", "minLength": 1, "pattern": "\\S" }
         },
         "emit": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "names": {
+          "description": "Emit format to this token's spelling in it; wins over the naming template.",
+          "type": "object",
+          "propertyNames": { "enum": ["css", "json", "swift", "colorsets", "kotlin", "xaml"] },
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
         "retired": { "type": "boolean" }
       }
     },
