@@ -211,3 +211,16 @@ func TestRenameThenLintClean(t *testing.T) {
 		assert.Contains(t, stdout, f, "usages foreground lists "+f)
 	}
 }
+
+func TestRenameSymlink(t *testing.T) {
+	dir := usagesProject(t)
+	f := filepath.Join(dir, "design-system/tokens/semantic.tokens.json")
+	real := filepath.Join(dir, "semantic.json")
+	require.NoError(t, os.Rename(f, real))
+	require.NoError(t, os.Symlink(real, f))
+	before := treeHash(t, dir)
+	code, _, stderr := run("--root", dir, "rename", "gap", "spacing")
+	assert.Equal(t, ExitFindings, code, stderr)
+	assert.Contains(t, stderr, "design-system/tokens/semantic.tokens.json is a symbolic link")
+	assert.Equal(t, before, treeHash(t, dir))
+}

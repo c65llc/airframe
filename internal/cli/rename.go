@@ -71,6 +71,11 @@ func runRename(inv *invocation) int {
 	_, _ = fmt.Fprintf(inv.stdout, "%s %s to %s (path %s → %s)\n", verb, old, new,
 		strings.Join(pl.OldPath, "."), strings.Join(pl.NewPath, "."))
 	writePlan(inv.stdout, pl)
+	files := maps.Clone(pl.Files)
+	maps.Copy(files, pl.Consumers)
+	if c := inv.refuseLinks(dir, files); c != ExitOK {
+		return c
+	}
 	remove, err := staleByRename(p, pl)
 	if err != nil {
 		return inv.fail(err)
@@ -91,8 +96,6 @@ func runRename(inv *invocation) int {
 		return inv.fail(err)
 	}
 	defer func() { _ = root.Close() }()
-	files := maps.Clone(pl.Files)
-	maps.Copy(files, pl.Consumers)
 	// The plan was made from what was read: a file changed on disk since
 	// would be overwritten with edits made to its old bytes.
 	for _, name := range slices.Sorted(maps.Keys(files)) {

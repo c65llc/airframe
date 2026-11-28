@@ -76,8 +76,12 @@ func (f Flag) synopsis() string {
 
 // Command is one airframe command.
 type Command struct {
-	Name    string
-	Args    string // the positional arguments as the usage shows them; empty for none
+	Name string
+	Args string // the positional arguments as the usage shows them; empty for none
+	// Short, when set, stands for the flags and arguments in the usage's
+	// command table, for a command whose full synopsis would widen it;
+	// the command's own usage still lists every flag.
+	Short   string
 	Summary string
 	Flags   []Flag
 }
@@ -351,7 +355,11 @@ func usage(w io.Writer) {
 	b.WriteString("Usage: airframe [--root D] <command> [flags]\n\nCommands:\n")
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	for _, c := range Commands {
-		_, _ = fmt.Fprintf(tw, "  %s\t%s\n", c.Synopsis(), c.Summary)
+		syn := c.Synopsis()
+		if c.Short != "" {
+			syn = c.Name + " " + c.Short
+		}
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\n", syn, c.Summary)
 	}
 	_ = tw.Flush()
 	b.WriteString("\nFlags:\n")
@@ -470,6 +478,31 @@ func writeFile(root *os.Root, rel string, data []byte) error {
 		return err
 	}
 	return nil
+}
+
+// refuseLinks reports, and exits 1 for, a project-relative file in files
+// that is a symbolic link: writing it would replace the link with a
+// regular file. It is ExitOK when none is.
+func (inv *invocation) refuseLinks(dir string, files map[string][]byte) int {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return inv.fail(err)
+	}
+	defer func() { _ = root.Close() }()
+	for _, name := range slices.Sorted(maps.Keys(files)) {
+		fi, err := root.Lstat(filepath.FromSlash(name))
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return inv.fail(err)
+		}
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			_, _ = fmt.Fprintf(inv.stderr, "airframe %s: %s is a symbolic link; edit the file it points to, or replace the link with the file, first. Nothing was written.\n", inv.cmd.Name, name)
+			return ExitFindings
+		}
+	}
+	return ExitOK
 }
 
 // lf is b with CRLF line endings made LF, as the formatter and emitters

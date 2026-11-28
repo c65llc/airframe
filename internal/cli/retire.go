@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path"
 	"regexp"
@@ -23,6 +22,7 @@ import (
 	"github.com/c65llc/airframe/internal/format"
 	"github.com/c65llc/airframe/internal/ojson"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/rename"
 	"github.com/c65llc/airframe/internal/retired"
 	"github.com/c65llc/airframe/internal/tokens"
 )
@@ -31,6 +31,7 @@ import (
 var retireCommand = Command{
 	Name:    "retire",
 	Args:    "[<token>]",
+	Short:   "[--dry-run] [<token>] [--treatment ID --spelling A=RE…]",
 	Summary: "Mark a token retired and list what lint will then report; or, with --treatment, record a retired treatment and its spellings in retired.yaml.",
 	Flags: []Flag{
 		{Name: "dry-run", Summary: "print what would change and write nothing"},
@@ -41,26 +42,9 @@ var retireCommand = Command{
 	},
 }
 
-// overlayFS reads files from over first, then from base.
-type overlayFS struct {
-	base fs.FS
-	over project.MemFS
-}
-
-func (o overlayFS) Open(name string) (fs.File, error) {
-	if _, ok := o.over[name]; ok {
-		return o.over.Open(name)
-	}
-	return o.base.Open(name)
-}
-
 // reloadWith loads the project as it would be with files replaced.
 func reloadWith(p *project.Project, files map[string][]byte) (*project.Project, []diag.Diagnostic, error) {
-	over := project.MemFS{}
-	for k, v := range files {
-		over[k] = string(v)
-	}
-	return project.Load(overlayFS{base: p.FS, over: over})
+	return project.Load(rename.Overlay(p.FS, files))
 }
 
 func runRetire(inv *invocation) int {
@@ -154,7 +138,7 @@ func retireToken(inv *invocation, name string) int {
 	if err != nil {
 		return inv.fail(fmt.Errorf("scan consumers: %w", err))
 	}
-	root, err := ojson.Parse(p.Sources[t.File])
+	root, err := ojson.Parse(bytes.TrimPrefix(p.Sources[t.File], []byte{0xEF, 0xBB, 0xBF}))
 	if err != nil {
 		return inv.fail(fmt.Errorf("%s: %w", t.File, err))
 	}
@@ -193,6 +177,9 @@ func retireToken(inv *invocation, name string) int {
 	}
 	if nt := np.Tokens.Tokens[t.Name]; nt == nil || !nt.Retired {
 		return inv.fail(fmt.Errorf("%s: retired did not take effect", t.File))
+	}
+	if c := inv.refuseLinks(dir, files); c != ExitOK {
+		return c
 	}
 	verb := "retired"
 	if *inv.bools["dry-run"] {
@@ -329,6 +316,9 @@ func retireTreatment(inv *invocation, id string) int {
 	res, err := consumer.Scan(np)
 	if err != nil {
 		return inv.fail(fmt.Errorf("scan consumers: %w", err))
+	}
+	if c := inv.refuseLinks(dir, files); c != ExitOK {
+		return c
 	}
 	verb := "retired"
 	if *inv.bools["dry-run"] {

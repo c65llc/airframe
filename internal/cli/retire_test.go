@@ -6,6 +6,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -123,4 +124,48 @@ func TestRetireThenLint(t *testing.T) {
 	assert.Contains(t, stdout, "web/src/app.css:11:")
 	assert.Contains(t, stdout, "error retired-used: platform web: ")
 	assert.Contains(t, stdout, "token hairline, which is retired")
+}
+
+// A token file that starts with a UTF-8 byte order mark retires like any
+// other.
+func TestRetireTokenBOM(t *testing.T) {
+	dir := usagesProject(t)
+	f := filepath.Join(dir, "design-system/tokens/semantic.tokens.json")
+	b, err := os.ReadFile(f)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(f, append([]byte{0xEF, 0xBB, 0xBF}, b...), 0o644))
+	code, stdout, stderr := run("--root", dir, "retire", "gap")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Contains(t, readFile(t, dir, "design-system/tokens/semantic.tokens.json"), `"retired": true`)
+}
+
+// A symlinked token file is refused, so the write never replaces the link
+// with a regular file.
+func TestRetireTokenSymlink(t *testing.T) {
+	dir := usagesProject(t)
+	f := filepath.Join(dir, "design-system/tokens/semantic.tokens.json")
+	real := filepath.Join(dir, "semantic.json")
+	require.NoError(t, os.Rename(f, real))
+	require.NoError(t, os.Symlink(real, f))
+	code, stdout, stderr := run("--root", dir, "retire", "gap")
+	assert.Equal(t, ExitFindings, code, stdout+stderr)
+	assert.Contains(t, stderr, "design-system/tokens/semantic.tokens.json is a symbolic link")
+	fi, err := os.Lstat(f)
+	require.NoError(t, err)
+	assert.NotZero(t, fi.Mode()&os.ModeSymlink, "the link is still a link")
+	assert.NotContains(t, readFile(t, dir, "semantic.json"), `"retired"`)
+}
+
+func TestRetireHelpWidth(t *testing.T) {
+	_, stdout, _ := run("help")
+	for _, l := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(l, "  retire ") {
+			assert.True(t, strings.HasPrefix(l, "  retire [--dry-run] [<token>] [--treatment ID --spelling A=RE…]  "), l)
+		}
+		if i := strings.Index(l, "Mark a token retired"); i >= 0 {
+			assert.Less(t, i, 80, "the synopsis column is not padded out by retire")
+		}
+	}
+	_, stdout, _ = run("retire", "--help")
+	assert.Contains(t, stdout, "--spelling ADAPTER=RE2", "the command's own usage lists every flag")
 }
