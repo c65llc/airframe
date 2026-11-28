@@ -959,3 +959,28 @@ func TestGuideKotlinCompiles(t *testing.T) {
 		})
 	}
 }
+
+// TestGuideAndroidConfig: the guide's §1 airframe.yaml, over the android
+// fixture's tokens, builds exactly the fixture's Kotlin goldens (the
+// files its kotlin blocks compile against) and every warning the guide
+// quotes, so its emit-axis-fixed section names an axis §1 declares.
+func TestGuideAndroidConfig(t *testing.T) {
+	guide, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "android.md"))
+	require.NoError(t, err)
+	yamls := regexp.MustCompile("(?s)```yaml\n(.*?)```").FindAllStringSubmatch(string(guide), -1)
+	require.NotEmpty(t, yamls)
+	fsys := memFS(t, androidDir)
+	fsys["airframe.yaml"] = "version: 1\ncontent: design-system\n" + yamls[0][1]
+	out, ds := Build(loadFS(t, fsys), nil)
+	var warns []string
+	for _, d := range ds {
+		require.NotEqual(t, diag.Error, d.Severity, "%v", d)
+		warns = append(warns, d.File+": "+string(d.Severity)+" "+d.Rule+": "+d.Message)
+	}
+	assert.Equal(t, kotlinGoldenFiles(t, androidDir), out)
+	quoted := regexp.MustCompile(`(?m)^airframe\.yaml: warn .*$`).FindAllString(string(guide), -1)
+	require.NotEmpty(t, quoted)
+	for _, q := range quoted {
+		assert.Contains(t, warns, q)
+	}
+}

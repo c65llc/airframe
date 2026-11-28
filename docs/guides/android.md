@@ -28,6 +28,7 @@ modes:
   appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
   density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
   app: {values: [notes, tasks], base: notes, binding: build, web: {attr: data-app}}
+  channel: {values: [stable, next], base: stable, binding: build, web: {attr: data-channel}}
 platforms:
   android:
     emit: [kotlin]
@@ -48,6 +49,9 @@ platforms:
   built). The platform writes one `DesignColorValues.kt` per value of that
   axis; a colour that differs per app is how `accent` is `blue.500` in
   notes and `green.500` in tasks.
+- **`channel`** is a second build-bound axis that is not fanned out, so
+  Android gets its base value, `stable`; see
+  [What `emit-axis-fixed` means](#what-emit-axis-fixed-means).
 - **`naming`** (top level) sets spellings. The default for Kotlin is
   `DesignTokens.{camel}`: the token `button-bg` is `buttonBg` on
   `DesignTokens`. Change the type part to rename the class; the colour
@@ -62,7 +66,7 @@ platforms:
 | Option | Value | Default |
 | --- | --- | --- |
 | `package` | The Kotlin package both files declare, as in `com.example.design`. **Required.** | none |
-| `sharedOut` | Repo-relative path of the shared `DesignTokens.kt`. Required when `out` contains `{app}`; it cannot contain `{app}` itself, since it is written once. | none: the shared declarations open the values file, which then must not fan out |
+| `sharedOut` | Repo-relative path of the shared `DesignTokens.kt`. Required when `out` contains `{app}`. It names one file, written once, so it cannot be a directory (a trailing `/`) or contain `{` or `}`, `{app}` included. | none: the shared declarations open the values file, which then must not fan out |
 | `colorSpace` | `srgb`: `Color(0xAARRGGBB)`. `display-p3`: `Color(red =, green =, blue =, alpha =, colorSpace = ColorSpaces.DisplayP3)`. | `srgb` |
 | `gamut` | How a colour outside `colorSpace` is brought in. `css-color-4`: CSS Color 4 gamut mapping (reduce chroma, keep lightness and hue). `clip`: clip each channel independently (can shift hue). | `css-color-4` |
 | `material3Scheme` | A map from Material 3 `ColorScheme` roles to colour tokens, as in `{primary: accent}`. Writes `lightScheme` and `darkScheme` into each app's `DesignColorValues`. Roles you leave out keep Material's defaults. | none: no schemes |
