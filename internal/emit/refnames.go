@@ -4,8 +4,6 @@
 package emit
 
 import (
-	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/c65llc/airframe/internal/config"
@@ -20,7 +18,8 @@ import (
 // Shadow's fields or an enum's cases, are not first segments and are left
 // out, so DesignTokens.x with no token x stays unmatched. It runs the emitter itself and reads the names it
 // wrote, so the two cannot drift, and it fails with the emitter's own error
-// when the emitter would fail.
+// when the emitter would fail. It is ReferenceVariants projected onto each
+// Variant's Token.
 //
 //   - css: each custom property, as --<name>.
 //   - swift: the <Type> struct's members, static and instance (a backticked
@@ -35,118 +34,15 @@ import (
 //
 // Any other format is an error.
 func ReferenceNames(p *project.Project, pl config.Platform, format string) (map[string]string, error) {
-	r := refs{}
-	switch format {
-	case "css":
-		_, toks, err := buildCSS(p, pl)
-		if err != nil {
-			return nil, err
-		}
-		for _, t := range toks {
-			r.token(cssProperty(t), t.Name)
-		}
-	case "swift":
-		_, sw, err := buildSwift(p, pl)
-		if err != nil {
-			return nil, err
-		}
-		r.swift(sw)
-	case "kotlin":
-		_, k, err := buildKotlin(p, pl)
-		if err != nil {
-			return nil, err
-		}
-		r.kotlin(k)
-	case "xaml":
-		_, x, items, err := buildXAML(p, pl)
-		if err != nil {
-			return nil, err
-		}
-		for _, it := range items {
-			r.token(it.Key, it.T.Name)
-		}
-		for _, th := range x.themeList() {
-			r.symbol(th.key)
-		}
-	default:
-		return nil, fmt.Errorf("format %s has no reference names", format)
+	vs, err := ReferenceVariants(p, pl, format)
+	if err != nil {
+		return nil, err
 	}
-	return r, nil
-}
-
-// refs is a ReferenceNames map under construction: a token entry wins
-// over a symbol one, and the first token entry for a name stands.
-type refs map[string]string
-
-func (r refs) token(name, tok string) {
-	if r[name] == "" {
-		r[name] = tok
+	out := make(map[string]string, len(vs))
+	for n, v := range vs {
+		out[n] = v.Token
 	}
-}
-
-func (r refs) symbol(names ...string) {
-	for _, n := range names {
-		if _, ok := r[n]; !ok {
-			r[n] = ""
-		}
-	}
-}
-
-// ident adds an escaped identifier and, when it is backticked, its bare
-// spelling too.
-func (r refs) ident(name, tok string) {
-	r.token(name, tok)
-	if bare := strings.Trim(name, "`"); bare != name {
-		r.token(bare, tok)
-	}
-}
-
-func (r refs) symbolIdent(names ...string) {
-	for _, n := range names {
-		r.symbol(n, strings.Trim(n, "`"))
-	}
-}
-
-func (r refs) swift(sw *swifter) {
-	for _, m := range sw.members {
-		r.ident(m.name, m.t.Name)
-	}
-	r.symbol(sw.typ, "Bezier", "Shadow", "init")
-	for _, a := range sw.params {
-		r.symbolIdent(swiftEnum(a), swiftProp(a))
-	}
-}
-
-func (r refs) kotlin(k *kotliner) {
-	for _, m := range k.members {
-		r.ident(m.name, m.t.Name)
-	}
-	for _, s := range k.slotList {
-		r.ident(s.Name, s.Token.Name)
-	}
-	r.symbol(k.typ, k.valuesType())
-	if len(k.slotList) > 0 {
-		r.symbol(k.colorsType(), "colors")
-		for _, av := range k.appearances() {
-			r.symbolIdent(kotlinValuesVal(av))
-		}
-	}
-	if len(k.np.Platform.Material3Roles()) > 0 {
-		for _, av := range k.appearances() {
-			if kind, ok := kotlinSchemeKind(av); ok {
-				r.symbol(kotlinSchemeVal(kind))
-			}
-		}
-	}
-	if slices.ContainsFunc(k.members, kotlinMember.static) {
-		r.symbol("Companion")
-	}
-	if slices.ContainsFunc(k.members, func(m kotlinMember) bool { return m.t.Type == "shadow" }) {
-		r.symbol("Shadow")
-	}
-	for _, a := range k.params {
-		r.symbolIdent(kotlinEnum(a), kotlinProp(a))
-	}
+	return out, nil
 }
 
 // NamingAffixes are the literal parts of format's naming template around
