@@ -1,0 +1,35 @@
+-- .airframe/skills.lock.json --
+{
+  "version": 1,
+  "files": {
+    "GEMINI.md": "1f2354d2263f285efd38d2167835331fa24a48102d2ec6ee945bc8f555b35c29"
+  }
+}
+-- GEMINI.md --
+<!-- airframe:skills:start -->
+## Airframe skills
+
+Installed by Airframe. To change these skills, change them in Airframe;
+an edit made here is kept, and the next install stages its new version
+under `.airframe/pending/` for you to merge.
+
+### alpha
+
+Use when testing alpha.
+
+#### Alpha
+
+##### When to use
+
+Always.
+
+### beta
+
+Use when testing beta.
+
+#### Beta
+
+##### Rules
+
+- Never.
+<!-- airframe:skills:end -->

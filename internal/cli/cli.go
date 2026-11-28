@@ -75,16 +75,19 @@ func (f Flag) synopsis() string {
 	return s
 }
 
-// Command is one airframe command.
+// Command is one airframe command. A command with Subcommands is a group,
+// such as skills: it runs only as one of them ("skills install"), and has
+// no flags or arguments of its own. Groups do not nest.
 type Command struct {
 	Name string
 	Args string // the positional arguments as the usage shows them; empty for none
 	// Short, when set, stands for the flags and arguments in the usage's
 	// command table, for a command whose full synopsis would widen it;
 	// the command's own usage still lists every flag.
-	Short   string
-	Summary string
-	Flags   []Flag
+	Short       string
+	Summary     string
+	Flags       []Flag
+	Subcommands []Command
 }
 
 // Synopsis is the command as its usage line shows it after
@@ -196,6 +199,7 @@ var Commands = []Command{
 		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files, retired.yaml, or the output of find --json, usages --json or diff --format json.",
 	},
 	mcpCommand,
+	skillsCommand,
 	{
 		Name:    "version",
 		Summary: "Print airframe's version.",
@@ -307,8 +311,16 @@ func dispatch(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		usage(stderr)
 		return ExitUsage
 	}
+	cmd := Commands[i]
+	if len(cmd.Subcommands) > 0 {
+		var code int
+		if cmd, code = subcommand(cmd, rest[1:], stdout, stderr); cmd.Name == "" {
+			return code
+		}
+		rest = rest[1:]
+	}
 	inv := &invocation{
-		cmd: Commands[i], root: *root, stdin: stdin, stdout: stdout, stderr: stderr,
+		cmd: cmd, root: *root, stdin: stdin, stdout: stdout, stderr: stderr,
 		bools: map[string]*bool{}, lists: map[string]*[]string{},
 	}
 	flags := flag.NewFlagSet(inv.cmd.Name, flag.ContinueOnError)
@@ -352,12 +364,63 @@ func dispatch(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return handlers[inv.cmd.Name](inv)
 }
 
-// usage writes the full usage.
+// subcommand resolves the group cmd's subcommand from args, the words after
+// the group's name, and returns it named in full ("skills install"). When
+// there is none to run it prints the group's usage, and returns a Command
+// with no name and the exit status: 0 for help, 2 for a missing or unknown
+// subcommand.
+func subcommand(cmd Command, args []string, stdout, stderr io.Writer) (Command, int) {
+	names := make([]string, len(cmd.Subcommands))
+	for i, s := range cmd.Subcommands {
+		names[i] = s.Name
+	}
+	if len(args) > 0 && slices.Contains([]string{"help", "-h", "-help", "--help"}, args[0]) {
+		groupUsage(stdout, cmd)
+		return Command{}, ExitOK
+	}
+	problem := "missing subcommand"
+	if len(args) > 0 {
+		if i := slices.Index(names, args[0]); i >= 0 {
+			sub := cmd.Subcommands[i]
+			sub.Name = cmd.Name + " " + sub.Name
+			return sub, ExitOK
+		}
+		problem = "unknown subcommand " + args[0]
+	}
+	list := strings.Join(names, "")
+	if len(names) > 1 {
+		list = strings.Join(names[:len(names)-1], ", ") + " or " + names[len(names)-1]
+	}
+	_, _ = fmt.Fprintf(stderr, "airframe %s: %s; use %s\n", cmd.Name, problem, list)
+	groupUsage(stderr, cmd)
+	return Command{}, ExitUsage
+}
+
+// groupUsage writes a group's usage line and its subcommands.
+func groupUsage(w io.Writer, cmd Command) {
+	var b strings.Builder
+	_, _ = fmt.Fprintf(&b, "usage: airframe [--root D] %s <subcommand>\n\nSubcommands:\n", cmd.Name)
+	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
+	for _, s := range cmd.Subcommands {
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\n", s.Synopsis(), s.Summary)
+	}
+	_ = tw.Flush()
+	_, _ = io.WriteString(w, b.String())
+}
+
+// usage writes the full usage. A group is listed as one line per
+// subcommand.
 func usage(w io.Writer) {
 	var b strings.Builder
 	b.WriteString("Usage: airframe [--root D] <command> [flags]\n\nCommands:\n")
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	for _, c := range Commands {
+		for _, s := range c.Subcommands {
+			_, _ = fmt.Fprintf(tw, "  %s %s\t%s\n", c.Name, s.Synopsis(), s.Summary)
+		}
+		if len(c.Subcommands) > 0 {
+			continue
+		}
 		syn := c.Synopsis()
 		if c.Short != "" {
 			syn = c.Name + " " + c.Short
