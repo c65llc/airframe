@@ -22,7 +22,8 @@
           "col": { "type": "integer", "minimum": 1 },
           "raw": { "type": "string" },
           "via": { "type": "string", "description": "direct, or wrapper:<root>" },
-          "owner": { "type": "boolean", "description": "present only for a component token: whether the file is one of the component's owners" }
+          "owner": { "type": "boolean", "description": "present only for a token of a component that is not shared: whether the file is one of the component's owners" },
+          "shared": { "const": true, "description": "present only for a token of a shared component, in place of owner: any file may read it" }
         }
       }
     },

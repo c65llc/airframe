@@ -10,16 +10,17 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bmatcuk/doublestar/v4"
-
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/consumer"
+	"github.com/c65llc/airframe/internal/lint"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
-// usageRef is one consumer read of a token. Owner is set only when the
-// token belongs to a component: whether the file is one of its owners.
+// usageRef is one consumer read of a token. A read of a component-tier
+// token carries exactly one of Owner and Shared: Shared (true) when the
+// component is shared, so any file may read it; otherwise Owner, whether
+// the file may read it as one of the component's owners (lint.CanRead).
 type usageRef struct {
 	Platform string `json:"platform"`
 	File     string `json:"file"`
@@ -28,6 +29,7 @@ type usageRef struct {
 	Raw      string `json:"raw"`
 	Via      string `json:"via"`
 	Owner    *bool  `json:"owner,omitempty"`
+	Shared   bool   `json:"shared,omitempty"`
 }
 
 // usageAlias is a token whose value (Key: "default" or a mode key) aliases
@@ -62,11 +64,12 @@ func describeUsages(p *project.Project, t *tokens.Token, platform string) (usage
 			continue
 		}
 		ur := usageRef{Platform: r.Platform, File: r.File, Line: r.Line, Col: r.Col, Raw: r.Raw, Via: r.Via}
-		if t.Component != "" {
-			ok := comp != nil && (comp.Shared || slices.ContainsFunc(comp.Owners, func(g string) bool {
-				m, _ := doublestar.Match(g, r.File)
-				return m
-			}))
+		switch {
+		case t.Tier != "component":
+		case comp != nil && comp.Shared:
+			ur.Shared = true
+		default:
+			ok, _ := lint.CanRead(p, r.File, t)
 			ur.Owner = &ok
 		}
 		u.References = append(u.References, ur)
@@ -109,6 +112,8 @@ func writeUsages(w io.Writer, u usages) {
 			fmt.Fprintf(&b, "  (via %s)", r.Via)
 		}
 		switch {
+		case r.Shared:
+			b.WriteString("  [shared]")
 		case r.Owner == nil:
 		case *r.Owner:
 			b.WriteString("  [owner]")

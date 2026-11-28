@@ -11,6 +11,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/c65llc/airframe/internal/schema"
 )
 
 // usagesProject copies testdata/consumers, which has wrappers, a Kotlin
@@ -104,4 +106,52 @@ func TestUsagesOwner(t *testing.T) {
 	assert.Contains(t, stdout, "component: button\n")
 	assert.Contains(t, stdout, "android/src/button/Button.kt:5:10  DesignTokens.buttonBg  [owner]\n")
 	assert.Contains(t, stdout, "android/src/main/Screen.kt:13:16  DesignTokens.buttonBg  [not owner]\n")
+}
+
+// A shared component's tokens may be read from anywhere: each read says
+// [shared], and its JSON carries shared: true in place of owner.
+func TestUsagesShared(t *testing.T) {
+	dir := usagesProject(t)
+	f := filepath.Join(dir, "design-system/components/button.yaml")
+	body, err := os.ReadFile(f)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(f, append(body, "shared: true\n"...), 0o644))
+
+	code, stdout, stderr := run("--root", dir, "usages", "button-bg")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Contains(t, stdout, "android/src/main/Screen.kt:13:16  DesignTokens.buttonBg  [shared]\n")
+	assert.NotContains(t, stdout, "owner]")
+
+	code, stdout, stderr = run("--root", dir, "usages", "button-bg", "--json")
+	require.Equal(t, ExitOK, code, stderr)
+	var doc struct {
+		References []map[string]any `json:"references"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &doc))
+	require.NotEmpty(t, doc.References)
+	for _, r := range doc.References {
+		assert.Equal(t, true, r["shared"], r)
+		assert.NotContains(t, r, "owner")
+	}
+	var v any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &v))
+	assert.Empty(t, schema.Validate("usages", v))
+}
+
+func TestUsagesJSONSchema(t *testing.T) {
+	dir := usagesProject(t)
+	for _, name := range []string{"button-bg", "gap", "accent", "gray-900"} {
+		code, stdout, stderr := run("--root", dir, "usages", name, "--json")
+		require.Equal(t, ExitOK, code, stderr)
+		var v any
+		require.NoError(t, json.Unmarshal([]byte(stdout), &v))
+		assert.Empty(t, schema.Validate("usages", v), name)
+	}
+	// The schema is served, and rejects an owner that is not a boolean.
+	code, served, _ := run("schema", "usages")
+	require.Equal(t, ExitOK, code)
+	assert.Contains(t, served, "airframe usages --json")
+	bad := map[string]any{"name": "x", "tier": "component", "component": "c", "aliasedBy": []any{},
+		"references": []any{map[string]any{"platform": "web", "file": "f", "line": 1, "col": 1, "raw": "r", "via": "direct", "owner": "shared"}}}
+	assert.NotEmpty(t, schema.Validate("usages", bad))
 }
