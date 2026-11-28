@@ -170,6 +170,12 @@ func TestRenameThenLintClean(t *testing.T) {
 	require.Equal(t, ExitOK, code, stdout+stderr)
 	require.NotContains(t, stdout, "error ")
 
+	before := treeHash(t, dir)
+	code, stdout, stderr = run("--root", dir, "rename", "ink", "foreground", "--dry-run")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Contains(t, stdout, "would remove apple/Generated/Assets.xcassets/Tokens/Ink.colorset\n")
+	assert.Equal(t, before, treeHash(t, dir))
+
 	code, stdout, stderr = run("--root", dir, "rename", "ink", "foreground")
 	require.Equal(t, ExitOK, code, stdout+stderr)
 	assert.Empty(t, stderr)

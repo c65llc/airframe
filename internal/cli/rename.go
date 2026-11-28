@@ -19,6 +19,7 @@ import (
 
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/emit"
+	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/rename"
 )
 
@@ -29,7 +30,7 @@ var renameCommand = Command{
 	Summary: "Rename a token in its token files, airframe.yaml, components, invariants and every platform's consumer files, then rebuild; refuses a rename that would not load, build or rewrite every reference.",
 	Flags: []Flag{
 		{Name: "path", Arg: "a.b.c", Summary: "the new token's DTCG path (default: new split on \"-\", when old's path is old split on \"-\")"},
-		{Name: "dry-run", Summary: "print the edits, moves and manual items, and write nothing"},
+		{Name: "dry-run", Summary: "print the edits, moves, manual items and stale colorsets it would remove, and write nothing"},
 		{Name: "allow-manual", Summary: "write the rename even though some references are left to finish by hand, listing them"},
 	},
 }
@@ -70,7 +71,14 @@ func runRename(inv *invocation) int {
 	_, _ = fmt.Fprintf(inv.stdout, "%s %s to %s (path %s → %s)\n", verb, old, new,
 		strings.Join(pl.OldPath, "."), strings.Join(pl.NewPath, "."))
 	writePlan(inv.stdout, pl)
+	remove, err := staleByRename(p, pl)
+	if err != nil {
+		return inv.fail(err)
+	}
 	if dry {
+		for _, d := range remove {
+			_, _ = fmt.Fprintln(inv.stdout, "would remove", d)
+		}
 		return ExitOK
 	}
 	if len(pl.Manual) > 0 && !*inv.bools["allow-manual"] {
@@ -83,11 +91,6 @@ func runRename(inv *invocation) int {
 		return inv.fail(err)
 	}
 	defer func() { _ = root.Close() }()
-	gen, _ := emit.Build(p, nil) // it builds: Codemod checked
-	staleBefore, err := emit.StaleColorsets(p.FS, gen)
-	if err != nil {
-		return inv.fail(err)
-	}
 	files := maps.Clone(pl.Files)
 	maps.Copy(files, pl.Consumers)
 	// The plan was made from what was read: a file changed on disk since
@@ -124,30 +127,36 @@ func runRename(inv *invocation) int {
 	if err != nil {
 		return inv.fail(err)
 	}
-	// The old name's colorsets are the rename's to remove: build reports a
-	// stale colorset but leaves it, and one left would fail build --check.
-	// A colorset stale before the rename is left as it was.
-	if p != nil && !hasErrors(ds) {
-		gen, _ := emit.Build(p, nil)
-		stale, err := emit.StaleColorsets(p.FS, gen)
-		if err != nil {
+	for _, d := range remove {
+		if err := removeColorset(root, d); err != nil {
 			return inv.fail(err)
 		}
-		for _, d := range stale {
-			if slices.Contains(staleBefore, d) {
-				continue
-			}
-			if err := removeColorset(root, d); err != nil {
-				return inv.fail(err)
-			}
-			_, _ = fmt.Fprintln(inv.stdout, "removed", d)
-		}
+		_, _ = fmt.Fprintln(inv.stdout, "removed", d)
 	}
 	code := inv.build(dir, p, ds, nil, false)
 	if len(pl.Manual) > 0 {
 		_, _ = fmt.Fprintf(inv.stdout, "%d reference(s) left to finish by hand (manual, above)\n", len(pl.Manual))
 	}
 	return code
+}
+
+// staleByRename lists the colorset folders the rename makes stale: those
+// no token makes once it is applied (pl.After, read over the disk) that
+// were not stale before. They are the old name's, and the rename's to
+// remove: build reports a stale colorset but leaves it, and one left would
+// fail build --check. A colorset stale before the rename is left alone.
+func staleByRename(p *project.Project, pl *rename.EditPlan) ([]string, error) {
+	gen, _ := emit.Build(p, nil) // it builds: Codemod checked
+	before, err := emit.StaleColorsets(p.FS, gen)
+	if err != nil {
+		return nil, err
+	}
+	gen, _ = emit.Build(pl.After, nil)
+	after, err := emit.StaleColorsets(pl.After.FS, gen)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(after, func(d string) bool { return slices.Contains(before, d) }), nil
 }
 
 // removeColorset removes the generated colorset folder dir: its
