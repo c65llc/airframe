@@ -44,3 +44,23 @@ stdout 'emitted-stale'
 exec airframe build
 exec airframe build --check
 ! stdout .
+
+# Renaming a colour leaves its old colorset behind. build does not delete
+# it (it says so on stderr); build --check and lint report it as stale.
+replace design-system/tokens/primitive.tokens.json '"vivid":' '"brilliant":'
+replace design-system/tokens/semantic.tokens.json '{vivid}' '{brilliant}'
+exec airframe build
+stdout '^wrote ios/notes/Assets\.xcassets/Tokens/Brilliant\.colorset/Contents\.json$'
+stderr 'ios/notes/Assets\.xcassets/Tokens/Vivid\.colorset is stale'
+exists ios/notes/Assets.xcassets/Tokens/Vivid.colorset/Contents.json
+exits 1 airframe build --check
+stdout '^ios/notes/Assets\.xcassets/Tokens/Vivid\.colorset$'
+stdout '^ios/tasks/Assets\.xcassets/Tokens/Vivid\.colorset$'
+exits 1 airframe lint
+stdout 'emitted-stale: ios/notes/Assets\.xcassets/Tokens/Vivid\.colorset is stale'
+
+# Deleting the orphans by hand makes the project clean again.
+rm ios/notes/Assets.xcassets/Tokens/Vivid.colorset
+rm ios/tasks/Assets.xcassets/Tokens/Vivid.colorset
+exec airframe build --check
+! stdout .

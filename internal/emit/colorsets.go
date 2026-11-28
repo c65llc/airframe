@@ -6,7 +6,9 @@ package emit
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"path"
 	"slices"
@@ -432,4 +434,61 @@ func encodeJSON(v any) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// StaleColorsets lists, sorted, the colorset folders on disk that no token
+// makes any more: a *.colorset child of a generated catalog folder (one
+// gen writes a namespace Contents.json for) that gen does not write.
+// Only folders whose Contents.json on disk says author airframe are
+// scanned, so a folder of the user's own colorsets is never touched. A
+// stale colorset is reported, not removed: airframe build does not delete
+// anything yet (removal is deferred), so it is deleted by hand.
+func StaleColorsets(fsys fs.FS, gen map[string][]byte) ([]string, error) {
+	made := map[string]bool{} // every generated folder, colorsets included
+	var catalogs []string
+	for f := range gen {
+		if path.Base(f) != "Contents.json" {
+			continue
+		}
+		dir := path.Dir(f)
+		made[dir] = true
+		if !strings.HasSuffix(dir, ".colorset") && authoredByAirframe(gen[f]) {
+			catalogs = append(catalogs, dir)
+		}
+	}
+	var stale []string
+	for _, dir := range catalogs {
+		disk, err := fs.ReadFile(fsys, dir+"/Contents.json")
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !authoredByAirframe(disk) {
+			continue
+		}
+		entries, err := fs.ReadDir(fsys, dir)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range entries {
+			if p := dir + "/" + e.Name(); e.IsDir() && strings.HasSuffix(e.Name(), ".colorset") && !made[p] {
+				stale = append(stale, p)
+			}
+		}
+	}
+	slices.Sort(stale)
+	return stale, nil
+}
+
+// authoredByAirframe reports whether a Contents.json carries the info
+// block airframe writes.
+func authoredByAirframe(b []byte) bool {
+	var doc struct {
+		Info struct {
+			Author string `json:"author"`
+		} `json:"info"`
+	}
+	return json.Unmarshal(b, &doc) == nil && doc.Info.Author == "airframe"
 }

@@ -715,6 +715,28 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 		}
 		_, _ = fmt.Fprintln(inv.stdout, "wrote", name)
 	}
+	// A colorset no token makes any more is stale too. build does not
+	// remove it yet (removal is deferred): --check names it, and a build
+	// warns so it can be deleted by hand.
+	stale, err := emit.StaleColorsets(p.FS, gen)
+	if err != nil {
+		return inv.fail(err)
+	}
+	var warns []diag.Diagnostic
+	for _, name := range stale {
+		if check {
+			_, _ = fmt.Fprintln(inv.stdout, name)
+			code = ExitFindings
+			continue
+		}
+		warns = append(warns, diag.Diagnostic{
+			Rule: "emitted-stale", Severity: diag.Warn, File: name,
+			Message: lint.StaleColorsetMessage(name), Docs: diag.DocsURL("emitted-stale"),
+		})
+	}
+	if len(warns) > 0 {
+		diag.WriteText(inv.stderr, warns, nil)
+	}
 	return code
 }
 

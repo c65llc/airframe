@@ -134,3 +134,31 @@ func TestOffRuleKeepsOtherIDs(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.Error, got[0].Severity)
 }
+
+// TestEmittedStaleOrphanColorset: a colorset no token makes any more, in a
+// catalog folder airframe wrote, is stale (build does not remove it); in a
+// folder airframe did not author it is the user's and is not reported.
+func TestEmittedStaleOrphanColorset(t *testing.T) {
+	dir := filepath.Join("..", "..", "testdata", "apple")
+	fsys := project.MemFS{}
+	require.NoError(t, fs.WalkDir(os.DirFS(dir), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
+		fsys[path] = string(b)
+		return err
+	}))
+	const orphan = "ios/notes/Assets.xcassets/Tokens/OldInk.colorset"
+	fsys[orphan+"/Contents.json"] = "{}\n"
+	got := byRule(lintFS(t, fsys, Options{}).Diagnostics, "emitted-stale")
+	require.Len(t, got, 1, "%v", got)
+	assert.Equal(t, orphan, got[0].File)
+	assert.Equal(t, diag.Error, got[0].Severity)
+	assert.Equal(t, orphan+" is stale: no token makes this colorset — delete it (airframe build does not remove it)", got[0].Message)
+
+	fsys["ios/notes/Assets.xcassets/Tokens/Contents.json"] = "{}\n"
+	got = byRule(lintFS(t, fsys, Options{}).Diagnostics, "emitted-stale")
+	require.Len(t, got, 1, "only the edited Contents.json, not the orphan: %v", got)
+	assert.Equal(t, "ios/notes/Assets.xcassets/Tokens/Contents.json", got[0].File)
+}

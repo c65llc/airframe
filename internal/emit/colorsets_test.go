@@ -397,3 +397,44 @@ func TestColorsetOutInsideCatalog(t *testing.T) {
 		assert.Empty(t, out, bad)
 	}
 }
+
+// builtApple is the apple fixture with its outputs written, as after
+// airframe build.
+func builtApple(t *testing.T) (project.MemFS, map[string][]byte) {
+	t.Helper()
+	fsys := memFS(t, appleDir)
+	gen, _ := Build(loadFS(t, fsys), nil)
+	require.NotEmpty(t, gen)
+	for f, b := range gen {
+		fsys[f] = string(b)
+	}
+	return fsys, gen
+}
+
+// TestStaleColorsets: in a catalog folder airframe wrote (its Contents.json
+// says author airframe), a colorset no token makes any more is stale; a
+// folder without that authorship is never scanned.
+func TestStaleColorsets(t *testing.T) {
+	fsys, gen := builtApple(t)
+	stale, err := StaleColorsets(fsys, gen)
+	require.NoError(t, err)
+	assert.Empty(t, stale, "a fresh build has no orphans")
+
+	fsys[notesCatalog+"Tokens/OldInk.colorset/Contents.json"] = "{}\n"
+	fsys[notesCatalog+"Tokens/notes.txt"] = "not a colorset\n"
+	fsys[notesCatalog+"Mine.colorset/Contents.json"] = "{}\n" // the catalog root is not airframe's
+	stale, err = StaleColorsets(fsys, gen)
+	require.NoError(t, err)
+	assert.Equal(t, []string{notesCatalog + "Tokens/OldInk.colorset"}, stale)
+
+	// Take away airframe's authorship and the folder is the user's.
+	fsys[notesCatalog+"Tokens/Contents.json"] = `{"info": {"author": "xcode", "version": 1}}` + "\n"
+	stale, err = StaleColorsets(fsys, gen)
+	require.NoError(t, err)
+	assert.Empty(t, stale)
+
+	// Before the first build there is nothing on disk to scan.
+	stale, err = StaleColorsets(memFS(t, appleDir), gen)
+	require.NoError(t, err)
+	assert.Empty(t, stale)
+}
