@@ -21,13 +21,21 @@ import (
 // page is what a rule ID's docs page must declare in its front matter.
 type page struct{ severity, since string }
 
+// laterRules are the lint IDs added after v0.1.0, by the release that
+// added them.
+var laterRules = map[string]string{"emit-axis-fixed": "v0.3.0"}
+
 // pages is every documented ID: the lint rules at their default severity,
-// since v0.1.0, and the import findings at the severity an import reports
-// them, since v0.2.0.
+// since v0.1.0 unless laterRules says otherwise, and the import findings at
+// the severity an import reports them, since v0.2.0.
 func pages() map[string]page {
 	out := map[string]page{}
 	for _, id := range lint.AllIDs() {
-		out[id] = page{string(lint.DefaultSeverity(id)), "v0.1.0"}
+		since := "v0.1.0"
+		if v, ok := laterRules[id]; ok {
+			since = v
+		}
+		out[id] = page{string(lint.DefaultSeverity(id)), since}
 	}
 	for _, id := range importer.IDs() {
 		out[id] = page{string(importer.Severity(id)), "v0.2.0"}

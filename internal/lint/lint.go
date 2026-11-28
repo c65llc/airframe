@@ -116,8 +116,9 @@ var loadIDs = []string{
 
 // warnIDs are reported while building rather than by a registered rule,
 // always as warnings: emit-unsupported names a format a later release
-// builds.
-var warnIDs = []string{"emit-unsupported"}
+// builds, and emit-axis-fixed a build-bound axis a native platform renders
+// at its base value because it does not fan out over it.
+var warnIDs = []string{"emit-axis-fixed", "emit-unsupported"}
 
 // AllIDs returns every rule ID Airframe can report, sorted: each registered
 // rule's, each load-time ID and each build-time warning ID. It is the one list the self-test and the
