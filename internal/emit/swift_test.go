@@ -515,3 +515,36 @@ func TestSwiftTypechecks(t *testing.T) {
 		})
 	}
 }
+
+// TestGuideSwiftTypechecks: every ```swift block in docs/guides/apple.md
+// is a complete declaration that typechecks against the apple fixture's
+// generated Swift, so the guide cannot drift from what is emitted.
+func TestGuideSwiftTypechecks(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("swiftc -typecheck needs macOS's SwiftUI")
+	}
+	swiftc, err := exec.LookPath("swiftc")
+	if err != nil {
+		t.Skip("swiftc is not on PATH")
+	}
+	guide, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "apple.md"))
+	require.NoError(t, err)
+	blocks := regexp.MustCompile("(?s)```swift\n(.*?)```").FindAllStringSubmatch(string(guide), -1)
+	require.NotEmpty(t, blocks)
+	gen := swiftOf(t, loadFS(t, os.DirFS(appleDir)))
+	require.Len(t, gen, 1)
+	dir := t.TempDir()
+	args := []string{"-typecheck", "-target", "arm64-apple-macos14"}
+	for _, src := range gen {
+		f := filepath.Join(dir, "DesignTokens.swift")
+		require.NoError(t, os.WriteFile(f, src, 0o644))
+		args = append(args, f)
+	}
+	for i, m := range blocks {
+		f := filepath.Join(dir, fmt.Sprintf("Guide%d.swift", i))
+		require.NoError(t, os.WriteFile(f, []byte(m[1]), 0o644))
+		args = append(args, f)
+	}
+	b, err := exec.Command(swiftc, args...).CombinedOutput()
+	require.NoError(t, err, "swiftc -typecheck of the guide's swift blocks:\n%s", b)
+}

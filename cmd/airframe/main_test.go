@@ -99,6 +99,9 @@ func fixture(ts *testscript.TestScript, neg bool, args []string) {
 	if neg || len(args) != 1 {
 		ts.Fatalf("usage: fixture name")
 	}
+	if !filepath.IsLocal(args[0]) {
+		ts.Fatalf("fixture: %q is not a local name", args[0])
+	}
 	src := filepath.Join("..", "..", "testdata", args[0])
 	for _, name := range []string{"airframe.yaml", "design-system"} {
 		ts.Check(copyTree(filepath.Join(src, name), ts.MkAbs(name)))
@@ -131,6 +134,9 @@ func copyTree(src, dst string) error {
 func replace(ts *testscript.TestScript, neg bool, args []string) {
 	if neg || len(args) != 3 {
 		ts.Fatalf("usage: replace file old new")
+	}
+	if !filepath.IsLocal(args[0]) {
+		ts.Fatalf("replace: %q is not a local path", args[0])
 	}
 	data := ts.ReadFile(args[0])
 	if !strings.Contains(data, args[1]) {

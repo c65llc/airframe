@@ -89,32 +89,45 @@ and the Swift file wherever you like within it.
 import SwiftUI
 
 struct Row: View {
+    let tokens = DesignTokens(density: .compact)
+
     var body: some View {
         Text("Hello")
             .foregroundStyle(DesignTokens.ink)
-            .padding(DesignTokens.gap)
-            .background(DesignTokens.surface)
+            .padding(tokens.gap)
+            .background(tokens.surface)
     }
 }
 ```
 
-Colours and other values that do not depend on a runtime axis are
-`static`; read them as `DesignTokens.ink`. A token that varies on a
-**runtime** axis (here `density`; `appearance` for non-colours) is an
-instance member, because it depends on the state you hold:
+A token that does not depend on a runtime axis is `static`; read it as
+`DesignTokens.ink`. A token that varies on a **runtime** axis (here
+`density`: `gap` and `surface` change with it) is an instance member,
+because it depends on the state you hold, so you create a
+`DesignTokens(density: .compact)` and read `tokens.gap`. Every static
+member also has an instance forwarder, so `tokens.ink` works too and a view
+can read every token through one `tokens` value without remembering which
+is which:
 
 ```swift
-let tokens = DesignTokens(density: .compact)
-tokens.gap              // the compact value
-tokens.ink              // also works: every static member has an instance forwarder
+import SwiftUI
+
+struct Header: View {
+    let tokens = DesignTokens(appearance: .dark, density: .relaxed)
+
+    var body: some View {
+        Text("Title")
+            .foregroundStyle(tokens.ink)
+            .padding(tokens.gap)
+    }
+}
 ```
 
-An initialiser takes each runtime axis, defaulted to its base
-(`DesignTokens(appearance: .dark, density: .relaxed)`). Colours vary with
-the appearance without any of this: the catalog holds both and the system
-picks, so `DesignTokens.surface` is right in light and dark. The
-instance forwarders mean a view can hold one `tokens` value and read every
-token through it, static or not, without remembering which is which.
+An initialiser takes each runtime axis, defaulted to its base. Appearance
+needs no code for a colour that varies only on it: the catalog holds both
+the light and dark variants and the system picks, so `DesignTokens.ink` is
+right in light and dark. (A colour that also varies on density, like
+`surface`, is one colorset per density and so an instance member.)
 
 ## What `emit-axis-fixed` means
 
@@ -150,7 +163,7 @@ be brought in, and the `gamut` option says how:
 | `gamut` | Behaviour |
 | --- | --- |
 | `css-color-4` (default) | CSS Color 4 gamut mapping: reduce chroma until it fits, keeping lightness and hue |
-| `clip-p3` | Clip each channel to the P3 range; faster to explain, can shift hue |
+| `clip-p3` | Clip each channel to the P3 range; clips each channel independently; can shift hue |
 
 The same colour mapped the same way is what you get on every build; the
 choice is stated, never implicit.
