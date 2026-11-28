@@ -174,6 +174,7 @@ var Commands = []Command{
 		},
 	},
 	diffCommand,
+	specimenCommand,
 	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",

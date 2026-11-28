@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="304" viewBox="0 0 1000 304">
+<title>design-system · app=notes · spacing</title>
+<rect width="1000" height="304" fill="#ffffff"/>
+<text x="24" y="52" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="20" font-weight="700" fill="#1a1a1a">design-system · app=notes · spacing</text>
+<text x="24" y="105" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">space-1</text>
+<rect x="280" y="92" width="4" height="16" fill="#3b6fd4"/>
+<text x="776" y="105" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#6b6b6b">4px</text>
+<text x="24" y="145" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">space-2</text>
+<rect x="280" y="132" width="8" height="16" fill="#3b6fd4"/>
+<text x="776" y="145" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#6b6b6b">8px</text>
+<text x="24" y="185" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">radius</text>
+<rect x="280" y="172" width="4" height="16" fill="#3b6fd4"/>
+<text x="776" y="185" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#6b6b6b">0.25rem = 4px</text>
+<text x="24" y="225" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">hairline</text>
+<rect x="280" y="212" width="1" height="16" fill="#3b6fd4"/>
+<text x="776" y="225" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#6b6b6b">1px</text>
+<text x="24" y="265" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">gap</text>
+<rect x="280" y="252" width="4" height="16" fill="#3b6fd4"/>
+<text x="776" y="265" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#6b6b6b">4px</text>
+</svg>
