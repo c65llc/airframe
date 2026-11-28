@@ -534,10 +534,14 @@ func TestWriteFailureIsReported(t *testing.T) {
 	dir := filepath.Join(root.Name(), "design-system", "tokens")
 	require.NoError(t, os.Chmod(dir, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
-	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"$value": "{gray.200}"}})
-	if msg == "" {
-		t.Skip("this filesystem ignores directory permissions")
+	if f, err := os.CreateTemp(dir, "probe"); err == nil {
+		// Windows (and some filesystems) ignore a read-only directory
+		// mode, so there is no failing write to provoke here.
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		t.Skip("a read-only directory mode does not stop writes here")
 	}
+	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"$value": "{gray.200}"}})
 	assert.Contains(t, msg, "could not read or write the project")
 	assert.NotContains(t, read(t, root, cssOut), "--surface: var(--gray-200);", "all or nothing: no output was written either")
 }
