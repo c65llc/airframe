@@ -1,19 +1,38 @@
 {
   "radius": {
     "$type": "dimension",
-    "$value": { "value": 0.25, "unit": "rem" },
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$value": {
+      "value": 0.25,
+      "unit": "rem"
+    },
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "hairline": {
     "$type": "dimension",
-    "$value": { "value": 1, "unit": "px" },
+    "$value": {
+      "value": 1,
+      "unit": "px"
+    },
     "$extensions": {
       "com.c65llc.airframe": {
-        "tier": "semantic",
+        "tier": "primitive",
         "modes": {
-          "appearance:dark": { "value": 1.5, "unit": "px" },
-          "density:compact": { "value": 0.5, "unit": "px" },
-          "appearance:dark+density:compact": { "value": 1, "unit": "px" }
+          "appearance:dark": {
+            "value": 1.5,
+            "unit": "px"
+          },
+          "density:compact": {
+            "value": 0.5,
+            "unit": "px"
+          },
+          "appearance:dark+density:compact": {
+            "value": 1,
+            "unit": "px"
+          }
         }
       }
     }
@@ -21,31 +40,66 @@
   "opacity-muted": {
     "$type": "number",
     "$value": 0.6,
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "default": {
     "$type": "number",
     "$value": 1,
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "duration-fast": {
     "$type": "duration",
-    "$value": { "value": 150, "unit": "ms" },
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$value": {
+      "value": 150,
+      "unit": "ms"
+    },
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "ease-standard": {
     "$type": "cubicBezier",
-    "$value": [0.2, 0, 0, 1],
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$value": [
+      0.2,
+      0,
+      0,
+      1
+    ],
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "font-body": {
     "$type": "fontFamily",
-    "$value": ["Inter", "system-ui"],
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$value": [
+      "Inter",
+      "system-ui"
+    ],
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   },
   "weight-strong": {
     "$type": "fontWeight",
     "$value": 650,
-    "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } }
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
   }
 }

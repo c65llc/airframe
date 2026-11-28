@@ -112,8 +112,10 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.2.0)**")
 	require.True(t, ok)
 	built, _, _ := strings.Cut(readme, "**Planned (not in v0.2.0)**")
-	for _, unbuilt := range []string{"Swift", "Kotlin", "XAML"} {
+	for _, unbuilt := range []string{"Kotlin", "XAML"} {
 		assert.NotContains(t, built, unbuilt, "an unbuilt emitter is described before the planned list")
 		assert.Contains(t, planned, unbuilt)
 	}
+	assert.Contains(t, built, "Swift", "the Apple emitters are built and described before the planned list")
+	assert.NotContains(t, planned, "Swift", "a built emitter is not planned")
 }
