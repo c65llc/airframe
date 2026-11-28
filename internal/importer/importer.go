@@ -46,7 +46,9 @@ const (
 )
 
 // Import maps every rule of sheets to a mode key and builds the token
-// files. Problems are diagnostics; with any error, Files is empty.
+// files. Problems are diagnostics; with any error, Files is empty. When no
+// sheet holds a custom property, that is import-nothing, unless a sheet's
+// parse failed: the caller holds that error, which already says why.
 func Import(cfg *config.Config, sheets []*css.Sheet) Result {
 	im := &importer{cfg: cfg, toks: map[string]*token{}, declared: map[string]bool{}, failed: map[string]bool{}}
 	r := im.run(sheets)
@@ -146,6 +148,9 @@ func (im *importer) run(sheets []*css.Sheet) Result {
 }
 
 func (im *importer) nothing(sheets []*css.Sheet) {
+	if slices.ContainsFunc(sheets, func(sh *css.Sheet) bool { return sh.Failed }) {
+		return
+	}
 	file := ""
 	var names []string
 	for _, sh := range sheets {

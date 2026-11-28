@@ -373,3 +373,14 @@ func TestParseTrailingComment(t *testing.T) {
 		}
 	}
 }
+
+func TestParseFailed(t *testing.T) {
+	s, _ := Parse("a.css", []byte(":root { --a: 1px }"))
+	if s.Failed {
+		t.Error("clean sheet marked Failed")
+	}
+	s, _ = Parse("a.css", []byte("@layer x { :root { --a: 1px } }"))
+	if !s.Failed {
+		t.Error("sheet with a parse error not marked Failed")
+	}
+}

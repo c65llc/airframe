@@ -17,11 +17,13 @@ import (
 )
 
 // Sheet is one parsed stylesheet. Ignored counts declarations that are not
-// custom properties; they are not stored.
+// custom properties; they are not stored. Failed is set when Parse reported
+// an error for it.
 type Sheet struct {
 	File    string
 	Rules   []Rule
 	Ignored int
+	Failed  bool
 }
 
 // Rule is one style rule. Media holds the raw conditions of the enclosing
@@ -88,6 +90,7 @@ type parser struct {
 }
 
 func (p *parser) report(rule string, line int, format string, args ...any) {
+	p.sheet.Failed = true
 	p.diags = append(p.diags, diag.Diagnostic{
 		Rule:     rule,
 		Severity: diag.Error,

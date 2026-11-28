@@ -384,6 +384,28 @@ func TestImportNothing(t *testing.T) {
 	assert.Equal(t, 1, r.Ignored)
 }
 
+// A stylesheet whose parse already reported an error is not also "nothing
+// to import": that error says why nothing was read.
+func TestImportNothingNotAfterParseError(t *testing.T) {
+	for _, src := range []string{
+		"@supports (x) { :root { --a: 1px } }\n",
+		":root { --a: 1px !important }\n",
+		"/* unterminated\n",
+	} {
+		r := run(t, smallConfig, src)
+		assert.Empty(t, byRule(r.Diagnostics, "import-nothing"), "%q: %v", src, r.Diagnostics)
+		assert.NotEmpty(t, errorsIn(r.Diagnostics), "%q", src)
+		assert.Empty(t, r.Files, "%q", src)
+	}
+	// A clean sheet beside a failed one still fails, without import-nothing.
+	r := importSources(loadConfig(t, smallConfig), []source{
+		{File: "a.css", Data: []byte(":root { color: red }\n")},
+		{File: "b.css", Data: []byte("@layer x { :root { --a: 1px } }\n")},
+	})
+	assert.Empty(t, byRule(r.Diagnostics, "import-nothing"), "%v", r.Diagnostics)
+	assert.Len(t, errorsIn(r.Diagnostics), 1, "%v", r.Diagnostics)
+}
+
 func TestImportParseDiagnosticsPassThrough(t *testing.T) {
 	r := run(t, smallConfig, ":root { --a: 1px }\n@layer x { :root { --b: 1px } }\n")
 	got := byRule(r.Diagnostics, "import-unsupported-at-rule")
