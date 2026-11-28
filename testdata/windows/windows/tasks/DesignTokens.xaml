@@ -14,6 +14,10 @@
             <SolidColorBrush x:Key="DesignGray800" Color="#FF2A2E33" />
             <SolidColorBrush x:Key="DesignGray900" Color="#FF12171B" />
             <SolidColorBrush x:Key="DesignGreen500" Color="#FF3AA85B" />
+            <x:Double x:Key="DesignHairline">1</x:Double>
+            <x:Double x:Key="DesignHairlineCompact">0.5</x:Double>
+            <x:Double x:Key="DesignHairlineRelaxed">1</x:Double>
+            <x:Double x:Key="DesignHairlineStandard">1</x:Double>
             <SolidColorBrush x:Key="DesignHighlight" Color="#FF00D200" />
             <SolidColorBrush x:Key="DesignInk" Color="#FF12171B" />
             <SolidColorBrush x:Key="DesignShadowSmLayer1" Color="#3312171B" />
@@ -36,6 +40,10 @@
             <SolidColorBrush x:Key="DesignGray800" Color="#FF2A2E33" />
             <SolidColorBrush x:Key="DesignGray900" Color="#FF12171B" />
             <SolidColorBrush x:Key="DesignGreen500" Color="#FF3AA85B" />
+            <x:Double x:Key="DesignHairline">1.5</x:Double>
+            <x:Double x:Key="DesignHairlineCompact">1</x:Double>
+            <x:Double x:Key="DesignHairlineRelaxed">1.5</x:Double>
+            <x:Double x:Key="DesignHairlineStandard">1.5</x:Double>
             <SolidColorBrush x:Key="DesignHighlight" Color="#FF00D200" />
             <SolidColorBrush x:Key="DesignInk" Color="#FFF6F9FB" />
             <SolidColorBrush x:Key="DesignShadowSmLayer1" Color="#3312171B" />
@@ -58,6 +66,10 @@
             <SolidColorBrush x:Key="DesignGray800" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="DesignGray900" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="DesignGreen500" Color="{ThemeResource SystemColorHighlightColor}" />
+            <x:Double x:Key="DesignHairline">1</x:Double>
+            <x:Double x:Key="DesignHairlineCompact">0.5</x:Double>
+            <x:Double x:Key="DesignHairlineRelaxed">1</x:Double>
+            <x:Double x:Key="DesignHairlineStandard">1</x:Double>
             <SolidColorBrush x:Key="DesignHighlight" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="DesignInk" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="DesignShadowSmLayer1" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -84,10 +96,6 @@
     <x:Double x:Key="DesignGapCompact">4</x:Double>
     <x:Double x:Key="DesignGapRelaxed">8</x:Double>
     <x:Double x:Key="DesignGapStandard">4</x:Double>
-    <x:Double x:Key="DesignHairline">1</x:Double>
-    <x:Double x:Key="DesignHairlineCompact">0.5</x:Double>
-    <x:Double x:Key="DesignHairlineRelaxed">1</x:Double>
-    <x:Double x:Key="DesignHairlineStandard">1</x:Double>
     <x:Double x:Key="DesignOpacityMuted">0.6</x:Double>
     <x:Double x:Key="DesignRadius">4</x:Double>
     <x:Double x:Key="DesignShadowSmLayer1Blur">2</x:Double>

@@ -26,8 +26,10 @@ import (
 // appearance axis), then HighContrast mapping every brush to the WinUI
 // system colour options.highContrast gives its token, or, with no
 // highContrast, Default repeating the base appearance. Every other token
-// is a typed resource after them, sorted by key: x:Double, KeySpline or
-// FontFamily. A token varying on a runtime axis other than appearance
+// is a typed resource (x:Double, KeySpline or FontFamily): in each theme
+// dictionary beside the brushes when it varies on appearance (Light and
+// Dark at their values, HighContrast or Default at the base), else after
+// them at the root, sorted by key. A token varying on a runtime axis other than appearance
 // gets one resource per combination of those axes, its key suffixed with
 // Pascal(value) per axis, plus the plain key at the base combination.
 // Colours are sRGB #AARRGGBB, mapped into gamut by CSS Color 4 or, with
@@ -133,16 +135,20 @@ func (x *xamler) themeList() []xamlTheme {
 // shadow's layer (from 0), -1 otherwise; Part is "" for the token's value
 // or a layer's brush, or OffsetX, OffsetY, Blur or Spread.
 type xamlItem struct {
-	Key   string
-	T     *tokens.Token
-	Ctx   config.Context
-	Layer int
-	Part  string
+	Key    string
+	T      *tokens.Token
+	Ctx    config.Context
+	Layer  int
+	Part   string
+	Themed bool // a non-colour varying on appearance, in the theme dictionaries
 }
 
 func (it xamlItem) brush() bool {
 	return it.T.Type == "color" || (it.T.Type == "shadow" && it.Part == "")
 }
+
+// inThemes reports whether it goes in the theme dictionaries.
+func (it xamlItem) inThemes() bool { return it.brush() || it.Themed }
 
 // xamlKeyRE is a key WinUI resolves from markup: XAML has no escape for
 // any other.
@@ -168,8 +174,7 @@ func (x *xamler) key(t *tokens.Token) (string, error) {
 
 // plan lists every resource of the dictionaries, the same in each output.
 // It checks what XAML cannot express: a token varying per fan-out value
-// in a file shared by every value, a non-colour varying on appearance, an
-// inset shadow layer, a shadow whose layer count changes between outputs,
+// in a file shared by every value, an inset shadow layer, a shadow whose layer count changes between outputs,
 // and two resources of one key.
 func (x *xamler) plan(perFile bool) ([]xamlItem, error) {
 	var items []xamlItem
@@ -214,12 +219,15 @@ func (x *xamler) plan(perFile bool) ([]xamlItem, error) {
 			}
 			return true, nil
 		}
+		// themed: the non-colour part varies on appearance, so it goes in
+		// every theme dictionary as the brushes do.
+		themed := false
 		if np.Appearance != nil {
-			if v, err := geomOn(*np.Appearance); err != nil {
+			v, err := geomOn(*np.Appearance)
+			if err != nil {
 				return nil, err
-			} else if v {
-				return nil, fmt.Errorf("token %q varies on appearance; XAML theme dictionaries hold only brushes here", t.Name)
 			}
+			themed = v
 		}
 		var colourAxes, geomAxes []config.Axis
 		for _, a := range np.Runtime {
@@ -275,7 +283,7 @@ func (x *xamler) plan(perFile bool) ([]xamlItem, error) {
 				}
 				for i := range n {
 					for _, part := range shadowParts {
-						it := xamlItem{Key: fmt.Sprintf("%sLayer%d%s%s", key, i+1, part, suffix(geomAxes, c)), T: t, Ctx: c, Layer: i, Part: part}
+						it := xamlItem{Key: fmt.Sprintf("%sLayer%d%s%s", key, i+1, part, suffix(geomAxes, c)), T: t, Ctx: c, Layer: i, Part: part, Themed: themed}
 						if err := add(it); err != nil {
 							return nil, err
 						}
@@ -284,7 +292,7 @@ func (x *xamler) plan(perFile bool) ([]xamlItem, error) {
 			}
 		default:
 			for _, c := range ctxs(geomAxes) {
-				if err := add(xamlItem{Key: key + suffix(geomAxes, c), T: t, Ctx: c, Layer: -1}); err != nil {
+				if err := add(xamlItem{Key: key + suffix(geomAxes, c), T: t, Ctx: c, Layer: -1, Themed: themed}); err != nil {
 					return nil, err
 				}
 			}
@@ -298,7 +306,7 @@ func (x *xamler) plan(perFile bool) ([]xamlItem, error) {
 // the same in every output and appearance (every dictionary holds the
 // same keys), with no inset layer.
 func (x *xamler) layers(t *tokens.Token, ctx config.Context) (int, error) {
-	n, at := -1, ""
+	n, atOut, atTheme := -1, Output{}, ""
 	for _, o := range x.np.Outputs() {
 		for _, th := range x.themeList() {
 			full := x.full(ctx, o, th.appearance)
@@ -317,10 +325,14 @@ func (x *xamler) layers(t *tokens.Token, ctx config.Context) (int, error) {
 			}
 			switch {
 			case n < 0:
-				n, at = len(l), inContext(full)
+				n, atOut, atTheme = len(l), o, th.key
+			case len(l) != n && o != atOut:
+				fan := x.np.FanOut.Name
+				return 0, fmt.Errorf("token %q%s has %d shadow layers for %s %s and %d for %s %s; its layer count must be the same across %ss, as every %s's dictionary holds the same keys",
+					t.Name, inContext(ctx), n, fan, atOut.FanValue, len(l), fan, o.FanValue, fan, fan)
 			case len(l) != n:
-				return 0, fmt.Errorf("token %q has %d shadow layers%s and %d%s; every XAML dictionary holds the same keys",
-					t.Name, n, at, len(l), inContext(full))
+				return 0, fmt.Errorf("token %q%s has %d shadow layers in the %s theme and %d in the %s theme; every theme dictionary holds the same keys",
+					t.Name, inContext(ctx), n, atTheme, len(l), th.key)
 			}
 		}
 	}
@@ -378,10 +390,10 @@ func (x *xamler) file(items []xamlItem, o Output) ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteString(`<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">` + "\n")
 	b.WriteString("    <!-- " + header(x.p) + " -->\n")
-	var brushes, others []xamlItem
+	var themed, others []xamlItem
 	for _, it := range items {
-		if it.brush() {
-			brushes = append(brushes, it)
+		if it.inThemes() {
+			themed = append(themed, it)
 		} else {
 			others = append(others, it)
 		}
@@ -390,11 +402,19 @@ func (x *xamler) file(items []xamlItem, o Output) ([]byte, error) {
 	for _, m := range x.np.Platform.HighContrast() {
 		system[m[0]] = m[1]
 	}
-	if len(brushes) > 0 {
+	if len(themed) > 0 {
 		b.WriteString("    <ResourceDictionary.ThemeDictionaries>\n")
 		for _, th := range x.themeList() {
 			fmt.Fprintf(&b, "        <ResourceDictionary x:Key=\"%s\">\n", th.key)
-			for _, it := range brushes {
+			for _, it := range themed {
+				if !it.brush() {
+					el, err := x.resource(it, o, th.appearance)
+					if err != nil {
+						return nil, err
+					}
+					b.WriteString("            " + el + "\n")
+					continue
+				}
 				var c string
 				if th.key == "HighContrast" {
 					c = "{ThemeResource " + system[it.T.Name] + "}"
@@ -413,7 +433,7 @@ func (x *xamler) file(items []xamlItem, o Output) ([]byte, error) {
 		b.WriteString("    </ResourceDictionary.ThemeDictionaries>\n")
 	}
 	for _, it := range others {
-		el, err := x.resource(it, o)
+		el, err := x.resource(it, o, "")
 		if err != nil {
 			return nil, err
 		}
@@ -443,12 +463,11 @@ func (x *xamler) colour(it xamlItem, o Output, av string) (color.OKLCH, error) {
 	return color.OKLCH{}, fmt.Errorf("token %q%s: a %s token resolves to %T", it.T.Name, inContext(full), it.T.Type, v.Lit)
 }
 
-// resource is non-colour resource it in output o as one XAML element.
-// Non-colours do not vary on appearance (plan checks), so they resolve at
-// its base.
-func (x *xamler) resource(it xamlItem, o Output) (string, error) {
+// resource is non-colour resource it in output o at appearance value av
+// ("" for the base) as one XAML element.
+func (x *xamler) resource(it xamlItem, o Output, av string) (string, error) {
 	t := it.T
-	full := x.full(it.Ctx, o, "")
+	full := x.full(it.Ctx, o, av)
 	v, err := x.np.Value(x.p.Tokens, t.Name, full)
 	if err != nil {
 		return "", fmt.Errorf("token %q%s: %w", t.Name, inContext(full), err)

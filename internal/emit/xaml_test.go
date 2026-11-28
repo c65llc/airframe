@@ -247,9 +247,9 @@ func parseXAML(t xamlT, b []byte) *xamlElem {
 
 // checkXAMLStructure checks a dictionary file's structure: the root and
 // its namespaces, the header comment, the theme dictionaries holding the
-// same brush keys and only brushes, no key twice in one dictionary, no
-// brush key outside them, and only x:Double, KeySpline and FontFamily
-// elsewhere.
+// same keys (brushes, and non-colours varying on appearance), no key twice
+// in one dictionary, no themed key at the root, and only x:Double,
+// KeySpline and FontFamily there.
 func checkXAMLStructure(t xamlT, file string, b []byte) {
 	t.Helper()
 	root := parseXAML(t, b)
@@ -266,10 +266,7 @@ func checkXAMLStructure(t xamlT, file string, b []byte) {
 			themes = c.children
 			continue
 		}
-		ok := c.name == xml.Name{Space: xamlNS, Local: "Double"} ||
-			c.name == xml.Name{Space: xamlPresentationNS, Local: "KeySpline"} ||
-			c.name == xml.Name{Space: xamlPresentationNS, Local: "FontFamily"}
-		assert.True(t, ok, "%s: %v is not x:Double, KeySpline or FontFamily", file, c.name)
+		assert.True(t, xamlTyped(c.name), "%s: %v is not x:Double, KeySpline or FontFamily", file, c.name)
 		assert.NotEmpty(t, c.key, file)
 		assert.False(t, rootKeys[c.key], "%s: key %s twice", file, c.key)
 		rootKeys[c.key] = true
@@ -283,10 +280,12 @@ func checkXAMLStructure(t xamlT, file string, b []byte) {
 		seen := map[string]bool{}
 		var keys []string
 		for _, c := range d.children {
-			assert.Equal(t, xml.Name{Space: xamlPresentationNS, Local: "SolidColorBrush"}, c.name, file)
+			ok := c.name == xml.Name{Space: xamlPresentationNS, Local: "SolidColorBrush"} || xamlTyped(c.name)
+			assert.True(t, ok, "%s: %s holds %v", file, d.key, c.name)
+			assert.NotEmpty(t, c.key, file)
 			assert.False(t, seen[c.key], "%s: %s holds key %s twice", file, d.key, c.key)
 			seen[c.key] = true
-			assert.False(t, rootKeys[c.key], "%s: brush key %s also outside the theme dictionaries", file, c.key)
+			assert.False(t, rootKeys[c.key], "%s: themed key %s also at the root", file, c.key)
 			keys = append(keys, c.key)
 		}
 		assert.NotEmpty(t, keys, file)
@@ -297,6 +296,13 @@ func checkXAMLStructure(t xamlT, file string, b []byte) {
 	assert.Contains(t, []string{"HighContrast", "Default"}, names[2], file)
 	assert.Equal(t, keySets[0], keySets[1], "%s: Light and Dark keys", file)
 	assert.Equal(t, keySets[0], keySets[2], "%s: Light and %s keys", file, names[2])
+}
+
+// xamlTyped reports whether name is a non-colour resource element.
+func xamlTyped(name xml.Name) bool {
+	return name == xml.Name{Space: xamlNS, Local: "Double"} ||
+		name == xml.Name{Space: xamlPresentationNS, Local: "KeySpline"} ||
+		name == xml.Name{Space: xamlPresentationNS, Local: "FontFamily"}
 }
 
 // TestXAMLWellFormed parses every golden with encoding/xml and checks its
@@ -359,8 +365,6 @@ func TestXAMLRuntimeSuffix(t *testing.T) {
 		`    <x:Double x:Key="DesignGapCompact">4</x:Double>`,
 		`    <x:Double x:Key="DesignGapStandard">4</x:Double>`,
 		`    <x:Double x:Key="DesignGapRelaxed">8</x:Double>`,
-		`    <x:Double x:Key="DesignHairlineCompact">0.5</x:Double>`,
-		`    <x:Double x:Key="DesignHairline">1</x:Double>`,
 	} {
 		assert.Contains(t, notes, want+"\n")
 	}
@@ -459,13 +463,32 @@ func TestXAMLFanOut(t *testing.T) {
 	assert.Contains(t, xamlErr(t, windowsFS(t, other)), "has a placeholder that is not the fan-out axis")
 }
 
-// TestXAMLAppearanceNonColour: a non-colour token, or a shadow's geometry,
-// varying on appearance is an error; a shadow whose colour alone does is
-// fine.
+// TestXAMLAppearanceNonColour: a non-colour token, or a shadow's
+// geometry, varying on appearance goes in every theme dictionary, Light
+// and Dark at their values and HighContrast or Default at the base, and
+// not at the root.
 func TestXAMLAppearanceNonColour(t *testing.T) {
-	fsys := memFS(t, windowsDir)
-	fsys["design-system/tokens/scale.tokens.json"] = memFS(t, appleDir)["design-system/tokens/scale.tokens.json"]
-	assert.Equal(t, `platform windows: xaml: token "hairline" varies on appearance; XAML theme dictionaries hold only brushes here`, xamlErr(t, fsys))
+	notes := string(xamlOf(t, loadFS(t, os.DirFS(windowsDir)))[notesXAML])
+	light, dark, hc := themeDict(t, notes, "Light"), themeDict(t, notes, "Dark"), themeDict(t, notes, "HighContrast")
+	for _, want := range []struct {
+		key                string
+		light, dark, other string
+	}{
+		{"DesignHairline", "1", "1.5", "1"},
+		{"DesignHairlineCompact", "0.5", "1", "0.5"},
+		{"DesignHairlineStandard", "1", "1.5", "1"},
+		{"DesignHairlineRelaxed", "1", "1.5", "1"},
+	} {
+		el := func(v string) string { return `            <x:Double x:Key="` + want.key + `">` + v + "</x:Double>\n" }
+		assert.Contains(t, light, el(want.light), want.key)
+		assert.Contains(t, dark, el(want.dark), want.key)
+		assert.Contains(t, hc, el(want.other), want.key)
+		assert.NotContains(t, notes, `    <x:Double x:Key="`+want.key+`">`+want.light+"</x:Double>\n    <", "not at the root")
+	}
+	assert.Equal(t, 3, strings.Count(notes, `x:Key="DesignHairline"`), "once per theme, never at the root")
+	// Non-colours that do not vary on appearance stay at the root.
+	assert.NotContains(t, light, "DesignGap")
+	assert.Contains(t, notes, "\n    <x:Double x:Key=\"DesignGap\">4</x:Double>\n")
 
 	lift := func(darkY int, darkAlpha float64) string {
 		return fmt.Sprintf(`{ "$extensions": { "com.c65llc.airframe": { "mode": "appearance:dark" } },
@@ -476,14 +499,42 @@ func TestXAMLAppearanceNonColour(t *testing.T) {
   "offsetX": {"value": 0, "unit": "px"}, "offsetY": {"value": 8, "unit": "px"},
   "blur": {"value": 16, "unit": "px"}, "spread": {"value": 0, "unit": "px"} } ] } }`, darkAlpha, darkY)
 	}
-	fsys = memFS(t, xamlDefaultDir)
+	// Shadow geometry varying on appearance is themed too.
+	fsys := memFS(t, xamlDefaultDir)
 	fsys["design-system/themes/lift.tokens.json"] = lift(6, 0.25)
-	assert.Equal(t, `platform windows: xaml: token "lift" varies on appearance; XAML theme dictionaries hold only brushes here`, xamlErr(t, fsys))
+	b := xamlOf(t, loadFS(t, fsys))[defaultXAML]
+	checkXAMLStructure(t, "lift", b)
+	d := string(b)
+	assert.Contains(t, themeDict(t, d, "Light"), `            <x:Double x:Key="DesignLiftLayer1OffsetY">2</x:Double>`+"\n")
+	assert.Contains(t, themeDict(t, d, "Dark"), `            <x:Double x:Key="DesignLiftLayer1OffsetY">6</x:Double>`+"\n")
+	assert.Contains(t, themeDict(t, d, "Default"), `            <x:Double x:Key="DesignLiftLayer1OffsetY">2</x:Double>`+"\n")
+	assert.Equal(t, 3, strings.Count(d, `x:Key="DesignLiftLayer2Blur"`))
 
+	// A shadow whose colour alone varies stays geometry-at-the-root.
 	fsys["design-system/themes/lift.tokens.json"] = lift(2, 0.5)
-	d := string(xamlOf(t, loadFS(t, fsys))[defaultXAML])
+	d = string(xamlOf(t, loadFS(t, fsys))[defaultXAML])
 	assert.Contains(t, themeDict(t, d, "Light"), `<SolidColorBrush x:Key="DesignLiftLayer1" Color="#4012171B" />`)
 	assert.Contains(t, themeDict(t, d, "Dark"), `<SolidColorBrush x:Key="DesignLiftLayer1" Color="#8012171B" />`)
+	assert.Equal(t, 1, strings.Count(d, `x:Key="DesignLiftLayer1OffsetY"`))
+}
+
+// TestXAMLLayerCountAcrossApps: a shadow whose layer count differs between
+// apps is an error saying so.
+func TestXAMLLayerCountAcrossApps(t *testing.T) {
+	fsys := memFS(t, windowsDir)
+	fsys["design-system/tokens/glow.tokens.json"] = `{ "glow": { "$type": "shadow",
+  "$value": { "color": { "colorSpace": "oklch", "components": [0.2, 0.01, 250], "alpha": 0.2 },
+    "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 1, "unit": "px" },
+    "blur": { "value": 2, "unit": "px" }, "spread": { "value": 0, "unit": "px" } },
+  "$extensions": { "com.c65llc.airframe": { "tier": "semantic", "modes": { "app:tasks": [
+    { "color": { "colorSpace": "oklch", "components": [0.2, 0.01, 250], "alpha": 0.2 },
+      "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 1, "unit": "px" },
+      "blur": { "value": 2, "unit": "px" }, "spread": { "value": 0, "unit": "px" } },
+    { "color": { "colorSpace": "oklch", "components": [0.2, 0.01, 250], "alpha": 0.1 },
+      "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": 4, "unit": "px" },
+      "blur": { "value": 8, "unit": "px" }, "spread": { "value": 0, "unit": "px" } } ] } } } } }`
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "      highContrast:\n", "      highContrast:\n        glow: SystemColorWindowTextColor\n", 1)
+	assert.Equal(t, `platform windows: xaml: token "glow" has 1 shadow layers for app notes and 2 for app tasks; its layer count must be the same across apps, as every app's dictionary holds the same keys`, xamlErr(t, fsys))
 }
 
 // TestXAMLInsetShadow: WinUI has no inset shadow.

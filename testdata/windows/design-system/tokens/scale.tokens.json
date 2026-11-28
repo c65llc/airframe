@@ -21,8 +21,16 @@
       "com.c65llc.airframe": {
         "tier": "primitive",
         "modes": {
+          "appearance:dark": {
+            "value": 1.5,
+            "unit": "px"
+          },
           "density:compact": {
             "value": 0.5,
+            "unit": "px"
+          },
+          "appearance:dark+density:compact": {
+            "value": 1,
             "unit": "px"
           }
         }
