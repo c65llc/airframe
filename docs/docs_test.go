@@ -128,8 +128,8 @@ func TestRuleUnknown(t *testing.T) {
 
 // TestReadmeMatchesRelease guards the README against drifting from what
 // the release does: it carries the install line, the quick start and the
-// Action usage, describes every emitter as built (XAML new in v0.5.0)
-// and the consumer rules as built for the next release, and plans no
+// Action usage, describes every emitter as built (XAML since v0.5.0)
+// and the consumer rules as new in v0.6.0, and plans no
 // emitter.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
@@ -138,29 +138,29 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, want := range []string{
 		"go install github.com/c65llc/airframe/cmd/airframe@latest",
 		"airframe init", "airframe lint", "airframe build", "airframe fmt",
-		"uses: c65llc/airframe@v0", "version: v0.5.0",
-		"**Planned (not in v0.5.0)**",
+		"uses: c65llc/airframe@v0", "version: v0.6.0",
+		"**Planned (not in v0.6.0)**",
 	} {
 		assert.Contains(t, readme, want)
 	}
-	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.5.0)**")
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.6.0)**")
 	require.True(t, ok)
-	built, _, _ := strings.Cut(readme, "**Planned (not in v0.5.0)**")
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.6.0)**")
 	planned, _, ok = strings.Cut(planned, "\n## ")
 	require.True(t, ok, "the planned list ends at the next section")
 	for _, emitter := range []string{"Swift", "Kotlin", "XAML"} {
 		assert.Contains(t, built, emitter, "a built emitter is described before the planned list")
 		assert.NotContains(t, planned, emitter, "a built emitter is not planned")
 	}
-	assert.Contains(t, built, "**Emits XAML/WinUI** (new in v0.5.0)", "XAML is built and released")
+	assert.Contains(t, built, "**Emits XAML/WinUI** (since v0.5.0)", "XAML is built and released")
 	assert.Contains(t, built, "(docs/guides/windows.md)")
 	for _, word := range []string{"emitter", "emit-unsupported", "C#"} {
 		assert.NotContains(t, planned, word, "every emitter is built; the planned list names none")
 	}
-	// The consumer rules are built for the next release, with their guide;
+	// The consumer rules are new in v0.6.0, with their guide;
 	// components' own rules, retired treatments and the reference surface
 	// stay planned.
-	assert.Contains(t, built, "**Lints consumers** (next release)")
+	assert.Contains(t, built, "**Lints consumers** (new in v0.6.0)")
 	assert.Contains(t, built, "(docs/guides/consumers.md)")
 	for _, rule := range []string{"reference-undeclared", "primitive-read-by-consumer", "token-owner-violation", "fallback-literal", "wrapper-unmapped"} {
 		assert.Contains(t, built, rule, "a built consumer rule is described before the planned list")
