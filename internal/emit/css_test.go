@@ -4,6 +4,7 @@
 package emit
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -179,4 +180,27 @@ func TestCSSUnformattableValueFails(t *testing.T) {
 	_, err := CSS(p, config.Platform{Name: "web", Emit: []string{"css"}})
 	require.Error(t, err)
 	assert.Equal(t, "--x: cannot write its value as CSS (mode appearance:dark)", err.Error())
+}
+
+// TestScopesExported pins the public expansion the importer inverts: spec
+// §6.2's appearance:dark yields the media fallback first, then the explicit
+// attribute selector.
+func TestScopesExported(t *testing.T) {
+	data, err := os.ReadFile("../../docs/specs/2026-11-27-airframe-design.md")
+	require.NoError(t, err)
+	_, after, ok := strings.Cut(string(data), "### 6.2 ")
+	require.True(t, ok)
+	_, after, ok = strings.Cut(after, "```yaml\n")
+	require.True(t, ok)
+	block, _, ok := strings.Cut(after, "```")
+	require.True(t, ok)
+	cfg, diags := config.Load([]byte(block))
+	require.Empty(t, diags)
+
+	got, err := Scopes(cfg, "appearance:dark")
+	require.NoError(t, err)
+	assert.Equal(t, []Scope{
+		{Media: []string{"@media (prefers-color-scheme: dark)"}, Selector: ":root:not([data-theme='light'])"},
+		{Selector: ":root[data-theme='dark']"},
+	}, got)
 }
