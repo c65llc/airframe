@@ -489,3 +489,43 @@ func TestNamingTemplates(t *testing.T) {
 		assert.Equal(t, "naming.swift", d.Path, bad)
 	}
 }
+
+// TestNamingUnknownFormat: a naming key that is not an emit format is
+// schema-invalid at its path, so a typo is not silently ignored.
+func TestNamingUnknownFormat(t *testing.T) {
+	d := loadErr(t, "version: 1\nnaming: { swfit: \"X.{camel}\" }\n")
+	assert.Equal(t, "naming.swfit", d.Path)
+	assert.Contains(t, d.Message, `"swfit"`)
+	assert.Equal(t, 2, d.Line)
+}
+
+// TestNamingFixedFormats: css, json and colorsets do not read naming yet,
+// so a template other than their default is schema-invalid; the default
+// itself is accepted.
+func TestNamingFixedFormats(t *testing.T) {
+	d := loadErr(t, "version: 1\nnaming: { css: \"--brand-{name}\" }\n")
+	assert.Equal(t, "naming.css", d.Path)
+	assert.Equal(t, "naming css: css does not support custom naming yet; only --{name} is accepted", d.Message)
+	for format, def := range map[string]string{"css": "--{name}", "json": "{name}", "colorsets": "{Pascal}"} {
+		assert.Equal(t, def, mustLoad(t, "version: 1\nnaming: { "+format+": \""+def+"\" }\n").NamingFor(format), format)
+	}
+	for _, format := range []string{"json", "colorsets"} {
+		d := loadErr(t, "version: 1\nnaming: { "+format+": \"x{camel}\" }\n")
+		assert.Equal(t, "naming."+format, d.Path)
+		assert.Contains(t, d.Message, format+" does not support custom naming yet")
+	}
+	mustLoad(t, "version: 1\nnaming: { kotlin: \"K.{Pascal}\", xaml: \"X{camel}\" }\n")
+}
+
+// TestNamingProblemsAllReported: every bad naming entry is reported, not
+// just the first.
+func TestNamingProblemsAllReported(t *testing.T) {
+	c, ds := Load([]byte("version: 1\nnaming: {css: \"--brand-{name}\", swfit: \"X.{camel}\", colorsets: \"{camel}\"}\n"))
+	assert.Nil(t, c)
+	var paths []string
+	for _, d := range ds {
+		assert.Equal(t, "schema-invalid", d.Rule)
+		paths = append(paths, d.Path)
+	}
+	assert.Equal(t, []string{"naming.css", "naming.swfit", "naming.colorsets"}, paths)
+}

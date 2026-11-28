@@ -377,3 +377,23 @@ func TestColorsetNamespaceAfterFanOut(t *testing.T) {
 	assert.Equal(t, "tasks/Ink", ColorsetName(np, p.Tokens.Tokens["ink"], config.Context{"app": "tasks"}))
 	assert.Equal(t, "notes/Ink", ColorsetName(np, p.Tokens.Tokens["ink"], config.Context{}), "the fan-out's base when ctx leaves it unset")
 }
+
+// TestColorsetOutInsideCatalog: the colorsets out is a namespace folder
+// inside an .xcassets catalog, checked after fan-out substitution. A bare
+// folder (whose AccentColor would land at the repo root) or the catalog
+// itself (AccentColor outside it, provides-namespace on its root) is
+// emit-failed naming the bad value.
+func TestColorsetOutInsideCatalog(t *testing.T) {
+	for _, bad := range []string{"Tokens", "ios/{app}/Assets.xcassets", "ios/{app}/Tokens/"} {
+		fsys := memFS(t, appleDir)
+		fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "ios/{app}/Assets.xcassets/Tokens/", bad, 1)
+		require.NotEqual(t, memFS(t, appleDir)["airframe.yaml"], fsys["airframe.yaml"])
+		out, ds := Build(loadFS(t, fsys), []string{"colorsets"})
+		ds = slices.DeleteFunc(ds, func(d diag.Diagnostic) bool { return d.Rule != "emit-failed" })
+		require.Len(t, ds, 1, "%s: %v", bad, ds)
+		assert.Contains(t, ds[0].Message, "colorsets out must be a folder inside an .xcassets catalog, as in App/Assets.xcassets/Tokens", bad)
+		assert.Contains(t, ds[0].Message, strings.TrimSuffix(strings.ReplaceAll(bad, "{app}", "notes"), "/"), bad)
+		assert.Equal(t, "platforms.apple", ds[0].Path, bad)
+		assert.Empty(t, out, bad)
+	}
+}

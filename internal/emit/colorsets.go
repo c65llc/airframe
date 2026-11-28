@@ -52,6 +52,11 @@ func Colorsets(p *project.Project, pl config.Platform) (map[string][]byte, error
 		if strings.ContainsAny(dir, "{}") {
 			return nil, fmt.Errorf("colorsets out path %s has a placeholder that is not the fan-out axis", tmpl)
 		}
+		// The out folder is the namespace, inside the catalog: AccentColor
+		// goes to its parent, which must be the .xcassets folder itself.
+		if !strings.HasSuffix(path.Dir(dir), ".xcassets") {
+			return nil, fmt.Errorf("colorsets out %q: colorsets out must be a folder inside an .xcassets catalog, as in App/Assets.xcassets/Tokens", dir)
+		}
 		files, err := cs.catalog(dir, o)
 		if err != nil {
 			return nil, err
@@ -404,7 +409,7 @@ func info() *object {
 	return o
 }
 
-// inContext is " (axis value, …)" naming ctx's axes in sorted order, or
+// inContext is " (axis:value+…)" naming ctx's axes in sorted order, or
 // "" for an empty context.
 func inContext(ctx config.Context) string {
 	if len(ctx) == 0 {

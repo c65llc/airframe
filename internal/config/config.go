@@ -90,7 +90,57 @@ func (p Platform) Option(key string) (string, bool) {
 
 // defaultNaming is the spelling per emit format when naming does not set one.
 var defaultNaming = map[string]string{
-	"css": "--{name}", "swift": "DesignTokens.{camel}", "kotlin": "DesignTokens.{camel}", "xaml": "Design{Pascal}",
+	"css": "--{name}", "json": "{name}", "colorsets": "{Pascal}",
+	"swift": "DesignTokens.{camel}", "kotlin": "DesignTokens.{camel}", "xaml": "Design{Pascal}",
+}
+
+// FixedNaming lists the formats whose emitters do not read naming or a
+// token's names yet: each accepts only its default spelling, so a custom
+// one is rejected rather than silently ignored.
+var FixedNaming = []string{"css", "json", "colorsets"}
+
+// FixedNamingError is the problem with spelling got for format, or "" when
+// format reads custom naming or got is want, its default spelling. accepted
+// is how the message shows want.
+func FixedNamingError(format, got, want, accepted string) string {
+	if !slices.Contains(FixedNaming, format) || got == want {
+		return ""
+	}
+	return fmt.Sprintf("%s does not support custom naming yet; only %s is accepted", format, accepted)
+}
+
+// DefaultName is token name spelled by format's default naming template
+// ("accent-ink" in colorsets is "AccentInk").
+func DefaultName(format, name string) string {
+	return FillNaming(defaultNaming[format], name)
+}
+
+// FillNaming fills a naming template's placeholder ({name}, {camel} or
+// {Pascal}) with token name.
+func FillNaming(template, name string) string {
+	return strings.NewReplacer("{name}", name, "{camel}", Camel(name), "{Pascal}", Pascal(name)).Replace(template)
+}
+
+// Camel spells a token name in lower camel case: segments split on "-",
+// every one after the first capitalised, digits kept attached
+// ("accent-ink" → "accentInk", "space-4" → "space4").
+func Camel(name string) string {
+	segs := strings.Split(name, "-")
+	for i := 1; i < len(segs); i++ {
+		segs[i] = upperFirst(segs[i])
+	}
+	return strings.Join(segs, "")
+}
+
+// Pascal spells a token name in upper camel case ("accent-ink" →
+// "AccentInk", "space-4" → "Space4").
+func Pascal(name string) string { return upperFirst(Camel(name)) }
+
+func upperFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // NamingFor returns the naming template for an emit format.
@@ -130,6 +180,9 @@ func Load(data []byte) (*Config, []diag.Diagnostic) {
 		for i := range ds {
 			ds[i].File = File
 		}
+		return nil, ds
+	}
+	if ds := namingProblems(root.Content[0]); len(ds) > 0 {
 		return nil, ds
 	}
 	c, err := build(root.Content[0])
@@ -233,10 +286,7 @@ func build(root *yaml.Node) (*Config, *buildError) {
 		c.Naming = map[string]string{}
 		ks, vs := mapping(nn)
 		for i, k := range ks {
-			if err := checkNaming(k.Value, vs[i]); err != nil {
-				return nil, err
-			}
-			c.Naming[k.Value] = vs[i].Value
+			c.Naming[k.Value] = vs[i].Value // checked by namingProblems
 		}
 	}
 
@@ -553,6 +603,30 @@ func checkAppleOptions(o *yaml.Node) *buildError {
 }
 
 var placeholder = regexp.MustCompile(`\{[^{}]*\}`)
+
+// namingProblems reports every bad naming entry, not just the first: a key
+// that is not an emit format, a template checkNaming rejects, and a custom
+// template for a FixedNaming format.
+func namingProblems(root *yaml.Node) []diag.Diagnostic {
+	var ds []diag.Diagnostic
+	ks, vs := mapping(field(root, "naming"))
+	for i, k := range ks {
+		at := "naming." + k.Value
+		if !slices.Contains(Formats, k.Value) {
+			ds = append(ds, diagnostic("schema-invalid", fmt.Sprintf("naming key %q is not an emit format; known: %s",
+				k.Value, strings.Join(Formats, ", ")), at, k.Line))
+			continue
+		}
+		if err := checkNaming(k.Value, vs[i]); err != nil {
+			ds = append(ds, diagnostic("schema-invalid", err.msg, err.path, err.line))
+			continue
+		}
+		if msg := FixedNamingError(k.Value, vs[i].Value, defaultNaming[k.Value], defaultNaming[k.Value]); msg != "" {
+			ds = append(ds, diagnostic("schema-invalid", "naming "+k.Value+": "+msg, at, vs[i].Line))
+		}
+	}
+	return ds
+}
 
 // checkNaming requires exactly one of {name}, {camel}, {Pascal} and no other
 // placeholder.

@@ -10,34 +10,20 @@ import (
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
-// Camel spells a token name in lower camel case: segments split on "-",
-// every one after the first capitalised, digits kept attached
-// ("accent-ink" → "accentInk", "space-4" → "space4").
-func Camel(name string) string {
-	segs := strings.Split(name, "-")
-	for i := 1; i < len(segs); i++ {
-		segs[i] = upperFirst(segs[i])
-	}
-	return strings.Join(segs, "")
-}
+// Camel spells a token name in lower camel case ("accent-ink" →
+// "accentInk", "space-4" → "space4"); see config.Camel.
+func Camel(name string) string { return config.Camel(name) }
 
 // Pascal spells a token name in upper camel case ("accent-ink" →
-// "AccentInk", "space-4" → "Space4").
-func Pascal(name string) string { return upperFirst(Camel(name)) }
-
-func upperFirst(s string) string {
-	if s == "" {
-		return s
-	}
-	return strings.ToUpper(s[:1]) + s[1:]
-}
+// "AccentInk"); see config.Pascal.
+func Pascal(name string) string { return config.Pascal(name) }
 
 // Apply fills a naming template's placeholder ({name}, {camel} or
 // {Pascal}) with name and splits the result at its last "." into the type
 // and member parts: "DesignTokens.{camel}" gives ("DesignTokens",
 // "accentInk"). A template with no "." has no type part.
 func Apply(template, name string) (typ, member string) {
-	s := strings.NewReplacer("{name}", name, "{camel}", Camel(name), "{Pascal}", Pascal(name)).Replace(template)
+	s := config.FillNaming(template, name)
 	if i := strings.LastIndex(s, "."); i >= 0 {
 		return s[:i], s[i+1:]
 	}
