@@ -321,14 +321,14 @@ func (k *kotliner) colorsDecl(slots []kotlinSlot) []kotlinDecl {
 
 // values declares <Type>ColorValues for output o: one <Type>Colors per
 // appearance value, named by the value, or a single colors with no
-// appearance axis, then any Material 3 schemes (see schemes). With
-// neither it is an empty object.
+// appearance axis, then any Material 3 schemes (see schemes). With no
+// slot it is an empty object; a scheme's role tokens are slots.
 func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
 	schemes, schemeImports, err := k.schemes(o)
 	if err != nil {
 		return nil, err
 	}
-	if len(slots) == 0 && schemes == "" {
+	if len(slots) == 0 {
 		return []kotlinDecl{{body: "public object " + k.valuesType() + "\n"}}, nil
 	}
 	imports := append([]string{kotlinColorImport}, schemeImports...)
@@ -337,15 +337,8 @@ func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "public object %s {\n", k.valuesType())
-	if len(slots) == 0 {
-		schemes = strings.TrimPrefix(schemes, "\n")
-	}
-	var avs []string // the appearances with a <Type>Colors: none without slots
-	if len(slots) > 0 {
-		avs = k.appearances()
-	}
 	seen := map[string]string{} // val name → appearance value
-	for i, av := range avs {
+	for i, av := range k.appearances() {
 		name := "colors"
 		if av != "" {
 			name = KotlinIdent(Camel(av))
@@ -381,10 +374,10 @@ const kotlinMaterial3 = "androidx.compose.material3."
 // ColorScheme per appearance value of output o, after the <Type>Colors
 // vals: <value>Scheme = <value>ColorScheme(…) for light and dark, or
 // lightScheme alone with no appearance axis, its named role arguments in
-// Material3Roles order. Each role is its token's colour literal, resolved
-// as a slot is: a val's slot could only be named through the val, and a
-// role token need not be a slot. A role token must be a colour with a
-// single value per output and appearance.
+// Material3Roles order. A role token must be a colour emitted to kotlin
+// (so FixedWarnings covers it) with a single value per output and
+// appearance. Each role is its token's colour literal, resolved as its
+// slot is.
 func (k *kotliner) schemes(o Output) (string, []string, error) {
 	roles := k.np.Platform.Material3Roles()
 	if len(roles) == 0 {
@@ -397,6 +390,8 @@ func (k *kotliner) schemes(o Output) (string, []string, error) {
 			return "", nil, fmt.Errorf("material3Scheme role %s names token %q, but there is no such token", r[0], r[1])
 		case t.Type != "color":
 			return "", nil, fmt.Errorf("material3Scheme role %s names token %q, a %s token; a role needs a color token", r[0], r[1], t.Type)
+		case !slices.Contains(emitted(k.p, "kotlin"), t):
+			return "", nil, fmt.Errorf("material3Scheme role %s: token %q is not emitted to kotlin", r[0], r[1])
 		}
 		varies := k.np.Varies(k.p.Tokens, t)
 		for _, a := range k.np.Runtime {
@@ -418,8 +413,8 @@ func (k *kotliner) schemes(o Output) (string, []string, error) {
 		}
 		imports = append(imports, kotlinMaterial3+kind+"ColorScheme")
 		fmt.Fprintf(&b, "\n    public val %sScheme: ColorScheme = %sColorScheme(\n", kind, kind)
+		full := k.full(config.Context{}, o, av)
 		for _, r := range roles {
-			full := k.full(config.Context{}, o, av)
 			v, err := k.np.Value(k.p.Tokens, r[1], full)
 			if err != nil {
 				return "", nil, fmt.Errorf("material3Scheme role %s: token %q%s: %w", r[0], r[1], inContext(full), err)
