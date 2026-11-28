@@ -91,6 +91,11 @@ func problem(rule, file, at string, line int, format string, a ...any) diag.Diag
 // Unreadable. Diagnostics come in file order.
 func Resolve(fsys fs.FS, cfg *config.Config) (*Index, []diag.Diagnostic) {
 	file := cfg.Gantry
+	// Symlinks are never followed (as in the consumer scan): a link could
+	// lead the resolver out of the repository.
+	if l, err := symlinkIn(fsys, cmpOr(file, DefaultFile)); err != nil || l != "" {
+		return nil, []diag.Diagnostic{linkProblem(cmpOr(file, DefaultFile), l, err)}
+	}
 	data, err := fs.ReadFile(fsys, cmpOr(file, DefaultFile))
 	switch {
 	case err == nil:
@@ -111,6 +116,9 @@ func Resolve(fsys fs.FS, cfg *config.Config) (*Index, []diag.Diagnostic) {
 	}
 	ix := &Index{file: file, rulings: map[string]ruling{}, unreadable: map[string]bool{}}
 	dir := path.Join(content, "rulings")
+	if l, err := symlinkIn(fsys, dir); err != nil || l != "" {
+		return nil, []diag.Diagnostic{linkProblem(file, l, err)}
+	}
 	entries, err := fs.ReadDir(fsys, dir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return ix, nil
@@ -125,6 +133,11 @@ func Resolve(fsys fs.FS, cfg *config.Config) (*Index, []diag.Diagnostic) {
 			continue
 		}
 		id, rf := strings.TrimSuffix(name, ".md"), path.Join(dir, name)
+		if e.Type()&fs.ModeSymlink != 0 {
+			ix.unreadable[id] = true
+			ds = append(ds, problem(RulingRule, rf, "", 0, "ruling is a symlink, which is not followed"))
+			continue
+		}
 		b, err := fs.ReadFile(fsys, rf)
 		if err != nil {
 			ix.unreadable[id] = true
@@ -140,6 +153,40 @@ func Resolve(fsys fs.FS, cfg *config.Config) (*Index, []diag.Diagnostic) {
 		ix.rulings[id] = r
 	}
 	return ix, ds
+}
+
+// symlinkIn returns the first component of repo-relative p (p itself
+// included) that is a symlink, or "" when none is. A component that does
+// not exist ends the walk: nothing below it can be a link. fs.Lstat is
+// fs.Stat on an FS that cannot read links.
+func symlinkIn(fsys fs.FS, p string) (string, error) {
+	segs := strings.Split(path.Clean(p), "/")
+	for i := range segs {
+		at := strings.Join(segs[:i+1], "/")
+		if at == "." {
+			continue
+		}
+		info, err := fs.Lstat(fsys, at)
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		if info.Mode()&fs.ModeSymlink != 0 {
+			return at, nil
+		}
+	}
+	return "", nil
+}
+
+// linkProblem is the schema-invalid diagnostic for a Gantry path through
+// symlink link, or for the error looking for one, reported at file.
+func linkProblem(file, link string, err error) diag.Diagnostic {
+	if err != nil {
+		return problem(schema.RuleID, file, "", 0, "gantry project cannot be read: %v", err)
+	}
+	return problem(schema.RuleID, file, "", 0, "%s is a symlink, which is not followed", link)
 }
 
 func cmpOr(a, b string) string {
@@ -227,6 +274,9 @@ func parseRuling(file, id string, data []byte) (ruling, *diag.Diagnostic) {
 	if n := findAnchor(&root); n != nil {
 		return fail(n.Line+1, "front matter: YAML anchors, aliases and merge keys are not allowed")
 	}
+	if k := findDuplicateKey(&root); k != nil {
+		return fail(k.Line+1, "front matter has a duplicate key %q", k.Value)
+	}
 	doc := root.Content[0]
 	str := func(key string) (*yaml.Node, *diag.Diagnostic) {
 		n := field(doc, key)
@@ -257,9 +307,12 @@ func parseRuling(file, id string, data []byte) (ruling, *diag.Diagnostic) {
 		return fail(statusNode.Line+1, "status %q is not one of %s", statusNode.Value, strings.Join(Statuses, ", "))
 	}
 	r := ruling{status: statusNode.Value}
-	byNode, d := str("supersededBy")
-	if d != nil {
-		return ruling{}, d
+	// supersededBy with no value is null: unset, not a non-string.
+	var byNode *yaml.Node
+	if n := field(doc, "supersededBy"); n == nil || n.ShortTag() != "!!null" {
+		if byNode, d = str("supersededBy"); d != nil {
+			return ruling{}, d
+		}
 	}
 	if byNode != nil {
 		r.supersededBy = byNode.Value
@@ -289,6 +342,27 @@ func findAnchor(n *yaml.Node) *yaml.Node {
 	for _, c := range n.Content {
 		if a := findAnchor(c); a != nil {
 			return a
+		}
+	}
+	return nil
+}
+
+// findDuplicateKey returns the second occurrence of the first key repeated
+// in a mapping under n, in document order.
+func findDuplicateKey(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.MappingNode {
+		seen := map[string]bool{}
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			k := n.Content[i]
+			if seen[k.Value] {
+				return k
+			}
+			seen[k.Value] = true
+		}
+	}
+	for _, c := range n.Content {
+		if d := findDuplicateKey(c); d != nil {
+			return d
 		}
 	}
 	return nil

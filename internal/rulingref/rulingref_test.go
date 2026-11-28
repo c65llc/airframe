@@ -4,8 +4,10 @@
 package rulingref
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"testing/fstest"
 
@@ -129,6 +131,8 @@ func TestResolveMalformed(t *testing.T) {
 		dir + "empty.md":      file("---\n---\n"),
 		dir + "num-id.md":     file("---\nid: 7\nstatus: ruled\n---\n"),
 		dir + "bad-by.md":     file("---\nid: bad-by\nstatus: superseded\nsupersededBy: [a]\n---\n"),
+		dir + "null-by.md":    file("---\nid: null-by\nstatus: ruled\nsupersededBy:\n---\n"),
+		dir + "dup.md":        file("---\nid: dup\nstatus: ruled\nstatus: retired\n---\n"),
 	}
 	ix, ds := Resolve(fsys, loadConfig(t, "version: 1\n"))
 	require.NotNil(t, ix, "a broken ruling does not discard the project")
@@ -136,6 +140,7 @@ func TestResolveMalformed(t *testing.T) {
 	lookup(t, ix, "crlf", "ruled", "")
 	lookup(t, ix, "bom", "superseded", "crlf")
 	lookup(t, ix, "bom-crlf", "ruled", "")
+	lookup(t, ix, "null-by", "ruled", "")
 
 	type want struct {
 		line int
@@ -154,6 +159,7 @@ func TestResolveMalformed(t *testing.T) {
 		"empty.md":      {1, "must be a mapping"},
 		"num-id.md":     {2, "id must be a string"},
 		"bad-by.md":     {4, "supersededBy must be a string"},
+		"dup.md":        {4, `duplicate key "status"`},
 	}
 	got := map[string]diag.Diagnostic{}
 	for _, d := range ds {
@@ -210,5 +216,82 @@ func TestResolveGantryYAMLInvalid(t *testing.T) {
 		if tc.line != 0 {
 			assert.Equal(t, tc.line, ds[0].Line, name)
 		}
+	}
+}
+
+// symlinkRepo builds a repo in a temp dir with a valid Gantry project and
+// an outside directory holding a ruling, then lets link add a symlink.
+func symlinkRepo(t *testing.T, link func(repo, outside string) error) fs.FS {
+	t.Helper()
+	base := t.TempDir()
+	repo, outside := filepath.Join(base, "repo"), filepath.Join(base, "outside")
+	rulings := filepath.Join(repo, "docs", "design", "rulings")
+	require.NoError(t, os.MkdirAll(rulings, 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(outside, "rulings"), 0o755))
+	write := func(p, s string) { require.NoError(t, os.WriteFile(p, []byte(s), 0o644)) }
+	write(filepath.Join(repo, "gantry.yaml"), gantryYAML)
+	write(filepath.Join(outside, "gantry.yaml"), gantryYAML)
+	write(filepath.Join(rulings, "tab-strip.md"), "---\nid: tab-strip\nstatus: ruled\n---\n")
+	write(filepath.Join(outside, "secret.md"), "---\nid: secret\nstatus: ruled\n---\n")
+	write(filepath.Join(outside, "rulings", "secret.md"), "---\nid: secret\nstatus: ruled\n---\n")
+	if err := link(repo, outside); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlinks not permitted: %v", err)
+		}
+		require.NoError(t, err)
+	}
+	return os.DirFS(repo)
+}
+
+func TestResolveRefusesSymlinks(t *testing.T) {
+	cfg := loadConfig(t, "version: 1\n")
+
+	t.Run("ruling file", func(t *testing.T) {
+		fsys := symlinkRepo(t, func(repo, outside string) error {
+			return os.Symlink(filepath.Join(outside, "secret.md"), filepath.Join(repo, "docs", "design", "rulings", "secret.md"))
+		})
+		ix, ds := Resolve(fsys, cfg)
+		require.NotNil(t, ix)
+		require.Len(t, ds, 1)
+		assert.Equal(t, "component-unruled", ds[0].Rule)
+		assert.Equal(t, "docs/design/rulings/secret.md", ds[0].File)
+		assert.Contains(t, ds[0].Message, "symlink")
+		_, _, ok := ix.Lookup("secret")
+		assert.False(t, ok)
+		assert.True(t, ix.Unreadable("secret"))
+		lookup(t, ix, "tab-strip", "ruled", "")
+	})
+
+	for name, link := range map[string]func(repo, outside string) error{
+		"content dir": func(repo, outside string) error {
+			d := filepath.Join(repo, "docs", "design")
+			if err := os.RemoveAll(d); err != nil {
+				return err
+			}
+			return os.Symlink(outside, d)
+		},
+		"rulings dir": func(repo, outside string) error {
+			d := filepath.Join(repo, "docs", "design", "rulings")
+			if err := os.RemoveAll(d); err != nil {
+				return err
+			}
+			return os.Symlink(filepath.Join(outside, "rulings"), d)
+		},
+		"gantry.yaml": func(repo, outside string) error {
+			g := filepath.Join(repo, "gantry.yaml")
+			if err := os.Remove(g); err != nil {
+				return err
+			}
+			return os.Symlink(filepath.Join(outside, "gantry.yaml"), g)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ix, ds := Resolve(symlinkRepo(t, link), cfg)
+			assert.Nil(t, ix)
+			require.Len(t, ds, 1)
+			assert.Equal(t, "schema-invalid", ds[0].Rule)
+			assert.Equal(t, "gantry.yaml", ds[0].File)
+			assert.Contains(t, ds[0].Message, "symlink")
+		})
 	}
 }
