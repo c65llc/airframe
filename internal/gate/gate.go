@@ -41,11 +41,17 @@ type finding struct {
 	Rule    string `json:"rule"`
 }
 
+// exemption is one honoured marker. Rule is Airframe's addition to the
+// protocol, like notApplicable: the rule the marker suppresses, for a
+// consumer airframe-exempt marker and a token's exempt entry alike. Gantry
+// ignores it as an unknown field; file, line, marker and reason are as the
+// protocol defines them.
 type exemption struct {
 	File   string `json:"file"`
 	Line   int    `json:"line,omitempty"`
 	Marker string `json:"marker"`
 	Reason string `json:"reason"`
+	Rule   string `json:"rule"`
 }
 
 // notApplicable is Airframe's addition to the protocol: a rule that had
@@ -66,8 +72,9 @@ type document struct {
 }
 
 // Write writes r as gate JSON with a two-space indent. Checks are the
-// rules that scanned something, in r's tally order; every other rule is in
-// notApplicable with its tally's reason, so each rule is in exactly one. scanned.files is files, the
+// rules that are applicable (scanned something, or reported a finding), in
+// r's tally order; every other rule is in notApplicable with its tally's
+// reason, so each rule is in exactly one. scanned.files is files, the
 // number of files the project loaded; scanned.items sums every rule's
 // items. Findings are every reported diagnostic; exemptions come from r,
 // which already leaves out those of rules set off. Empty lists are written
@@ -84,7 +91,7 @@ func Write(w io.Writer, r lint.Result, st selftest.Result, files int) error {
 	}
 	for _, t := range r.Tallies {
 		doc.Scanned.Items += t.Items
-		if t.Items > 0 {
+		if t.NotApplicable == "" { // lint.Run gives every rule that ran nothing, and found nothing, a reason
 			doc.Checks = append(doc.Checks, check{ID: t.Rule, Scanned: t.Items})
 		} else {
 			doc.NotApplicable = append(doc.NotApplicable, notApplicable{ID: t.Rule, Reason: t.NotApplicable})
@@ -94,7 +101,7 @@ func Write(w io.Writer, r lint.Result, st selftest.Result, files int) error {
 		doc.Findings = append(doc.Findings, finding{File: d.File, Line: d.Line, Message: d.Message, Rule: d.Rule})
 	}
 	for _, e := range r.Exemptions {
-		doc.Exemptions = append(doc.Exemptions, exemption{File: e.File, Line: e.Line, Marker: e.Marker, Reason: e.Reason})
+		doc.Exemptions = append(doc.Exemptions, exemption{File: e.File, Line: e.Line, Marker: e.Marker, Reason: e.Reason, Rule: e.Rule})
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

@@ -1,0 +1,558 @@
+{
+  "Refs": [
+    {
+      "Platform": "android",
+      "File": "android/src/button/Button.kt",
+      "Line": 5,
+      "Col": 10,
+      "Raw": "DesignTokens.buttonBg",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/button/Button.kt",
+      "Line": 6,
+      "Col": 11,
+      "Raw": "DesignColorValues.light.buttonInk",
+      "Token": "button-ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 6,
+      "Col": 11,
+      "Raw": "DesignTokens.ink",
+      "Token": "ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 7,
+      "Col": 19,
+      "Raw": "DesignColorValues.dark.surface",
+      "Token": "surface",
+      "Via": "direct"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 8,
+      "Col": 12,
+      "Raw": "DesignColorValues.light.acent",
+      "Token": "",
+      "Via": "direct"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 11,
+      "Col": 11,
+      "Raw": "LocalTokens.current.gap",
+      "Token": "gap",
+      "Via": "wrapper:LocalTokens.current"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 12,
+      "Col": 15,
+      "Raw": "LocalTokens.current.missing",
+      "Token": "",
+      "Via": "wrapper:LocalTokens.current"
+    },
+    {
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 13,
+      "Col": 16,
+      "Raw": "DesignTokens.buttonBg",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ButtonStyle.swift",
+      "Line": 6,
+      "Col": 25,
+      "Raw": "DesignTokens.buttonBg",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ButtonStyle.swift",
+      "Line": 7,
+      "Col": 30,
+      "Raw": "DesignTokens.`buttonInk`",
+      "Token": "button-ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 7,
+      "Col": 30,
+      "Raw": "DesignTokens.ink",
+      "Token": "ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 8,
+      "Col": 22,
+      "Raw": "DesignTokens.gap",
+      "Token": "gap",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 9,
+      "Col": 25,
+      "Raw": "DesignTokens.surfce",
+      "Token": "",
+      "Via": "direct"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 11,
+      "Col": 22,
+      "Raw": "AppTheme.spacing.small",
+      "Token": "space-2",
+      "Via": "wrapper:AppTheme.spacing"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 12,
+      "Col": 22,
+      "Raw": "AppTheme.spacing.space4",
+      "Token": "space-4",
+      "Via": "wrapper:AppTheme.spacing"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 13,
+      "Col": 22,
+      "Raw": "AppTheme.spacing.large",
+      "Token": "",
+      "Via": "wrapper:AppTheme.spacing"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 14,
+      "Col": 19,
+      "Raw": "Theme.accent",
+      "Token": "accent",
+      "Via": "wrapper:Theme"
+    },
+    {
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 17,
+      "Col": 21,
+      "Raw": "DesignTokens.buttonBg",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 7,
+      "Col": 14,
+      "Raw": "--ink",
+      "Token": "ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 8,
+      "Col": 19,
+      "Raw": "--surface",
+      "Token": "surface",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 9,
+      "Col": 21,
+      "Raw": "--accnet",
+      "Token": "",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 11,
+      "Col": 22,
+      "Raw": "--hairline",
+      "Token": "hairline",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 12,
+      "Col": 15,
+      "Raw": "--gap",
+      "Token": "gap",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 12,
+      "Col": 26,
+      "Raw": "--hairline",
+      "Token": "hairline",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 13,
+      "Col": 29,
+      "Raw": "--accent",
+      "Token": "accent",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 6,
+      "Col": 24,
+      "Raw": "--button-bg",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 7,
+      "Col": 16,
+      "Raw": "theme.space.small",
+      "Token": "space-2",
+      "Via": "wrapper:theme.space"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 8,
+      "Col": 12,
+      "Raw": "theme.space.space4",
+      "Token": "gap",
+      "Via": "wrapper:theme.space"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 9,
+      "Col": 15,
+      "Raw": "theme.space.space2",
+      "Token": "space-2",
+      "Via": "wrapper:theme.space"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 10,
+      "Col": 15,
+      "Raw": "theme.space.huge",
+      "Token": "",
+      "Via": "wrapper:theme.space"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 11,
+      "Col": 16,
+      "Raw": "tokens.nope",
+      "Token": "",
+      "Via": "wrapper:tokens"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/page.tsx",
+      "Line": 5,
+      "Col": 54,
+      "Raw": "--button-ink",
+      "Token": "button-ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/page.tsx",
+      "Line": 5,
+      "Col": 75,
+      "Raw": "theme.space.small",
+      "Token": "space-2",
+      "Via": "wrapper:theme.space"
+    },
+    {
+      "Platform": "web",
+      "File": "web/src/page.tsx",
+      "Line": 6,
+      "Col": 8,
+      "Raw": "tokens.accent",
+      "Token": "accent",
+      "Via": "wrapper:tokens"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/ButtonView.xaml",
+      "Line": 2,
+      "Col": 23,
+      "Raw": "{StaticResource DesignButtonBg}",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/ButtonView.xaml",
+      "Line": 2,
+      "Col": 68,
+      "Raw": "{StaticResource DesignButtonInk}",
+      "Token": "button-ink",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 2,
+      "Col": 21,
+      "Raw": "{ThemeResource DesignSurface}",
+      "Token": "surface",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 2,
+      "Col": 61,
+      "Raw": "{StaticResource DesignGapCompact}",
+      "Token": "gap",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 4,
+      "Col": 26,
+      "Raw": "{StaticResource DesignAcent}",
+      "Token": "",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 6,
+      "Col": 25,
+      "Raw": "{StaticResource DesignButtonBg}",
+      "Token": "button-bg",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml.cs",
+      "Line": 7,
+      "Col": 42,
+      "Raw": "Resources[\"DesignAccent\"]",
+      "Token": "accent",
+      "Via": "direct"
+    },
+    {
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml.cs",
+      "Line": 9,
+      "Col": 20,
+      "Raw": "Resources[\"DesignNope\"]",
+      "Token": "",
+      "Via": "direct"
+    }
+  ],
+  "Files": {
+    "android": 2,
+    "apple": 2,
+    "web": 3,
+    "windows": 3
+  },
+  "Problems": [
+    {
+      "Kind": "undeclared",
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 8,
+      "Col": 12,
+      "Raw": "DesignColorValues.light.acent",
+      "Detail": "DesignColorValues.light.acent: acent is not a name the kotlin emitter writes for platform android"
+    },
+    {
+      "Kind": "wrapper-unmapped",
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 12,
+      "Col": 15,
+      "Raw": "LocalTokens.current.missing",
+      "Detail": "LocalTokens.current.missing: missing is not a name platform android generates; wrapper LocalTokens.current is generated: true"
+    },
+    {
+      "Kind": "undeclared",
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 9,
+      "Col": 25,
+      "Raw": "DesignTokens.surfce",
+      "Detail": "DesignTokens.surfce: surfce is not a name the swift emitter writes for platform apple"
+    },
+    {
+      "Kind": "wrapper-unmapped",
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 13,
+      "Col": 22,
+      "Raw": "AppTheme.spacing.large",
+      "Detail": "AppTheme.spacing.large: wrapper AppTheme.spacing maps no member large: no map entry, no pattern matches; reads are always declared, never inferred"
+    },
+    {
+      "Kind": "empty-scan",
+      "Platform": "web",
+      "File": "airframe.yaml",
+      "Line": 1,
+      "Col": 1,
+      "Raw": "design-system/**/*.css",
+      "Detail": "platform web: consumers glob \"design-system/**/*.css\" matches no file (generated outputs and the design-system/ content root are not scanned); a declared input that is never scanned is a failure, not a pass"
+    },
+    {
+      "Kind": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 8,
+      "Col": 30,
+      "Raw": "#fff",
+      "Detail": "var(--surface) has the literal fallback #fff; a fallback hides a missing token, so read another var() or none"
+    },
+    {
+      "Kind": "undeclared",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 9,
+      "Col": 21,
+      "Raw": "--accnet",
+      "Detail": "--accnet is not a token, and no web consumer file defines it"
+    },
+    {
+      "Kind": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 11,
+      "Col": 34,
+      "Raw": "1px",
+      "Detail": "var(--hairline) has the literal fallback 1px; a fallback hides a missing token, so read another var() or none (it equals the token's base value)"
+    },
+    {
+      "Kind": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 12,
+      "Col": 38,
+      "Raw": "4px",
+      "Detail": "var(--hairline) has the literal fallback 4px; a fallback hides a missing token, so read another var() or none"
+    },
+    {
+      "Kind": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 13,
+      "Col": 39,
+      "Raw": "rgb(0 0 0 / 0.5)",
+      "Detail": "var(--accent) has the literal fallback rgb(0 0 0 / 0.5); a fallback hides a missing token, so read another var() or none"
+    },
+    {
+      "Kind": "wrapper-unmapped",
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 10,
+      "Col": 15,
+      "Raw": "theme.space.huge",
+      "Detail": "theme.space.huge: wrapper theme.space maps no member huge: no map entry, no pattern matches; reads are always declared, never inferred"
+    },
+    {
+      "Kind": "wrapper-unmapped",
+      "Platform": "web",
+      "File": "web/src/button/Button.tsx",
+      "Line": 11,
+      "Col": 16,
+      "Raw": "tokens.nope",
+      "Detail": "tokens.nope: nope is not a name platform web generates; wrapper tokens is generated: true"
+    },
+    {
+      "Kind": "undeclared",
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 4,
+      "Col": 26,
+      "Raw": "{StaticResource DesignAcent}",
+      "Detail": "{StaticResource DesignAcent}: DesignAcent is not a name the xaml emitter writes for platform windows"
+    },
+    {
+      "Kind": "undeclared",
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml.cs",
+      "Line": 9,
+      "Col": 20,
+      "Raw": "Resources[\"DesignNope\"]",
+      "Detail": "Resources[\"DesignNope\"]: DesignNope is not a name the xaml emitter writes for platform windows"
+    }
+  ],
+  "Exempt": [
+    {
+      "Rule": "token-owner-violation",
+      "Platform": "android",
+      "File": "android/src/main/Screen.kt",
+      "Line": 13,
+      "MarkerLine": 13,
+      "Reason": ""
+    },
+    {
+      "Rule": "token-owner-violation",
+      "Platform": "apple",
+      "File": "apple/Sources/ContentView.swift",
+      "Line": 17,
+      "MarkerLine": 16,
+      "Reason": "preview of the button palette"
+    },
+    {
+      "Rule": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 11,
+      "MarkerLine": 10,
+      "Reason": "legacy theme until the v2 migration"
+    },
+    {
+      "Rule": "fallback-literal",
+      "Platform": "web",
+      "File": "web/src/app.css",
+      "Line": 13,
+      "MarkerLine": 13,
+      "Reason": ""
+    },
+    {
+      "Rule": "token-owner-violation",
+      "Platform": "windows",
+      "File": "windows/App/MainPage.xaml",
+      "Line": 6,
+      "MarkerLine": 5,
+      "Reason": "shared preview page"
+    }
+  ]
+}

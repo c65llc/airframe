@@ -639,3 +639,105 @@ func TestXAMLOptions(t *testing.T) {
 	// Other platforms' options are not checked as xaml's.
 	mustLoad(t, "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    options: { highContrast: 1 }\n")
 }
+
+func TestWrappersConfig(t *testing.T) {
+	pre := "version: 1\nplatforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    wrappers:\n"
+	base := "platforms.apple.wrappers."
+	for _, tc := range []struct{ label, wrappers, path, msg string }{
+		{"not a list", "      { root: tokens, generated: true }", "platforms.apple.wrappers", "array"},
+		{"entry not a mapping", "      - tokens", base + "0", "object"},
+		{"no root", "      - { generated: true }", base + "0", "root"},
+		{"root number", "      - { root: 5, generated: true }", base + "0.root", "string"},
+		{"root timestamp", "      - { root: 2026-01-01, generated: true }", base + "0.root", "root must be a string"},
+		{"root empty", "      - { root: '', generated: true }", base + "0.root", "dotted identifiers"},
+		{"root bad segment", "      - { root: AppTheme.1spacing, generated: true }", base + "0.root", "dotted identifiers"},
+		{"root trailing dot", "      - { root: AppTheme., generated: true }", base + "0.root", "dotted identifiers"},
+		{"root with a call", "      - { root: theme(), generated: true }", base + "0.root", "dotted identifiers"},
+		{"duplicate root", "      - { root: tokens, generated: true }\n      - { root: tokens, map: { a: b } }", base + "1.root", "tokens is declared twice"},
+		{"no shape", "      - { root: tokens }", base + "0", "generated: true, or at least one of map and patterns"},
+		{"generated false", "      - { root: tokens, generated: false, map: { a: b } }", base + "0.generated", "generated may only be true"},
+		{"generated string", "      - { root: tokens, generated: 'true' }", base + "0.generated", "boolean"},
+		{"generated and map", "      - { root: tokens, generated: true, map: { a: b } }", base + "0", "generated: true, or at least one of map and patterns"},
+		{"generated and patterns", "      - { root: tokens, generated: true, patterns: [ { match: a, token: b } ] }", base + "0", "generated: true, or at least one of map and patterns"},
+		{"empty map", "      - { root: tokens, map: {} }", base + "0.map", "map has no members"},
+		{"empty patterns", "      - { root: tokens, patterns: [] }", base + "0.patterns", "patterns has no entries"},
+		{"map value number", "      - { root: tokens, map: { small: 2 } }", base + "0.map.small", "string"},
+		{"map value empty", "      - { root: tokens, map: { small: '' } }", base + "0.map.small", "non-empty string"},
+		{"map member dotted", "      - { root: tokens, map: { a.b: c } }", base + "0.map.a.b", "must be an identifier"},
+		{"map member dashed", "      - { root: tokens, map: { space-2: c } }", base + "0.map.space-2", "must be an identifier"},
+		{"map member digit first", "      - { root: tokens, map: { 2x: c } }", base + "0.map.2x", "must be an identifier"},
+		{"map value null", "      - { root: tokens, map: { small: null } }", base + "0.map.small", "string"},
+		{"unknown key", "      - { root: tokens, generated: true, bogus: 1 }", base + "0.bogus", "unknown key"},
+		{"pattern unknown key", "      - { root: tokens, patterns: [ { match: a, token: b, bogus: 1 } ] }", base + "0.patterns.0.bogus", "unknown key"},
+		{"pattern no match", "      - { root: tokens, patterns: [ { token: b } ] }", base + "0.patterns.0", "match"},
+		{"pattern no token", "      - { root: tokens, patterns: [ { match: a } ] }", base + "0.patterns.0", "token"},
+		{"pattern bad regex", "      - { root: tokens, patterns: [ { match: '^space(\\d+$', token: 'space-{1}' } ] }", base + "0.patterns.0.match", "does not compile"},
+		{"pattern lookahead", "      - { root: tokens, patterns: [ { match: '^(?=x)', token: x } ] }", base + "0.patterns.0.match", "does not compile"},
+		{"pattern empty token", "      - { root: tokens, patterns: [ { match: a, token: '' } ] }", base + "0.patterns.0.token", "non-empty"},
+		{"pattern token number", "      - { root: tokens, patterns: [ { match: a, token: 5 } ] }", base + "0.patterns.0.token", "string"},
+		{"pattern group beyond", "      - { root: tokens, patterns: [ { match: '^space(\\d+)$', token: 'space-{2}' } ] }", base + "0.patterns.0.token", "{2}"},
+		{"pattern group zero", "      - { root: tokens, patterns: [ { match: '^space(\\d+)$', token: 'space-{0}' } ] }", base + "0.patterns.0.token", "{0}"},
+		{"pattern no groups", "      - { root: tokens, patterns: [ { match: '^space$', token: 'space-{1}' } ] }", base + "0.patterns.0.token", "has 0"},
+	} {
+		d := loadErr(t, pre+tc.wrappers+"\n")
+		assert.Equal(t, tc.path, d.Path, tc.label)
+		assert.Contains(t, d.Message, tc.msg, tc.label)
+		assert.NotZero(t, d.Line, tc.label)
+	}
+
+	c := mustLoad(t, pre+`      - root: tokens
+        generated: true
+      - root: AppTheme.spacing
+        map: { small: space-2, hairlineStrong: hairline }
+        patterns: [ { match: '^space(\d+)$', token: 'space-{1}' }, { match: '^(\w+)Gap(\d)$', token: '{1}-gap-{2}' } ]
+      - root: Chrome
+        patterns: [ { match: '^bar$', token: tabstrip-h } ]
+      - root: _x.y_2.Z
+        map: { a: b }
+`)
+	ws := c.Platforms[0].Wrappers
+	require.Len(t, ws, 4)
+	assert.Equal(t, Wrapper{Root: "tokens", Generated: true}, ws[0])
+	assert.Equal(t, "AppTheme.spacing", ws[1].Root)
+	assert.False(t, ws[1].Generated)
+	assert.Equal(t, map[string]string{"small": "space-2", "hairlineStrong": "hairline"}, ws[1].Map)
+	require.Len(t, ws[1].Patterns, 2)
+	assert.Equal(t, `^space(\d+)$`, ws[1].Patterns[0].Match.String())
+	assert.Equal(t, "space-{1}", ws[1].Patterns[0].Token)
+	assert.Equal(t, "{1}-gap-{2}", ws[1].Patterns[1].Token)
+	assert.Nil(t, ws[2].Map)
+	assert.Equal(t, "tabstrip-h", ws[2].Patterns[0].Token)
+	assert.Equal(t, "_x.y_2.Z", ws[3].Root)
+
+	// The same root on two platforms is fine; wrappers are per platform.
+	c = mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n    wrappers: [ { root: tokens, generated: true } ]\n"+
+		"  b:\n    emit: css\n    out: b.css\n    wrappers: [ { root: tokens, generated: true } ]\n")
+	assert.Len(t, c.Platforms[1].Wrappers, 1)
+	// No wrappers key is no wrappers.
+	assert.Nil(t, mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n").Platforms[0].Wrappers)
+}
+
+func TestExternalPropertiesConfig(t *testing.T) {
+	pre := "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    externalProperties: "
+	at := "platforms.web.externalProperties"
+	for _, tc := range []struct{ label, value, path, msg string }{
+		{"not a list", "'--radix-*'", at, "array"},
+		{"no dashes", "['radix-*']", at + ".0", "--"},
+		{"one dash", "['--font-*', '-x']", at + ".1", "--"},
+		{"number", "[5]", at + ".0", "string"},
+		{"bad glob", "['--radix-[']", at + ".0", "glob"},
+	} {
+		d := loadErr(t, pre+tc.value+"\n")
+		assert.Equal(t, tc.path, d.Path, tc.label)
+		assert.Contains(t, d.Message, tc.msg, tc.label)
+		assert.NotZero(t, d.Line, tc.label)
+	}
+	// Only a platform that emits css may declare them.
+	d := loadErr(t, "version: 1\nplatforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    externalProperties: ['--radix-*']\n")
+	assert.Equal(t, "platforms.apple.externalProperties", d.Path)
+	assert.Contains(t, d.Message, "css")
+
+	c := mustLoad(t, pre+"['--radix-*', '--font-*', '--exact']\n")
+	assert.Equal(t, []string{"--radix-*", "--font-*", "--exact"}, c.Platforms[0].ExternalProperties)
+	assert.Nil(t, mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n").Platforms[0].ExternalProperties)
+}

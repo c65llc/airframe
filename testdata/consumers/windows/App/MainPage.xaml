@@ -1,0 +1,8 @@
+<Page x:Class="App.MainPage">
+  <Grid Background="{ThemeResource DesignSurface}" Padding="{StaticResource DesignGapCompact}">
+    <TextBlock Foreground="{ThemeResource SystemControlForegroundBaseHighBrush}" />
+    <Border BorderBrush="{StaticResource DesignAcent}" />
+    <!-- airframe-exempt token-owner-violation: shared preview page -->
+    <Button Background="{StaticResource DesignButtonBg}" />
+  </Grid>
+</Page>

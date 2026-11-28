@@ -114,7 +114,7 @@ var Commands = []Command{
 	},
 	{
 		Name:    "fmt",
-		Summary: "Rewrite the config, token and invariants files in canonical form, listing each one.",
+		Summary: "Rewrite the config, token, invariants and component files in canonical form, listing each one.",
 		Flags:   []Flag{{Name: "check", Summary: "list the files fmt would change, change nothing, and exit 1 if any"}},
 	},
 	{
@@ -161,8 +161,8 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants>",
-		Summary: "Print the JSON Schema of airframe.yaml, token files or invariants.yaml.",
+		Args:    "<config|tokens|invariants|component>",
+		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml or component files.",
 	},
 	{
 		Name:    "version",
@@ -614,6 +614,9 @@ func runLint(inv *invocation) int {
 		}
 	} else {
 		res = lint.Run(p, ds, lint.Options{Strict: strict})
+		if res.Err != nil { // an I/O failure: the findings are incomplete
+			return inv.fail(res.Err)
+		}
 		files = len(p.Sources)
 	}
 	switch form {

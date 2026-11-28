@@ -71,8 +71,39 @@
             "additionalProperties": { "type": "string" }
           },
           "consumers": { "type": "array", "items": { "type": "string" } },
+          "externalProperties": {
+            "type": "array",
+            "description": "path.Match globs over custom-property names a library or script defines (--radix-*); a platform that emits css only",
+            "items": { "type": "string", "pattern": "^--" }
+          },
           "fanOut": { "type": "string" },
           "options": { "type": "object" },
+          "wrappers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["root"],
+              "properties": {
+                "root": { "type": "string", "description": "dotted identifiers, as in AppTheme.spacing; unique per platform" },
+                "generated": { "type": "boolean", "description": "only true; exactly one of generated: true, or map and/or patterns" },
+                "map": { "type": "object", "description": "identifier member to token; non-empty", "additionalProperties": { "type": "string" } },
+                "patterns": {
+                  "type": "array",
+                  "description": "non-empty; {1}…{9} in token are match's capture groups",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["match", "token"],
+                    "properties": {
+                      "match": { "type": "string", "description": "an RE2 regular expression" },
+                      "token": { "type": "string", "description": "a non-empty token-name template" }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "names": { "type": "string" }
         }
       }

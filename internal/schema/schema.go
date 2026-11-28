@@ -38,15 +38,19 @@ var tokensSchema []byte
 //go:embed invariants.schema.json
 var invariantsSchema []byte
 
+//go:embed component.schema.json
+var componentSchema []byte
+
 // sources maps a document kind to its schema.
 var sources = map[string][]byte{
 	"config":     configSchema,
 	"tokens":     tokensSchema,
 	"invariants": invariantsSchema,
+	"component":  componentSchema,
 }
 
 // Kinds are the document kinds with a schema, in the order usage lists them.
-var Kinds = []string{"config", "tokens", "invariants"}
+var Kinds = []string{"config", "tokens", "invariants", "component"}
 
 // Source returns the JSON Schema of a document kind as embedded.
 func Source(kind string) ([]byte, bool) {
@@ -93,8 +97,7 @@ func invalid(msg, path string, line int) diag.Diagnostic {
 	}
 }
 
-// Validate checks doc against the schema for kind ("config", "tokens",
-// later "invariants"). doc is a decoded value or a *yaml.Node; with
+// Validate checks doc against the schema for kind (one of Kinds). doc is a decoded value or a *yaml.Node; with
 // a node, each finding carries the line of the offending key. The File of
 // each finding is left for the caller to fill in.
 func Validate(kind string, doc any) []diag.Diagnostic {

@@ -5,11 +5,11 @@ since: v0.1.0
 
 # yaml-syntax
 
-`airframe.yaml` or `invariants.yaml` is not valid YAML.
+`airframe.yaml`, `invariants.yaml` or a `components/<id>.yaml` is not valid YAML.
 
 **Why**
 
-A config that does not parse stops loading, since everything else depends on it. An invariants file that does not parse checks no invariants, which would read as passing.
+A config that does not parse stops loading, since everything else depends on it. An invariants file that does not parse checks no invariants, which would read as passing; a component file that does not parse declares no owners.
 
 **Fix**
 

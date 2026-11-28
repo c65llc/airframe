@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/c65llc/airframe/internal/diag"
+	"github.com/c65llc/airframe/internal/project"
 )
 
 // flagAll is a project on which every rule fires at least once.
@@ -66,11 +67,16 @@ func TestRulesStableOrder(t *testing.T) {
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
 		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
-		"emitted-stale", "exemption-without-reason", "hue-reserved", "literal-in-semantic", "not-formatted",
-		"prefix-multiple-hues", "tier-violation", "token-unclassified",
+		"emitted-stale", "exemption-without-reason", "fallback-literal", "hue-reserved", "literal-in-semantic",
+		"not-formatted", "prefix-multiple-hues", "primitive-read-by-consumer", "reference-undeclared",
+		"tier-violation", "token-owner-violation", "token-unclassified", "wrapper-unmapped",
 	}, ids)
 	for _, r := range Rules() {
-		assert.Equal(t, diag.Error, r.Default, r.ID)
+		want := diag.Error
+		if r.ID == "fallback-literal" {
+			want = diag.Warn
+		}
+		assert.Equal(t, want, r.Default, r.ID)
 		assert.NotEmpty(t, r.Summary, r.ID)
 		assert.NotNil(t, r.Run, r.ID)
 	}
@@ -81,6 +87,9 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	var named []string
 	for _, tl := range res.Tallies {
 		named = append(named, tl.Rule)
+		if slices.Contains(consumerRuleIDs, tl.Rule) {
+			continue // flagAll has no consumers; TestConsumerTallies covers them
+		}
 		assert.Positive(t, tl.Items, tl.Rule)
 		switch {
 		case tl.Rule == "emitted-stale":
@@ -100,6 +109,9 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	}
 	assert.Equal(t, ruleIDs(), named)
 	for _, id := range ruleIDs() {
+		if slices.Contains(consumerRuleIDs, id) {
+			continue
+		}
 		assert.NotEmpty(t, byRule(res.Diagnostics, id), "%s should fire on the flag fixture", id)
 	}
 }
@@ -203,4 +215,25 @@ func TestRunWithEmptyTokenSet(t *testing.T) {
 	assert.Empty(t, without(res.Diagnostics, "not-formatted"), "the fixture's YAML is hand-aligned")
 	assert.NotNil(t, res.Diagnostics, "an empty run reports [] not null")
 	assert.Len(t, res.Tallies, len(Rules()))
+}
+
+// A rule that reports a finding under its own ID is never tallied not
+// applicable, whatever it counted or said, so a failing check is never
+// filed as n/a; one that found nothing and counted nothing still is.
+func TestFiringRuleNeverNotApplicable(t *testing.T) {
+	saved := allRules
+	t.Cleanup(func() { allRules = saved })
+	finding := diag.Diagnostic{Rule: "a-fires", Severity: diag.Error, File: "x", Message: "m"}
+	allRules = []Rule{
+		{ID: "a-fires", Default: diag.Error, Run: func(*project.Project, *Context) ([]diag.Diagnostic, diag.Tally) {
+			return []diag.Diagnostic{finding}, diag.Tally{Noun: "things", NotApplicable: "nothing to read"}
+		}},
+		{ID: "b-quiet", Default: diag.Error, Run: func(*project.Project, *Context) ([]diag.Diagnostic, diag.Tally) {
+			return nil, diag.Tally{Noun: "things"}
+		}},
+	}
+	res := Run(load(t, map[string]string{"a.tokens.json": `{ "gap": { "$type": "number", "$value": 4 } }`}), nil, Options{})
+	require.Len(t, res.Tallies, 2)
+	assert.Empty(t, res.Tallies[0].NotApplicable, "a-fires reported a finding")
+	assert.Equal(t, "no things in scope", res.Tallies[1].NotApplicable)
 }

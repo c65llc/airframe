@@ -4,7 +4,10 @@
 // Package selftest proves the linter still catches what it claims to. It
 // lints embedded fixture projects: fixtures/flag/<id> exists to trip rule
 // <id>, one project per rule ID (IDs that stop loading need a project of
-// their own), and fixtures/clean must produce no finding at all. A gate
+// their own), and each clean fixture must produce no finding at all:
+// fixtures/clean (the init scaffold) and fixtures/clean-consumers (consumer
+// files on every platform, wrappers of all three shapes and a component
+// with owners, so the consumer rules are proven silent on real reads). A gate
 // whose self-test fails is not believed, however clean its real run reads.
 package selftest
 
@@ -28,8 +31,11 @@ const (
 	cleanDir = "fixtures/clean"
 )
 
+// cleanDirs are the fixtures that must produce no finding, in order.
+var cleanDirs = []string{cleanDir, "fixtures/clean-consumers"}
+
 // Result is a self-test run. Flagged counts the rule IDs that fired on
-// their flag fixture; Ignored counts the IDs that stayed silent on the
+// their flag fixture; Ignored counts the IDs that stayed silent on every
 // clean fixture. OK is true when every ID did both. Failures says, one line
 // each, what went wrong, naming the rule ID; a finding whose rule ID is not
 // in lint.AllIDs is a failure too.
@@ -85,27 +91,32 @@ func run(fsys fs.FS, ids []string) Result {
 		}
 	}
 
-	ds, err := lintDir(fsys, cleanDir)
-	if err != nil {
-		fail("clean: %s: %v", cleanDir, err)
-	} else {
+	fired := map[string]bool{}
+	for _, dir := range cleanDirs {
+		label := path.Base(dir)
+		ds, err := lintDir(fsys, dir)
+		if err != nil {
+			fail("%s: %s: %v", label, dir, err)
+			continue
+		}
 		checkIDs(ds)
-		fired := map[string]bool{}
+		seen := map[string]bool{}
 		for _, d := range ds {
-			if fired[d.Rule] {
+			fired[d.Rule] = true
+			if seen[d.Rule] {
 				continue
 			}
-			fired[d.Rule] = true
+			seen[d.Rule] = true
 			at := d.File
 			if d.Line > 0 {
 				at = fmt.Sprintf("%s:%d", d.File, d.Line)
 			}
-			fail("clean: %s fired: %s: %s", d.Rule, at, d.Message)
+			fail("%s: %s fired: %s: %s", label, d.Rule, at, d.Message)
 		}
-		for _, id := range ids {
-			if !fired[id] {
-				r.Ignored++
-			}
+	}
+	for _, id := range ids {
+		if !fired[id] {
+			r.Ignored++
 		}
 	}
 	r.OK = len(r.Failures) == 0
@@ -127,5 +138,9 @@ func lintDir(fsys fs.FS, dir string) ([]diag.Diagnostic, error) {
 	if p == nil {
 		return ds, nil
 	}
-	return lint.Run(p, ds, lint.Options{}).Diagnostics, nil
+	res := lint.Run(p, ds, lint.Options{})
+	if res.Err != nil {
+		return nil, res.Err
+	}
+	return res.Diagnostics, nil
 }

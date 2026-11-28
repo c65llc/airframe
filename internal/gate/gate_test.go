@@ -58,8 +58,8 @@ type doc struct {
 		Line                int
 	} `json:"findings"`
 	Exemptions []struct {
-		File, Marker, Reason string
-		Line                 int
+		File, Marker, Reason, Rule string
+		Line                       int
 	} `json:"exemptions"`
 	NotApplicable []struct {
 		ID, Reason string
@@ -137,6 +137,8 @@ func TestGateFindingsAndExemptions(t *testing.T) {
 	assert.Positive(t, d.Exemptions[0].Line)
 	assert.Equal(t, "exempt", d.Exemptions[0].Marker)
 	assert.Equal(t, "legacy import, #12", d.Exemptions[0].Reason)
+	assert.Equal(t, "token-unclassified", d.Exemptions[0].Rule, "an exemption names the rule it suppresses")
+	assert.Contains(t, raw, `"rule": "token-unclassified"`)
 }
 
 func TestGateNilListsAndStable(t *testing.T) {

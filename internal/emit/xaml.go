@@ -35,15 +35,22 @@ import (
 // Colours are sRGB #AARRGGBB, mapped into gamut by CSS Color 4 or, with
 // gamut: clip-srgb, clipped.
 func XAML(p *project.Project, pl config.Platform) (map[string][]byte, error) {
+	out, _, _, err := buildXAML(p, pl)
+	return out, err
+}
+
+// buildXAML is XAML, also returning the xamler and the resources it wrote,
+// which ReferenceNames reads.
+func buildXAML(p *project.Project, pl config.Platform) (map[string][]byte, *xamler, []xamlItem, error) {
 	x := &xamler{p: p, np: PlanNative(p.Config, pl), template: p.Config.NamingFor("xaml"), gamut: color.CSSColor4}
 	if v, ok := pl.Option("gamut"); ok && v == "clip-srgb" {
 		x.gamut = color.Clip
 	}
 	if err := x.themes(); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if strings.Contains(header(p), "--") {
-		return nil, fmt.Errorf("the header %q holds \"--\", which an XML comment cannot", header(p))
+		return nil, nil, nil, fmt.Errorf("the header %q holds \"--\", which an XML comment cannot", header(p))
 	}
 
 	tmpl := outPath(p, pl, "xaml")
@@ -57,15 +64,15 @@ func XAML(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 		rest = strings.ReplaceAll(rest, fan, "")
 	}
 	if strings.ContainsAny(rest, "{}") {
-		return nil, fmt.Errorf("xaml out path %s has a placeholder that is not the fan-out axis", tmpl)
+		return nil, nil, nil, fmt.Errorf("xaml out path %s has a placeholder that is not the fan-out axis", tmpl)
 	}
 
 	items, err := x.plan(perFile)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if err := x.checkHighContrast(); err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	outputs := x.np.Outputs()
@@ -80,11 +87,11 @@ func XAML(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 		}
 		b, err := x.file(items, o)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		out[f] = b
 	}
-	return out, nil
+	return out, x, items, nil
 }
 
 type xamler struct {
