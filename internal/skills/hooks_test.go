@@ -5,8 +5,6 @@ package skills
 
 import (
 	"encoding/json"
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,9 +40,9 @@ func TestHooksClaudeCodeIsValidJSON(t *testing.T) {
 	require.Len(t, post.Hooks, 1)
 	assert.Equal(t, "command", post.Hooks[0].Type)
 	assert.Equal(t, HookCommand, post.Hooks[0].Command)
-	assert.Equal(t, "airframe fmt > /dev/null && airframe lint >&2 || exit 2", post.Hooks[0].Command)
+	assert.Equal(t, "airframe hook claude-code", post.Hooks[0].Command)
 	assert.True(t, strings.HasPrefix(out, "{\n  \"hooks\""), "pretty-printed")
-	assert.Contains(t, out, `"command": "airframe fmt > /dev/null && airframe lint >&2 || exit 2"`, "not HTML-escaped")
+	assert.Contains(t, out, `"command": "airframe hook claude-code"`)
 	assert.True(t, strings.HasSuffix(out, "}\n"))
 }
 
@@ -93,9 +91,6 @@ func TestHookNoteNamesWhereItGoes(t *testing.T) {
 // cannot drift from what the command prints.
 func TestGuideShowsTheRealHooks(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "agents.md"))
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Skip("TODO(plan 7, task 4): docs/guides/agents.md is written in task 4; delete this skip then")
-	}
 	require.NoError(t, err)
 	guide := string(data)
 	for _, name := range []string{"claude-code", "codex"} {

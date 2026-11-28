@@ -77,7 +77,9 @@ func (f Flag) synopsis() string {
 
 // Command is one airframe command. A command with Subcommands is a group,
 // such as skills: it runs only as one of them ("skills install"), and has
-// no flags or arguments of its own. Groups do not nest.
+// no flags or arguments of its own. Groups do not nest. A Hidden command
+// runs but is left out of the usage: it is for a program, such as an
+// agent's hook, not a person.
 type Command struct {
 	Name string
 	Args string // the positional arguments as the usage shows them; empty for none
@@ -88,6 +90,7 @@ type Command struct {
 	Summary     string
 	Flags       []Flag
 	Subcommands []Command
+	Hidden      bool
 }
 
 // Synopsis is the command as its usage line shows it after
@@ -204,6 +207,7 @@ var Commands = []Command{
 		Name:    "version",
 		Summary: "Print airframe's version.",
 	},
+	hookCommand,
 }
 
 // handlers run each command by name.
@@ -234,7 +238,7 @@ type invocation struct {
 	args           []string
 	bools          map[string]*bool
 	lists          map[string]*[]string
-	stdin          io.Reader // read only by mcp
+	stdin          io.Reader // read only by mcp and hook
 	stdout, stderr io.Writer
 }
 
@@ -270,7 +274,7 @@ func (s *stickyWriter) Write(p []byte) (int, error) {
 }
 
 // Main runs the command line args, which exclude the program name, and
-// returns the exit status. Only mcp reads stdin. If writing to stdout
+// returns the exit status. Only mcp and hook read stdin. If writing to stdout
 // fails, the command's output is incomplete, so Main reports the error and
 // returns 2.
 func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -415,6 +419,9 @@ func usage(w io.Writer) {
 	b.WriteString("Usage: airframe [--root D] <command> [flags]\n\nCommands:\n")
 	tw := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
 	for _, c := range Commands {
+		if c.Hidden {
+			continue
+		}
 		for _, s := range c.Subcommands {
 			_, _ = fmt.Fprintf(tw, "  %s %s\t%s\n", c.Name, s.Synopsis(), s.Summary)
 		}

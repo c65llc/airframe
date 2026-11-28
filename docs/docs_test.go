@@ -133,8 +133,9 @@ func TestRuleUnknown(t *testing.T) {
 // Action usage, describes every emitter as built (XAML since v0.5.0),
 // the consumer rules as built since v0.6.0 and components and retired
 // treatments as built since v0.7.0, find, usages and diff as built
-// since v0.8.0, rename, retire and specimen as new in v0.9.0, and
-// plans no emitter and no reference command, only the surfaces.
+// since v0.8.0, rename, retire and specimen as new in v0.9.0, skills
+// and MCP as built for the next release, and plans no emitter and no
+// reference command, only the PWA, VS Code and Tauri.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
 	require.NoError(t, err)
@@ -203,7 +204,17 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, cmd := range []string{"`rename`", "`retire`", "`specimen`", "rename,", "retire,", "specimen,", "codemod"} {
 		assert.NotContains(t, planned, cmd, "a built writing command is not planned")
 	}
-	for _, want := range []string{"skills", "MCP", "PWA", "VS Code", "Tauri"} {
+	// Skills and MCP are built for the next release, with their guide;
+	// the other surfaces stay planned.
+	assert.Contains(t, built, "**Works with coding agents** (next release)")
+	assert.Contains(t, built, "(docs/guides/agents.md)")
+	for _, want := range []string{"`airframe skills install`", "`airframe skills hooks`", "`airframe skills mcp`", "`airframe mcp`", "`--read-only`", ".airframe/pending/"} {
+		assert.Contains(t, built, want, "the agent surfaces are described before the planned list")
+	}
+	for _, word := range []string{"skills", "MCP"} {
+		assert.NotContains(t, planned, word, "skills and MCP are built, not planned")
+	}
+	for _, want := range []string{"PWA", "VS Code", "Tauri"} {
 		assert.Contains(t, planned, want, "the surfaces stay planned")
 	}
 }

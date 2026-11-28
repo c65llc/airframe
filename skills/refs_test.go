@@ -7,9 +7,7 @@
 package skills_test
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -711,9 +709,6 @@ func TestSkillsSayTheLoadBearingRules(t *testing.T) {
 // way the skills do, so it is held to the same check.
 func TestGuideReferencesRealCommands(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "docs", "guides", "agents.md"))
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Skip("TODO(plan 7, task 4): docs/guides/agents.md is written in task 4; delete this skip then")
-	}
 	require.NoError(t, err)
 	// Inline spans and shell blocks only: the guide also quotes JSON and
 	// Markdown, whose own backticks and quotes are not invocations. Its

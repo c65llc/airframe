@@ -748,9 +748,6 @@ func TestSectionMarkersBOMAndFences(t *testing.T) {
 // TestGuideDetectionTable pins the guide's detection table to detectors.
 func TestGuideDetectionTable(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "agents.md"))
-	if errors.Is(err, fs.ErrNotExist) {
-		t.Skip("TODO(plan 7, task 4): docs/guides/agents.md is written in task 4; delete this skip then")
-	}
 	require.NoError(t, err)
 	for _, a := range Agents {
 		found := make([]string, len(detectors[a]))

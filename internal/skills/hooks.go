@@ -23,13 +23,10 @@ var HookNames = append(func() []string {
 }(), PreCommit)
 
 // HookCommand is the command the Claude Code hook runs after every edit:
-// fmt puts the sources in canonical form, then lint checks the project,
-// its consumer code included, so an edit to app code that reads a token is
-// checked as well as an edit to a token file. Claude Code hands a hook's
-// stderr back to the agent when the hook exits 2, so lint's report goes to
-// stderr, and a failure of either becomes exit 2. fmt's list of the files
-// it rewrote is not a finding, so it is discarded.
-const HookCommand = "airframe fmt > /dev/null && airframe lint >&2 || exit 2"
+// the hidden airframe hook claude-code, which reads the edited file from
+// the hook's input and, when lint checks that file, runs fmt and lint,
+// exiting 2 with their report so Claude Code hands it back to the agent.
+const HookCommand = "airframe hook claude-code"
 
 // claudeSettings is the settings.json fragment for Claude Code.
 type claudeSettings struct {
@@ -82,7 +79,8 @@ var hookNotes = map[string]string{
 // Hooks returns the configuration that makes name run airframe fmt and
 // lint after edits. For claude-code it is a settings.json fragment: a
 // PostToolUse hook on Edit, Write and MultiEdit that runs HookCommand,
-// which reports findings back to the agent. For pre-commit it is a git hook
+// which checks the edited file when lint checks it and reports findings
+// back to the agent. For pre-commit it is a git hook
 // script. For the other agents it is a paragraph for their instructions
 // file. HookNote says where each goes.
 func Hooks(name string) (string, error) {
@@ -93,8 +91,7 @@ func Hooks(name string) (string, error) {
 			Matcher: "Edit|Write|MultiEdit",
 			Hooks:   []claudeHook{{Type: "command", Command: HookCommand}},
 		}}
-		// The command holds > and &, which a settings file should show as
-		// they are, not as \u003e escapes.
+		// A settings file shows its text as written, never HTML-escaped.
 		var buf bytes.Buffer
 		enc := json.NewEncoder(&buf)
 		enc.SetEscapeHTML(false)
