@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); the next release adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -132,6 +132,12 @@ platforms:
     out: { swift: ios/Shared/DesignTokens.swift, colorsets: "ios/{app}/Assets.xcassets/Tokens/" }
     fanOut: app                          # one colorset set per app target, including AccentColor
     consumers: ["ios/**/*.swift"]
+    wrappers:                            # hand-written layers over the generated code; a read through one counts like a direct read
+      - root: Theme                      # `Theme.<member>`: members are the platform's generated names
+        generated: true
+      - root: AppTheme.spacing           # irregular names: map first, then patterns in order
+        map: { small: space-2, hairlineStrong: hairline }
+        patterns: [ { match: '^space(\d+)$', token: 'space-{1}' } ]
   android:
     emit: [kotlin]
     out: { kotlin: "android/{app}/src/main/kotlin/DesignColorValues.kt" }   # out keys are emit formats
@@ -174,7 +180,7 @@ Every format `airframe.yaml` accepts is built: v0.5.0 builds the `css`, `json`, 
     "emit": ["css", "swift", "kotlin", "xaml"] } } } } }
 ```
 
-**Component** (`components/tabstrip.yaml`, planned):
+**Component** (`components/tabstrip.yaml`). The loader is built: `id`, `tokens`, `owners` and `shared` are checked against the token files, and the consumer rules read `owners`. `noun`, `ruling`, `hostedBy` and `implementations` are accepted and type-checked; their rules (the inventory, `component-unruled`) land in §6.7 step 5:
 
 ```yaml
 id: tabstrip
@@ -235,7 +241,8 @@ shared: false
 |---|---|---|
 | Source | `schema-invalid`, `token-unclassified`, `tier-violation`, `literal-in-semantic`, `density-missing`, `accent-group-partial`, `prefix-multiple-hues`, `alias-cycle`, `alias-unresolved`, `alias-type-mismatch`, `mode-ambiguous`, `mode-override-conflict`, `mode-base-value`, `emitted-stale`, `not-formatted` | v0.1.2 |
 | Invariant | `contrast-below`, `hue-reserved`, `accent-flip`, `dimension-below` | v0.1.2 |
-| Consumer | `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal`, `retired-used`, `component-unruled`, `wrapper-unmapped` | planned |
+| Consumer | `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal`, `wrapper-unmapped` | next release (see `docs/guides/consumers.md`) |
+| Consumer | `retired-used`, `component-unruled` | planned (§6.7 step 5) |
 
 - **Tiers:** a primitive aliases nothing; a semantic token reads primitives (never literals); a component token reads semantics and is read only by its owner.
 - **Invariant findings** name the invariant ID, the token pair, the mode context and the measured value. Each is computed in every context it applies to, including the base context.
@@ -283,7 +290,7 @@ All surfaces share the Go core through its wasm build.
 1. **Core** (v0.1.2): DTCG parsing, modes, source and invariant lint, `fmt`, CSS and JSON `build`, the gate protocol with self-test, the GitHub Action.
 2. **Importer** (v0.2.0): `airframe import css`, with a semantic-equivalence check: for every mode combination, each custom property resolves to the same value in the old and generated CSS.
 3. **Native emitters** (done: Apple, Android and Windows, each with its guide): Swift and asset-catalog colorsets (done: Apple, with per-app fan-out and gamut handling; see `docs/guides/apple.md`), Kotlin/Compose with an optional Material 3 scheme (done: Android, with per-app colour values; see `docs/guides/android.md`), and WinUI 3 XAML resource dictionaries with theme dictionaries and high-contrast system colours (done: Windows, with per-app dictionaries; see `docs/guides/windows.md`).
-4. **Consumer rules,** with the wrapper map.
+4. **Consumer rules,** with the wrapper map (done, next release: `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal` and `wrapper-unmapped`, with the component loader; see `docs/guides/consumers.md`).
 5. **Components and retired treatments:** the inventory, `component-unruled`, `retired-used`.
 6. **Reference commands:** `find`, `usages`, `diff`, `rename`, `retire`, `specimen`.
 7. **Skills and MCP.**

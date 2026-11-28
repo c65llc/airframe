@@ -128,8 +128,9 @@ func TestRuleUnknown(t *testing.T) {
 
 // TestReadmeMatchesRelease guards the README against drifting from what
 // the release does: it carries the install line, the quick start and the
-// Action usage, describes every emitter as built (XAML new in v0.5.0),
-// and plans no emitter.
+// Action usage, describes every emitter as built (XAML new in v0.5.0)
+// and the consumer rules as built for the next release, and plans no
+// emitter.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
 	require.NoError(t, err)
@@ -156,6 +157,17 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, word := range []string{"emitter", "emit-unsupported", "C#"} {
 		assert.NotContains(t, planned, word, "every emitter is built; the planned list names none")
 	}
-	assert.Contains(t, planned, "Consumer rules")
-	assert.Contains(t, planned, "Components")
+	// The consumer rules are built for the next release, with their guide;
+	// components' own rules, retired treatments and the reference surface
+	// stay planned.
+	assert.Contains(t, built, "**Lints consumers** (next release)")
+	assert.Contains(t, built, "(docs/guides/consumers.md)")
+	for _, rule := range []string{"reference-undeclared", "primitive-read-by-consumer", "token-owner-violation", "fallback-literal", "wrapper-unmapped"} {
+		assert.Contains(t, built, rule, "a built consumer rule is described before the planned list")
+		assert.NotContains(t, planned, rule, "a built consumer rule is not planned")
+	}
+	assert.NotContains(t, planned, "Consumer rules", "the consumer rules are built")
+	for _, want := range []string{"Components", "component-unruled", "retired-used", "reference"} {
+		assert.Contains(t, planned, want)
+	}
 }

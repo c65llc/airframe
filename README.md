@@ -15,6 +15,7 @@ v0.5.0 is the current release: the core, the CSS importer and the Apple, Android
 - **Emits Kotlin/Compose** (since v0.4.0). The `android` platform writes a shared Jetpack Compose `DesignTokens` class naming every token as a typed member, and per app a `DesignColorValues` object of light and dark colours, with optional Material 3 colour schemes. See [Android: Kotlin and Jetpack Compose](docs/guides/android.md).
 - **Emits XAML/WinUI** (new in v0.5.0). The `windows` platform writes a WinUI 3 `ResourceDictionary` per app: every colour a theme-aware `SolidColorBrush` (Light, Dark, and HighContrast mapped to system colours, or Default), every other token a typed resource. See [Windows: WinUI 3 XAML resource dictionaries](docs/guides/windows.md).
 - **Lints the token source.** Tiers (a primitive aliases nothing; a semantic token reads primitives; a component token reads semantics), literals in semantic tokens, density coverage, accent groups, hue families, alias cycles and type mismatches, ambiguous or conflicting mode values, stale generated files and unformatted sources. `airframe rules` lists every rule; each has a page at `https://airframe.c65llc.com/rules/<rule>/`.
+- **Lints consumers** (next release). Each platform's `consumers` globs name the app code that reads tokens (CSS and web components, Swift, Kotlin, XAML and C#), and lint checks every reference, direct or through a declared hand-written wrapper: `reference-undeclared` (a name that is no token, or a glob that matches no file), `primitive-read-by-consumer`, `token-owner-violation` (a component token read outside the owners its `components/<id>.yaml` declares), `fallback-literal` and `wrapper-unmapped`. Exemptions need a reason and are listed in the gate. See [Consumers: checking where tokens are read](docs/guides/consumers.md).
 - **Checks invariants.** `invariants.yaml` declares contrast floors, reserved hues, hue stability across appearances and minimum dimensions; lint computes each in every context it applies to.
 - **Formats.** `airframe fmt` rewrites config, token, invariants and component files in canonical form.
 - **Speaks a gate protocol.** `airframe lint --format gate` prints a JSON verdict for CI gates, and `--json` prints the findings.
@@ -23,10 +24,10 @@ v0.5.0 is the current release: the core, the CSS importer and the Apple, Android
 
 **Planned (not in v0.5.0)**
 
-- Consumer rules: reading tokens where they are used (every platform's code, not just the token files) to enforce tiers and ownership at the consumer.
-- Components and a reference surface for asking which token to use and whether a file may read it.
+- Components and retired treatments: the component inventory with its rulings and implementations (`component-unruled`), and retired treatments held by their spellings on every platform (`retired-used`).
+- The reference commands and surfaces (`find`, `usages`, `diff`, `rename`, `retire`, `specimen`, skills, MCP, the PWA and editor integrations) for asking which token to use and whether a file may read it.
 
-These land in later plans (3 to 8); until then, no part of this README describes them as working.
+These land in later plans (5 to 8); until then, no part of this README describes them as working.
 
 ## Install
 

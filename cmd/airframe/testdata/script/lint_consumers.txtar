@@ -1,0 +1,149 @@
+# Consumer rules end to end. init writes the minimal profile; the script
+# declares consumers on web and apple, a wrapper on apple, and the button
+# component's owners, builds, and lints clean. Then it injects each
+# violation in turn, checks lint names its rule, and puts the file back.
+exec airframe init
+cp airframe.yaml.in airframe.yaml
+mkdir design-system/components
+cp button.yaml design-system/components/button.yaml
+exec airframe build
+exec airframe lint
+! stderr .
+stdout '^fallback-literal  \d+ references$'
+stdout '^primitive-read-by-consumer  \d+ references$'
+stdout '^reference-undeclared  \d+ references and globs$'
+stdout '^token-owner-violation  \d+ references$'
+stdout '^wrapper-unmapped  \d+ references and map entries$'
+! stdout ' (error|warn) '
+
+# A typo is undeclared; the app-local --sidebar-w beside it is not.
+replace web/app.css 'var(--ink)' 'var(--accnet)'
+exits 1 airframe lint
+stdout '^web/app.css:6:\d+: error reference-undeclared: .*--accnet'
+! stdout 'sidebar-w'
+replace web/app.css 'var(--accnet)' 'var(--ink)'
+
+# A primitive is not readable by consumers.
+replace web/app.css 'var(--surface)' 'var(--gray-50)'
+exits 1 airframe lint
+stdout '^web/app.css:7:\d+: error primitive-read-by-consumer: .*gray-50'
+replace web/app.css 'var(--gray-50)' 'var(--surface)'
+
+# A component token read from a file outside the component's owners.
+replace apple/Sources/ContentView.swift 'DesignTokens.ink' 'DesignTokens.buttonBg'
+exits 1 airframe lint
+stdout '^apple/Sources/ContentView.swift:6:\d+: error token-owner-violation: .*button-bg'
+! stdout 'PrimaryButton.swift'
+replace apple/Sources/ContentView.swift 'DesignTokens.buttonBg' 'DesignTokens.ink'
+
+# A literal fallback is a warning by default, so lint still passes; as an
+# error it fails.
+replace web/app.css 'var(--surface)' 'var(--surface, #fff)'
+exec airframe lint
+stdout '^web/app.css:7:\d+: warn fallback-literal: .*surface'
+cp airframe-strict.yaml airframe.yaml
+exits 1 airframe lint
+stdout '^web/app.css:7:\d+: error fallback-literal: '
+cp airframe.yaml.in airframe.yaml
+
+# An exemption with a reason suppresses the finding and is listed in the
+# gate's exemptions.
+replace web/app.css 'var(--surface, #fff);' 'var(--surface, #fff); /* airframe-exempt fallback-literal: legacy embed, see #42 */'
+exec airframe lint --format gate
+stdout '"ok": true'
+stdout '"findings": \[\]'
+stdout '"file": "web/app.css",'
+stdout '"marker": "airframe-exempt",'
+stdout '"reason": "legacy embed, see #42"'
+replace web/app.css 'var(--surface, #fff); /* airframe-exempt fallback-literal: legacy embed, see #42 */' 'var(--surface);'
+
+# A wrapper member the map does not name.
+replace apple/Sources/ContentView.swift 'AppTheme.spacing.small' 'AppTheme.spacing.medium'
+exits 1 airframe lint
+stdout '^apple/Sources/ContentView.swift:7:\d+: error wrapper-unmapped: .*AppTheme\.spacing.*medium'
+replace apple/Sources/ContentView.swift 'AppTheme.spacing.medium' 'AppTheme.spacing.small'
+
+# A glob that matches nothing fails, naming the platform and the glob.
+replace airframe.yaml '"web/**/*.tsx"' '"web/**/*.tssx"'
+exits 1 airframe lint
+stdout 'error reference-undeclared: .*platform web.*web/\*\*/\*\.tssx'
+replace airframe.yaml '"web/**/*.tssx"' '"web/**/*.tsx"'
+
+# Clean again, and the gate lists all five consumer rules with what they
+# scanned.
+exec airframe lint --format gate
+stdout '"ok": true'
+stdout '"findings": \[\]'
+stdout '"id": "fallback-literal",\n\s+"scanned": [1-9]'
+stdout '"id": "primitive-read-by-consumer",\n\s+"scanned": [1-9]'
+stdout '"id": "reference-undeclared",\n\s+"scanned": [1-9]'
+stdout '"id": "token-owner-violation",\n\s+"scanned": [1-9]'
+stdout '"id": "wrapper-unmapped",\n\s+"scanned": [1-9]'
+
+-- airframe.yaml.in --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web:
+    emit: css
+    consumers: ["web/**/*.css", "web/**/*.tsx"]
+  json: {emit: [json]}
+  apple:
+    emit: [swift, colorsets]
+    out: {swift: apple/Generated/DesignTokens.swift, colorsets: apple/Generated/Assets.xcassets/Tokens/}
+    consumers: ["apple/Sources/**/*.swift"]
+    wrappers:
+      - root: AppTheme.spacing
+        map: {small: gap-sm, large: gap-lg}
+-- airframe-strict.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web:
+    emit: css
+    consumers: ["web/**/*.css", "web/**/*.tsx"]
+  json: {emit: [json]}
+  apple:
+    emit: [swift, colorsets]
+    out: {swift: apple/Generated/DesignTokens.swift, colorsets: apple/Generated/Assets.xcassets/Tokens/}
+    consumers: ["apple/Sources/**/*.swift"]
+    wrappers:
+      - root: AppTheme.spacing
+        map: {small: gap-sm, large: gap-lg}
+lint:
+  rules: {fallback-literal: error}
+-- button.yaml --
+id: button
+tokens: [button-bg, button-ink, button-target, button-gap]
+owners: ["web/button/**", "apple/Sources/Button/**"]
+-- web/app.css --
+:root {
+  --sidebar-w: 240px;
+}
+.app {
+  width: var(--sidebar-w);
+  color: var(--ink);
+  background: var(--surface);
+}
+-- web/button/Button.tsx --
+export const Button = () => <button style={{ background: "var(--button-bg)", color: "var(--button-ink)" }} />;
+-- apple/Sources/ContentView.swift --
+import SwiftUI
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello")
+            .foregroundStyle(DesignTokens.ink)
+            .padding(AppTheme.spacing.small)
+    }
+}
+-- apple/Sources/Button/PrimaryButton.swift --
+import SwiftUI
+
+let primaryBackground = DesignTokens.buttonBg
