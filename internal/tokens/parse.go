@@ -29,6 +29,13 @@ var supported = map[string]bool{
 	"fontWeight": true, "duration": true, "cubicBezier": true, "shadow": true,
 }
 
+// ValidName reports whether name passes the token-name rule: lowercase
+// words of letters and digits joined by "-".
+func ValidName(name string) bool { return nameRE.MatchString(name) }
+
+// NamePattern is the token-name rule as a regular expression, for messages.
+func NamePattern() string { return nameRE.String() }
+
 func sortedKeys[K ~string, V any](m map[K]V) []K { return slices.Sorted(maps.Keys(m)) }
 
 // decl is one token declaration found in a file, not yet merged into the Set.

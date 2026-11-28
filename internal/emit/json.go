@@ -96,7 +96,7 @@ func resolved(s *tokens.Set, name string, key config.ModeKey) (any, error) {
 		}
 		return nil, err
 	}
-	return dtcg(v.Lit), nil
+	return DTCGValue(v.Lit), nil
 }
 
 // modeKeys lists the keys that can change t's value: every mode key of a
@@ -153,8 +153,9 @@ func unionKey(a, b config.ModeKey) (config.ModeKey, bool) {
 	return config.ModeKey(strings.Join(parts, "+")), true
 }
 
-// dtcg is a literal in its DTCG JSON form.
-func dtcg(lit any) any {
+// DTCGValue is a literal in its DTCG JSON form, the encoding the json
+// emitter writes and the importer reuses for token files.
+func DTCGValue(lit any) any {
 	switch l := lit.(type) {
 	case color.OKLCH:
 		c := &object{}
@@ -178,11 +179,11 @@ func dtcg(lit any) any {
 		out := make([]any, len(l))
 		for i, s := range l {
 			o := &object{}
-			o.set("color", dtcg(s.Color))
-			o.set("offsetX", dtcg(s.OffsetX))
-			o.set("offsetY", dtcg(s.OffsetY))
-			o.set("blur", dtcg(s.Blur))
-			o.set("spread", dtcg(s.Spread))
+			o.set("color", DTCGValue(s.Color))
+			o.set("offsetX", DTCGValue(s.OffsetX))
+			o.set("offsetY", DTCGValue(s.OffsetY))
+			o.set("blur", DTCGValue(s.Blur))
+			o.set("spread", DTCGValue(s.Spread))
 			if s.Inset {
 				o.set("inset", true)
 			}
