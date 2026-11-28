@@ -1,7 +1,8 @@
-# Reference: find, usages and diff
+# The reference commands
 
-Three commands answer the questions people ask of a design system while
-they work in it, instead of reading token files by hand:
+Six commands answer the questions people ask of a design system while
+they work in it, and make the changes they lead to, instead of editing
+token files by hand. Three of them read:
 
 - **`airframe find <words>`:** which token is for this? It ranks the
   tokens by the words of their names, descriptions and components, and
@@ -14,9 +15,21 @@ they work in it, instead of reading token files by hand:
   git refs, or between a ref and the working tree, as text, Markdown for a
   pull request's job summary, or JSON.
 
-None of them writes a file. They read the project as `lint` does, so a
-project that does not load is reported the same way (exit 1, with its
-diagnostics).
+None of these writes a file. Three write:
+
+- **`airframe rename <old> <new>`:** a codemod. It renames a token in its
+  token files, `airframe.yaml`, the components, the invariants and every
+  platform's consumer files, then rebuilds.
+- **`airframe retire <token>`:** marks a token retired and lists what
+  lint will then report. With `--treatment`, it records a retired
+  treatment in `retired.yaml` instead.
+- **`airframe specimen`:** draws the colour, type and spacing tokens as
+  SVG sheets.
+
+Each of the writers works out every change before it writes anything,
+and `rename` and `retire` take `--dry-run` to print the changes and stop.
+All six read the project as `lint` does, so a project that does not load
+is reported the same way (exit 1, with its diagnostics).
 
 ## 1. The project
 
@@ -131,6 +144,23 @@ export const Button = () => <button style={{ background: "var(--button-bg)", col
 .app .cta {
   background: var(--button-bg);
 }
+```
+
+Last, the invariants hold body text to a contrast floor in both appearances,
+and every gap token to a minimum size:
+
+```yaml
+# design-system/invariants.yaml
+- id: body-text
+  kind: contrast
+  fg: ink
+  bg: surface
+  min: 4.5
+  forEach: [appearance]
+- id: gap-floor
+  kind: min-dimension
+  match: "gap*"
+  min: 4
 ```
 
 ## 2. `airframe find`
@@ -442,7 +472,7 @@ $ airframe diff origin/main --format md
 `--format json` prints `from` and `to` (each a `ref` and the `commit`
 it resolved to, or `{"workingTree": true}`), then `added`, `removed`,
 `renamed` and `changed`, every list sorted by name; see
-[the JSON schemas](#5-the-json-schemas).
+[the JSON schemas](#8-the-json-schemas).
 
 ### `--exit-code`
 
@@ -501,7 +531,315 @@ step (`git fetch --depth=1 origin "$GITHUB_BASE_REF"`). The step assumes
 `airframe` is on the runner's `PATH`; install it as the
 [README](../../README.md#install) says.
 
-## 5. The JSON schemas
+## 5. `airframe rename`
+
+`rename <old> <new>` renames a token everywhere it is spelled, then
+rebuilds. Renames ship with a codemod, never with compatibility aliases:
+there is no alias left behind under the old name, so the old name is
+gone from the sources, the outputs and the consumer code in one change.
+
+### Preconditions
+
+`rename` refuses, exits 1 and writes nothing unless:
+
+- the project loads without errors and builds;
+- `old` is a token (`there is no token nope`);
+- `new` is a valid token name, lowercase words joined by `-`;
+- `new` is not a token already, nor a group: `button` holds
+  `button-bg` and `button-ink`, so `rename ink button` is refused;
+- the new path does not sit under a token (`ink.subtle` would put a
+  token inside `ink`);
+- the renamed project loads and builds, and no consumer reference still
+  reads `old` once the edits are made.
+
+**The new path.** A token's name is its DTCG path joined with `-`, so
+`button.ink` is `button-ink`. When the old token's path is its name split
+on `-`, the new path is the new name split the same way: `gap` at path
+`gap` becomes `row-gap` at `row.gap`. When it is not, because a segment
+holds a `-` itself, `rename` cannot guess, and `--path` gives the new
+path, dotted:
+
+```text
+airframe rename: ink-muted is at path ink-muted, not ink.muted; give the new path with --path
+```
+
+```text
+$ airframe rename ink-muted ink-subtle --path ink-subtle --dry-run
+would rename ink-muted to ink-subtle (path ink-muted → ink-subtle)
+design-system/tokens/semantic.tokens.json:4  move ink-muted → ink-subtle
+```
+
+### What it edits
+
+- **Token files.** The token's node moves from the old path to the new
+  one in its base file and in every mode file that overrides it. Within
+  its group it keeps its place; moved to another group, it is appended
+  there. Groups are created as needed, and a group left empty is
+  deleted. Every alias `{old.path}` becomes `{new.path}`,
+  in values, mode values and inside composite values such as a shadow's
+  colour. If the new group would give the token a different inherited
+  `$type`, the token gets its own.
+- **`airframe.yaml`.** `options.accentColor`, the `material3Scheme`
+  role values, the `highContrast` keys, wrapper `map` values, and a
+  `names` entry for a fixed-naming format (css, json, colorsets) that
+  spells the default name.
+- **Components.** Each `tokens` entry of `components/<id>.yaml`.
+- **Invariants.** The exact token names in `tokens`, `fg`, `bg`, `only`
+  and `match`.
+- **Consumer references, on every platform.** Each read the consumer
+  scan finds is respelled where it stands, as an exact byte splice at its
+  line and column; nothing else in a consumer file changes, and consumer
+  files are never reformatted. The new spelling is the same emitted name
+  of the new token: a suffixed or slot name follows its token, so in XAML
+  `DesignGapCompact` becomes `DesignSpacingCompact`, and a Kotlin colour
+  slot `surfaceCompact` becomes `canvasCompact`. A read through a generated
+  wrapper has its member renamed; a read through a `map` wrapper needs
+  no code edit, as the map's value is edited instead. A retired
+  spelling is not a token reference, so it is left alone.
+- **Generated outputs.** They are rebuilt, as `build` would. Renaming a
+  colour leaves the old name's colorset in each asset catalog; `rename`
+  removes the colorsets the rename makes stale, and lists each one
+  (`removed <dir>`). It removes only the `Contents.json` and then the
+  folder, which must then be empty, so a file you added there stays.
+
+The token, config, component and invariants files it touches are
+written in canonical form, as `airframe fmt` would.
+
+### `--dry-run`
+
+`--dry-run` prints the plan and writes nothing: one line per text edit
+(`file:line:col  old → new`), then each token moved (`file:line  move
+from → to`), then each manual item, then `would remove <dir>` for each
+stale colorset. Renaming the page background:
+
+```text
+$ airframe rename surface canvas --dry-run
+would rename surface to canvas (path surface → canvas)
+design-system/invariants.yaml:5:7  surface → canvas
+design-system/tokens/component.tokens.json:5:24  {surface} → {canvas}
+web/src/app.css:3:19  --surface → --canvas
+design-system/themes/dark.tokens.json:3  move surface → canvas
+design-system/tokens/semantic.tokens.json:2  move surface → canvas
+```
+
+The same command without `--dry-run` prints the plan, then each file it
+wrote, the regenerated CSS last:
+
+```text
+$ airframe rename surface canvas
+renaming surface to canvas (path surface → canvas)
+design-system/invariants.yaml:5:7  surface → canvas
+design-system/tokens/component.tokens.json:5:24  {surface} → {canvas}
+web/src/app.css:3:19  --surface → --canvas
+design-system/themes/dark.tokens.json:3  move surface → canvas
+design-system/tokens/semantic.tokens.json:2  move surface → canvas
+wrote design-system/invariants.yaml
+wrote design-system/themes/dark.tokens.json
+wrote design-system/tokens/component.tokens.json
+wrote design-system/tokens/semantic.tokens.json
+wrote web/src/app.css
+wrote web/src/generated/tokens.css
+```
+
+A move that appends the token to a different group says so, as the order
+of the generated outputs changes with it.
+
+### Manual items and `--allow-manual`
+
+Two kinds of reference cannot be rewritten safely, and are left to you
+as **manual items**:
+
+- **Wrapper patterns.** A pattern template in `airframe.yaml` is not
+  edited. A read that resolves through a pattern to `old` is a manual
+  item at that read, and so is a pattern that can now produce `new`,
+  since a member that read no token would start reading it.
+- **Invariant globs.** A glob in `match` or `only` that matched `old`
+  and does not match `new`, or the reverse, would change what the
+  invariant covers.
+
+`gap-floor` covers every token matching `gap*`, and `row-gap` does not
+match it:
+
+```text
+$ airframe rename gap row-gap --dry-run
+would rename gap to row-gap (path gap → row.gap)
+design-system/tokens/semantic.tokens.json:6  move gap → row.gap (appended to its new group: the emitted order changes)
+design-system/invariants.yaml:10  manual: invariant gap-floor: match "gap*" matched gap and does not match row-gap, so what it covers changes; adjust it by hand
+```
+
+Without `--allow-manual`, a plan with manual items prints the plan,
+writes nothing and exits 1:
+
+```text
+airframe rename: 1 reference(s) are left to finish by hand (manual, above); nothing was written. Pass --allow-manual to write the rest.
+```
+
+`--allow-manual` writes everything else, lists the manual items, and
+exits 0 (or as the rebuild does): the manual items are yours to finish.
+Here, until the glob is changed, lint reports that `gap-floor` selects no
+tokens.
+
+```text
+$ airframe rename gap row-gap --allow-manual
+renaming gap to row-gap (path gap → row.gap)
+design-system/tokens/semantic.tokens.json:6  move gap → row.gap (appended to its new group: the emitted order changes)
+design-system/invariants.yaml:10  manual: invariant gap-floor: match "gap*" matched gap and does not match row-gap, so what it covers changes; adjust it by hand
+wrote design-system/tokens/semantic.tokens.json
+wrote web/src/generated/tokens.css
+1 reference(s) left to finish by hand (manual, above)
+```
+
+### Writing
+
+- **A file changed since it was read is refused.** Before writing,
+  `rename` reads every file it plans to change again and compares it
+  with the bytes the plan was made from. If any differs (an editor saved
+  it meanwhile), it exits 1 with `airframe rename: <file> changed since
+  it was read; nothing was written`. Run it again. Each consumer splice is
+  checked the same way while planning: the bytes at the reference's
+  position must still be what the scan read.
+- **A symbolic link is refused** (exit 1), as for `retire` below.
+- **Writes are staged.** Every file is first written to a temporary name
+  beside it, and only when all are written are they renamed into place,
+  in path order. A failure while staging removes the temporary files and
+  changes nothing. **The final rename phase is not atomic:** a rename
+  within one directory almost never fails, but if one does, the files
+  already renamed stay renamed. `rename` lists them as `wrote` lines,
+  says how many of the total were written, and exits 2. Your version control has the rest.
+- The generated outputs are rebuilt after the sources are written, from
+  the project read back from disk.
+
+| Exit | When |
+| --- | --- |
+| 0 | the rename was written, or `--dry-run` printed the plan |
+| 1 | a precondition failed, the renamed project would not load or build, a reference would be left reading `old`, manual items without `--allow-manual`, a planned file changed since it was read, or a symbolic link |
+| 2 | a usage error, or an I/O error, including a failure partway through the renames |
+
+## 6. `airframe retire`
+
+`retire` takes a token, or with `--treatment` a treatment that has no
+token, out of use. It never edits consumer code: retiring is what makes
+lint find the reads, through
+[`retired-used`](../rules/retired-used.md).
+
+### A token
+
+`retire <token>` sets `retired: true` in the token's base declaration,
+under `$extensions["com.c65llc.airframe"]`, creating either object if it
+is missing, and writes the file in canonical form. The token is still
+emitted, so nothing breaks at build time, but no consumer may read it and
+no token may alias it. `retire` prints the consequences: each read lint
+will now report, and each token that aliases it.
+
+```text
+$ airframe retire surface --dry-run
+would retire surface in design-system/tokens/semantic.tokens.json
+retired-used will report:
+  web  web/src/app.css:3:19  --surface
+aliased by:
+  button-ink  default  design-system/tokens/component.tokens.json:5
+```
+
+A token nothing reads or aliases prints `no reads or aliases: lint will
+report nothing`. A token that is already retired is refused:
+
+```text
+airframe retire: legacy-ink is already retired
+```
+
+### A treatment
+
+`retire --treatment <id> --spelling <adapter>=<RE2>…` appends a
+treatment to `<content>/retired.yaml`, creating the file if needed, and
+prints the consumer code its spellings already match:
+
+- **`--treatment ID`** is the treatment's id, in kebab-case; an id
+  `retired.yaml` already has is refused.
+- **`--spelling ADAPTER=RE2`** is required and repeats: an RE2 pattern
+  that must not appear in that adapter's consumer files (`css`, `swift`,
+  `kotlin`, `xaml` or `cs`). An unknown adapter or a pattern that does not
+  compile is refused.
+- **`--ruling @ruling:x`** names the ruling that retired it, and
+  **`--marker M`** the marker that exempts an audited use (see
+  [Components and retired treatments](components.md)).
+
+The new file must load as `retired.yaml` does, or nothing is written.
+
+```text
+$ airframe retire --treatment inline-style --spelling 'css=style=\{\{' --ruling @ruling:no-inline-styles --dry-run
+would retire treatment inline-style in design-system/retired.yaml
+retired-used will report:
+  web  web/src/button/Button.tsx:2:37  style={{
+```
+
+### Symbolic links
+
+`retire` and `rename` write a file in place, so a file they would write
+that is a symbolic link is refused, with `--dry-run` too, and nothing is
+written. If `semantic.tokens.json` linked to a shared file:
+
+```text
+airframe retire: design-system/tokens/semantic.tokens.json is a symbolic link; edit the file it points to, or replace the link with the file, first. Nothing was written.
+```
+
+`retire` exits 0 when it retired (or with `--dry-run` would retire), 1
+when it refused, and 2 on a usage error: no token and no `--treatment`,
+both, `--treatment` with no `--spelling`, or `--spelling`, `--ruling` or
+`--marker` without `--treatment`.
+
+## 7. `airframe specimen`
+
+`specimen` draws the tokens as SVG sheets, for a design review or a
+pull request:
+
+```text
+$ airframe specimen
+wrote design-system/generated/specimen/colors.svg
+wrote design-system/generated/specimen/spacing.svg
+wrote design-system/generated/specimen/type.svg
+```
+
+- **`colors`** has one row per colour token, grouped by tier (semantic,
+  component, primitive) in declaration order: its name, then a swatch
+  per appearance (one column with no appearance axis), with the sRGB hex
+  and `oklch()` under each. A colour outside sRGB is gamut-mapped, as
+  CSS Color 4 does, for the swatch and its hex. A retired token is marked
+  `(retired)`.
+- **`type`** has one row per `fontFamily` and `fontWeight` token, and per
+  dimension whose name holds `font-size` or `line-height`, each with a
+  sample line set in it. Fonts are named, not embedded, so the sheet
+  falls back to the viewer's system fonts.
+- **`spacing`** has every other dimension as a bar of its px value (a rem
+  is 16px), with its name and value. Bars are drawn at most 480px long;
+  the label keeps the real value.
+
+A sheet with nothing to draw (this project has no type tokens) is still
+written, with its title. Text is drawn in the light appearance's colours,
+so the sheets read on white.
+
+**One set per fan-out value.** When a platform fans out over a build
+axis (per app, say), there is one set of sheets per value of that axis,
+named `colors-<value>.svg`, `type-<value>.svg` and
+`spacing-<value>.svg`; a value two axes share is named
+`<axis>-<value>`. With no fan-out, as here, there is one set.
+
+**Where they go.** The default directory is
+`<content>/generated/specimen/`; `--out D` writes to `D` instead, a
+directory inside the project. A directory outside it, or one with a drive
+letter, is a usage error (exit 2).
+The files are overwritten each run, and the output is byte-stable: the
+same tokens draw the same bytes. `specimen` is not part of `build`, so
+`build --check` neither writes nor checks the sheets; regenerate them
+when you want them.
+
+**Layout.** Each column is as wide as the widest text it holds,
+measured without a font at a fixed average width per character, plus a
+gap: the swatch columns fit their longest hex or `oklch()` label, and the
+type sample column its largest sample (set at most 72px). The name column
+is capped at 480px: a longer name is cut with `…`, and its tooltip (the
+SVG `<title>`) carries the whole name with the description.
+
+## 8. The JSON schemas
 
 Each command's JSON output has a JSON Schema (draft 2020-12), printed
 by `airframe schema`:

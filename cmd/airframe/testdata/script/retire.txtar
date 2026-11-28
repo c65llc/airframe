@@ -18,6 +18,10 @@ stdout 'error retired-used: platform web: --gap is token gap, which is retired'
 exits 1 airframe retire gap
 stderr 'gap is already retired'
 
+exec airframe retire --treatment gray-ink --spelling 'css=var\(--ink' --dry-run
+stdout '^would retire treatment gray-ink in design-system/retired.yaml$'
+stdout '^  web  web/src/app.css:1:33  var\(--ink$'
+! exists design-system/retired.yaml
 exec airframe retire --treatment gray-ink --spelling 'css=var\(--ink' --ruling @ruling:x
 stdout '^retired treatment gray-ink in design-system/retired.yaml$'
 grep 'id: gray-ink' design-system/retired.yaml

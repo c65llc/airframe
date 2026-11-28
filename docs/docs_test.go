@@ -133,7 +133,8 @@ func TestRuleUnknown(t *testing.T) {
 // Action usage, describes every emitter as built (XAML since v0.5.0),
 // the consumer rules as built since v0.6.0 and components and retired
 // treatments as built since v0.7.0, find, usages and diff as new in
-// v0.8.0, and plans no emitter.
+// v0.8.0, rename, retire and specimen as built for the next release, and
+// plans no emitter and no reference command, only the surfaces.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
 	require.NoError(t, err)
@@ -193,7 +194,16 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, cmd := range []string{"`find`", "`usages`", "`diff`", "find,", "usages,", "diff,"} {
 		assert.NotContains(t, planned, cmd, "a built reference command is not planned")
 	}
-	for _, want := range []string{"`rename`", "`retire`", "`specimen`", "skills", "MCP", "PWA", "editor"} {
-		assert.Contains(t, planned, want, "the remaining reference commands and surfaces stay planned")
+	// rename, retire and specimen are built for the next release, with
+	// the same guide; the surfaces stay planned.
+	assert.Contains(t, built, "**Renames, retires and draws tokens** (next release)")
+	for _, cmd := range []string{"`airframe rename <old> <new>`", "`airframe retire <token>`", "`--treatment`", "`airframe specimen`", "codemod", "--dry-run", "--allow-manual"} {
+		assert.Contains(t, built, cmd, "a built writing command is described before the planned list")
+	}
+	for _, cmd := range []string{"`rename`", "`retire`", "`specimen`", "rename,", "retire,", "specimen,", "codemod"} {
+		assert.NotContains(t, planned, cmd, "a built writing command is not planned")
+	}
+	for _, want := range []string{"skills", "MCP", "PWA", "VS Code", "Tauri"} {
+		assert.Contains(t, planned, want, "the surfaces stay planned")
 	}
 }
