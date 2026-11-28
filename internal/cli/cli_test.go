@@ -151,12 +151,6 @@ func TestLevenshtein(t *testing.T) {
 	assert.Equal(t, 3, levenshtein("", "abc"))
 }
 
-func TestPageBody(t *testing.T) {
-	assert.Equal(t, "# x\n\nbody\n", pageBody("---\nseverity: error\n---\n\n# x\n\nbody\n"))
-	assert.Equal(t, "# x\n", pageBody("# x\n"))
-	assert.Equal(t, "Tokens alias each other in a loop, so none of them has a value.", docSummary("---\na: b\n---\n\n# alias-cycle\n\nTokens alias each other in a loop, so none of them has a value.\n"))
-}
-
 // TestLintConsumerReadErrorExits2: a consumer file that cannot be read
 // stops lint with exit 2; it is never reported as clean or as findings.
 func TestLintConsumerReadErrorExits2(t *testing.T) {

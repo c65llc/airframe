@@ -23,6 +23,7 @@ import (
 	"github.com/c65llc/airframe/internal/ojson"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/rename"
+	"github.com/c65llc/airframe/internal/report"
 	"github.com/c65llc/airframe/internal/retired"
 	"github.com/c65llc/airframe/internal/tokens"
 )
@@ -134,7 +135,7 @@ func retireToken(inv *invocation, name string) int {
 		_, _ = fmt.Fprintf(inv.stderr, "airframe retire: %s is already retired\n", t.Name)
 		return ExitFindings
 	}
-	u, err := describeUsages(p, t, "")
+	u, err := report.DescribeUsages(p, t, "")
 	if err != nil {
 		return inv.fail(fmt.Errorf("scan consumers: %w", err))
 	}
@@ -199,7 +200,7 @@ func retireToken(inv *invocation, name string) int {
 
 // writeRetireConsequences lists what retired-used reports once the token
 // is retired: the reads, and the tokens that alias it.
-func writeRetireConsequences(b *strings.Builder, u usages) {
+func writeRetireConsequences(b *strings.Builder, u report.Usages) {
 	if len(u.References) == 0 && len(u.AliasedBy) == 0 {
 		b.WriteString("no reads or aliases: lint will report nothing\n")
 		return

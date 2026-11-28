@@ -33,6 +33,7 @@ import (
 	"github.com/c65llc/airframe/internal/gate"
 	"github.com/c65llc/airframe/internal/lint"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/report"
 	"github.com/c65llc/airframe/internal/scaffold"
 	"github.com/c65llc/airframe/internal/schema"
 	"github.com/c65llc/airframe/internal/selftest"
@@ -635,18 +636,16 @@ func runLint(inv *invocation) int {
 	if err != nil {
 		return inv.fail(err)
 	}
-	var res lint.Result
+	res := report.Lint(p, ds, lint.Options{Strict: strict})
+	if res.Err != nil { // an I/O failure: the findings are incomplete
+		return inv.fail(res.Err)
+	}
 	files := 0
 	if p == nil {
-		res = loadOnly(ds)
 		if _, err := os.Stat(filepath.Join(dir, config.File)); err == nil {
 			files = 1
 		}
 	} else {
-		res = lint.Run(p, ds, lint.Options{Strict: strict})
-		if res.Err != nil { // an I/O failure: the findings are incomplete
-			return inv.fail(res.Err)
-		}
 		files = len(p.Sources)
 	}
 	switch form {
@@ -663,18 +662,6 @@ func runLint(inv *invocation) int {
 		return ExitFindings
 	}
 	return ExitOK
-}
-
-// loadOnly is the lint result of a project that did not load: its load
-// diagnostics, every one an error, and no tallies since no rule ran.
-func loadOnly(ds []diag.Diagnostic) lint.Result {
-	res := lint.Result{Diagnostics: slices.Clone(ds), Exemptions: []lint.Exemption{}}
-	for i := range res.Diagnostics {
-		res.Diagnostics[i].Docs = diag.DocsURL(res.Diagnostics[i].Rule)
-		res.Errors++
-	}
-	diag.Sort(res.Diagnostics)
-	return res
 }
 
 func runBuild(inv *invocation) int {
@@ -773,67 +760,6 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 	return code
 }
 
-// shownValue is one of a token's values as show reports it: its mode key
-// ("default" for $value), the value in CSS spelling, the alias chain from
-// the token to the literal in that key's context, and the literal. Problem
-// says why the chain stops short.
-type shownValue struct {
-	Key      string   `json:"key"`
-	Value    string   `json:"value"`
-	Chain    []string `json:"chain"`
-	Resolved string   `json:"resolved,omitempty"`
-	Problem  string   `json:"problem,omitempty"`
-}
-
-// shown is a token as show reports it.
-type shown struct {
-	Name        string       `json:"name"`
-	Tier        string       `json:"tier"`
-	Component   string       `json:"component"`
-	Type        string       `json:"type"`
-	Description string       `json:"description"`
-	Values      []shownValue `json:"values"`
-}
-
-// describe gathers what show reports about t.
-func describe(set *tokens.Set, t *tokens.Token) shown {
-	s := shown{
-		Name: t.Name, Tier: t.Tier, Component: t.Component, Type: t.Type,
-		Description: t.Description, Values: []shownValue{},
-	}
-	keys := slices.Sorted(maps.Keys(t.Modes))
-	if t.Default != nil {
-		keys = slices.Insert(keys, 0, "")
-	}
-	for _, k := range keys {
-		v := t.Default
-		label := "default"
-		if k != "" {
-			v, label = t.Modes[k], string(k)
-		}
-		sv := shownValue{Key: label, Value: emit.CSSValue(v), Chain: []string{t.Name}}
-		ctx := k.Context()
-		for v != nil && v.Alias != "" {
-			if slices.Contains(sv.Chain, v.Alias) {
-				sv.Problem = "alias cycle at " + v.Alias
-				v = nil
-				break
-			}
-			sv.Chain = append(sv.Chain, v.Alias)
-			next, _ := set.ValueFor(v.Alias, ctx)
-			if next == nil {
-				sv.Problem = v.Alias + " is not defined or has no value here"
-			}
-			v = next
-		}
-		if v != nil {
-			sv.Resolved = emit.CSSValue(v)
-		}
-		s.Values = append(s.Values, sv)
-	}
-	return s
-}
-
 // orNone is s, or "-" when s is empty.
 func orNone(s string) string {
 	if s == "" {
@@ -843,7 +769,7 @@ func orNone(s string) string {
 }
 
 // writeShown writes s as show's text output.
-func writeShown(w io.Writer, s shown) {
+func writeShown(w io.Writer, s report.Token) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\ntier: %s\ncomponent: %s\ntype: %s\ndescription: %s\nvalues:\n",
 		s.Name, orNone(s.Tier), orNone(s.Component), orNone(s.Type), orNone(s.Description))
@@ -867,10 +793,7 @@ func lookupToken(set *tokens.Set, name string) (*tokens.Token, string) {
 	if set == nil {
 		return nil, ""
 	}
-	if t := set.Tokens[name]; t != nil {
-		return t, ""
-	}
-	if t := set.Tokens[strings.ReplaceAll(name, ".", "-")]; t != nil {
+	if t := report.LookupToken(set, name); t != nil {
 		return t, ""
 	}
 	return nil, closest(name, slices.Collect(maps.Keys(set.Tokens)))
@@ -984,7 +907,7 @@ func runShow(inv *invocation) int {
 		// stderr, so --json stays one document.
 		_, _ = fmt.Fprintf(inv.stderr, "(also a component: airframe show --component %s)\n", name)
 	}
-	s := describe(p.Tokens, t)
+	s := report.DescribeToken(p.Tokens, t)
 	if *inv.bools["json"] {
 		enc := json.NewEncoder(inv.stdout)
 		enc.SetIndent("", "  ")
@@ -1002,14 +925,14 @@ func runExplain(inv *invocation) int {
 	}
 	arg := inv.args[0]
 	if page, ok := docs.Rule(arg); ok {
-		_, _ = fmt.Fprintf(inv.stdout, "%s\n%s\n", pageBody(page), diag.DocsURL(arg))
+		_, _ = fmt.Fprintf(inv.stdout, "%s\n%s\n", report.PageBody(page), diag.DocsURL(arg))
 		return ExitOK
 	}
 	p, t, code := inv.loadToken(arg)
 	if t == nil {
 		return code
 	}
-	writeShown(inv.stdout, describe(p.Tokens, t))
+	writeShown(inv.stdout, report.DescribeToken(p.Tokens, t))
 	readers := "- (no tier)"
 	if t.Tier != "" {
 		tier, ok := p.Config.Tiers[t.Tier]
@@ -1026,84 +949,21 @@ func runExplain(inv *invocation) int {
 	return ExitOK
 }
 
-// pageBody is a docs page without its front matter.
-func pageBody(page string) string {
-	if rest, ok := strings.CutPrefix(page, "---\n"); ok {
-		if _, body, ok := strings.Cut(rest, "\n---\n"); ok {
-			page = strings.TrimLeft(body, "\n")
-		}
-	}
-	return page
-}
-
-// ruleEntry is one rule ID in the rules --json report. Kind is "check" for
-// a registered rule and "load" for one reported while loading or building.
-type ruleEntry struct {
-	ID      string        `json:"id"`
-	Kind    string        `json:"kind"`
-	Default diag.Severity `json:"default"`
-	Summary string        `json:"summary"`
-	Docs    string        `json:"docs"`
-}
-
-// ruleEntries lists every rule ID, sorted. A load-time ID is always an
-// error and a build-time one a warning; their summary is the line under
-// the docs page's title.
-func ruleEntries() []ruleEntry {
-	registered := map[string]lint.Rule{}
-	for _, r := range lint.Rules() {
-		registered[r.ID] = r
-	}
-	var out []ruleEntry
-	for _, id := range lint.AllIDs() {
-		e := ruleEntry{ID: id, Kind: "load", Default: lint.DefaultSeverity(id), Docs: diag.DocsURL(id)}
-		if slices.Contains(lint.BuildWarningIDs(), id) {
-			e.Kind = "build"
-		}
-		if r, ok := registered[id]; ok {
-			e.Kind, e.Default, e.Summary = "check", r.Default, r.Summary
-		} else if page, ok := docs.Rule(id); ok {
-			e.Summary = docSummary(page)
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
-// docSummary is the first paragraph line after a docs page's H1.
-func docSummary(page string) string {
-	lines := strings.Split(pageBody(page), "\n")
-	for i, l := range lines {
-		if !strings.HasPrefix(l, "# ") {
-			continue
-		}
-		for _, next := range lines[i+1:] {
-			if next != "" {
-				return next
-			}
-		}
-	}
-	return ""
-}
-
 // runRules lists every rule ID as a table or, with --json, as
 // {"version":1,"rules":[…]}. It needs no project.
 func runRules(inv *invocation) int {
 	if !inv.noArgs() {
 		return ExitUsage
 	}
-	rules := ruleEntries()
+	doc := report.Rules()
 	if *inv.bools["json"] {
-		report := struct {
-			Version int         `json:"version"`
-			Rules   []ruleEntry `json:"rules"`
-		}{Version: 1, Rules: rules}
 		enc := json.NewEncoder(inv.stdout)
 		enc.SetIndent("", "  ")
 		enc.SetEscapeHTML(false)
-		_ = enc.Encode(report) // a write error is Main's to report
+		_ = enc.Encode(doc) // a write error is Main's to report
 		return ExitOK
 	}
+	rules := doc.Rules
 	tw := tabwriter.NewWriter(inv.stdout, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "RULE\tDEFAULT\tSUMMARY")
 	for _, r := range rules {
