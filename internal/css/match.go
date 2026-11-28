@@ -126,13 +126,29 @@ func parseAttr(s string) (Cond, int, error) {
 	return c, end + 1, nil
 }
 
+// isIdent reports whether s is a CSS identifier (without escapes): it
+// starts with a name-start character (a letter, '_' or non-ASCII), or with
+// '-' followed by a name-start character or another '-', and continues
+// with name characters (those, digits and '-'). A digit, a lone '-' and
+// '-' followed by a digit cannot start one: a browser drops a selector
+// that uses them unquoted.
 func isIdent(s string) bool {
-	if s == "" {
+	nameStart := func(r rune) bool {
+		return r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r > 127
+	}
+	rs := []rune(s)
+	switch {
+	case len(rs) == 0:
+		return false
+	case rs[0] == '-':
+		if len(rs) < 2 || !(nameStart(rs[1]) || rs[1] == '-') {
+			return false
+		}
+	case !nameStart(rs[0]):
 		return false
 	}
-	for _, r := range s {
-		ok := r == '-' || r == '_' || r >= '0' && r <= '9' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r > 127
-		if !ok {
+	for _, r := range rs {
+		if !(nameStart(r) || r == '-' || r >= '0' && r <= '9') {
 			return false
 		}
 	}

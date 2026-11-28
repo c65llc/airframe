@@ -150,3 +150,30 @@ func TestMediaMatchesAndKey(t *testing.T) {
 		t.Error("conflicting atoms cannot match")
 	}
 }
+
+// TestParseSelectorIdentifiers holds unquoted attribute values and
+// attribute names to CSS identifiers: a browser drops a rule whose
+// selector has anything else, so the importer must not accept it.
+func TestParseSelectorIdentifiers(t *testing.T) {
+	for _, in := range []string{":root[a=2up]", ":root[a=-]", ":root[a=-1]", ":root[2a='x']", ":root[-='x']", ":root[-1a]"} {
+		_, err := ParseSelector(in)
+		if err == nil {
+			t.Errorf("%q: want error", in)
+		} else if !strings.Contains(err.Error(), "unsupported selector \""+in+"\"") {
+			t.Errorf("%q: error %q does not name the selector", in, err)
+		}
+	}
+	for in, want := range map[string]string{
+		":root[a=x]": "x", ":root[a=-x]": "-x", ":root[a=--x]": "--x", ":root[a='2up']": "2up",
+		":root[a=_x]": "_x", ":root[a=é1]": "é1", ":root[-a='v']": "v",
+	} {
+		sel, err := ParseSelector(in)
+		if err != nil {
+			t.Errorf("%q: %v", in, err)
+			continue
+		}
+		if len(sel.Conds) != 1 || sel.Conds[0].Value != want {
+			t.Errorf("%q: got %+v, want value %q", in, sel.Conds, want)
+		}
+	}
+}
