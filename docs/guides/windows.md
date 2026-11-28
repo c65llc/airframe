@@ -126,19 +126,23 @@ The `ms-appx:///` path is the file's path inside the project: a file in a
 Colours live in `ResourceDictionary.ThemeDictionaries`, so read them with
 **`{ThemeResource}`**: it re-resolves when the user switches between light,
 dark and high contrast. Every other token is at the dictionary's root, so
-**`{StaticResource}`** reads it once:
+**`{StaticResource}`** reads it once. Dimensions are `x:Double`, so bind
+them to `double` properties such as `Spacing`, `Height` and `FontSize`:
 
 ```xml
-<Border
+<StackPanel
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     Background="{ThemeResource DesignSurface}"
-    Padding="{StaticResource DesignSpace2}">
+    Spacing="{StaticResource DesignGap}">
     <TextBlock
         Foreground="{ThemeResource DesignInk}"
         FontFamily="{StaticResource DesignFontBody}"
-        Margin="{StaticResource DesignGap}"
+        Opacity="{StaticResource DesignOpacityMuted}"
         Text="Notes" />
-</Border>
+    <Rectangle
+        Fill="{ThemeResource DesignAccent}"
+        Height="{StaticResource DesignSpace2}" />
+</StackPanel>
 ```
 
 A **non-colour token that varies on appearance** (here `hairline`, wider
@@ -208,7 +212,8 @@ With `highContrast` set, the `HighContrast` theme dictionary maps every
 brush to the system colour you chose, as
 `Color="{ThemeResource SystemColorWindowTextColor}"`, so the app follows
 the user's contrast theme. One mapping covers all of a shadow token's
-layers. Every colour and shadow token must be mapped: one left out fails
+layers. A HighContrast shadow brush is the opaque system colour, so the
+layer's alpha is not kept there. Every colour and shadow token must be mapped: one left out fails
 the build, listing every unmapped token, because a HighContrast dictionary
 missing a key fails at runtime in high-contrast mode. A mapped token that
 is not a colour or shadow token emitted to `xaml` fails too.
@@ -239,6 +244,13 @@ The XAML emitter fails closed: a value WinUI cannot express is an
 `emit-failed` error naming the token, never a guess. The other platforms
 still build.
 
+- **Dimensions are `x:Double`.** Thickness and CornerRadius properties
+  (`Padding`, `Margin`, `BorderThickness`, `CornerRadius`) do not take a
+  double, and binding one there throws `XamlParseException` at load, so
+  build the `Thickness` or `CornerRadius` in code or with a converter.
+- **Curves stay within 0..1.** A `KeySpline`'s control points lie in 0..1,
+  so a `cubicBezier` whose y1 or y2 overshoots fails (`token "x":
+  cubicBezier y 1.4 is outside 0..1, which a KeySpline takes`).
 - **No inset shadows.** WinUI has no inset shadow, so a shadow with an
   inset layer fails (`token "well": shadow layer 1 is inset, and WinUI has
   no inset shadow`).

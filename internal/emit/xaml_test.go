@@ -538,6 +538,25 @@ func TestXAMLLayerCountAcrossApps(t *testing.T) {
 	assert.Equal(t, `platform windows: xaml: token "glow" has 1 shadow layers for app notes and 2 for app tasks; its layer count must be the same across apps, as every app's dictionary holds the same keys`, xamlErr(t, fsys))
 }
 
+// TestXAMLKeySplineRange: a KeySpline's control points lie in 0..1 on
+// both axes, so a cubicBezier whose y1 or y2 leaves it (an overshoot curve)
+// is an error; x is already 0..1 by DTCG.
+func TestXAMLKeySplineRange(t *testing.T) {
+	for _, c := range []struct{ curve, bad string }{
+		{"[0.3, -0.2, 0.2, 1]", "-0.2"},
+		{"[0.3, 0, 0.2, 1.4]", "1.4"},
+	} {
+		fsys := memFS(t, xamlDefaultDir)
+		fsys["design-system/tokens/bounce.tokens.json"] = `{ "bounce": { "$type": "cubicBezier", "$value": ` + c.curve + `,
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } }`
+		assert.Equal(t, `platform windows: xaml: token "bounce": cubicBezier y `+c.bad+` is outside 0..1, which a KeySpline takes`, xamlErr(t, fsys))
+	}
+	fsys := memFS(t, xamlDefaultDir)
+	fsys["design-system/tokens/bounce.tokens.json"] = `{ "bounce": { "$type": "cubicBezier", "$value": [0, 0, 1, 1],
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } }`
+	assert.Contains(t, string(xamlOf(t, loadFS(t, fsys))[defaultXAML]), `<KeySpline x:Key="DesignBounce" ControlPoint1="0,0" ControlPoint2="1,1" />`, "the bounds are inclusive")
+}
+
 // TestXAMLInsetShadow: WinUI has no inset shadow.
 func TestXAMLInsetShadow(t *testing.T) {
 	fsys := memFS(t, xamlDefaultDir)
@@ -602,6 +621,12 @@ func TestGuideWindowsKeys(t *testing.T) {
 			}
 			require.NoError(t, err, "xml block %d", i)
 		}
+	}
+	// Every dimension is an x:Double, which WinUI cannot assign to a
+	// Thickness or CornerRadius property (XamlParseException at load).
+	thick := regexp.MustCompile(`\b(Padding|Margin|BorderThickness|CornerRadius)="\{(?:ThemeResource|StaticResource) Design[A-Za-z0-9]*\}"`)
+	for i, m := range blocks {
+		assert.Empty(t, thick.FindAllString(m[1], -1), "xml block %d binds an x:Double to a Thickness or CornerRadius property", i)
 	}
 	notes := string(xamlGoldenFiles(t, windowsDir)[notesXAML])
 	light := themeDict(t, notes, "Light")

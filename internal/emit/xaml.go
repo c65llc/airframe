@@ -512,6 +512,13 @@ func (x *xamler) resource(it xamlItem, o Output, av string) (string, error) {
 		if !ok {
 			return bad()
 		}
+		// A KeySpline's control points lie in 0..1 on both axes; DTCG
+		// already bounds x, so only an overshooting y can fall outside.
+		for _, y := range []float64{c[1], c[3]} {
+			if y < 0 || y > 1 {
+				return "", fmt.Errorf("token %q: cubicBezier y %s is outside 0..1, which a KeySpline takes", t.Name, num(y))
+			}
+		}
 		return fmt.Sprintf("<KeySpline x:Key=\"%s\" ControlPoint1=\"%s,%s\" ControlPoint2=\"%s,%s\" />",
 			it.Key, num(c[0]), num(c[1]), num(c[2]), num(c[3])), nil
 	case "fontFamily":
