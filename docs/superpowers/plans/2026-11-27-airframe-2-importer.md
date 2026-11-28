@@ -31,16 +31,15 @@
 - **Supported CSS** (everything else is an error that names the construct and its line):
   - Top-level rules, and rules nested one level inside `@media`. Nested `@media` inside `@media` concatenates conditions.
   - Comments anywhere. Strings and parentheses are respected when splitting on `;`, `,` and `}`.
-  - Selectors: compounds on `:root` only (`html` is accepted as a synonym), made of `[attr]`, `[attr='v']` / `[attr="v"]`, `:not([attr])` and `:not([attr='v'])`. A selector list is split on top-level commas, and each selector is handled on its own.
-  - Media: conjunctions (`and`) of `(feature: value)` atoms, for example `(prefers-color-scheme: dark)`, `(pointer: coarse)`. `not`, `or`, `only` and media types are unsupported.
+  - Selectors: compounds on `:root` only (`html` is rejected: its specificity differs from `:root`'s), made of `[attr]`, `[attr='v']` / `[attr="v"]`, `:not([attr])` and `:not([attr='v'])`. A selector list is split on top-level commas, and each selector is handled on its own.
+  - Media: conjunctions (`and`) of `(feature: value)` atoms over discrete features only: `prefers-color-scheme`, `prefers-contrast`, `prefers-reduced-motion`, `prefers-reduced-transparency`, `forced-colors`, `inverted-colors`, `pointer`, `any-pointer`, `hover`, `any-hover`, `color-gamut`, `dynamic-range`, `display-mode`. Range features (`min-width` …), `not`, `or`, `only` and media types are unsupported.
   - Other at-rules (`@layer`, `@supports`, `@import`, `@font-face`…) are unsupported.
   - Declarations that are not custom properties (`color: red`) are counted, reported once in the summary, and ignored. They are not tokens.
-- **Environment.** An environment is a value for every attribute seen in either stylesheet (unset, or one of the values seen) plus a value for every media feature seen (unset, or one of the values seen). The equivalence check enumerates the full product. More than 200,000 environments is the error `import-too-many-environments`.
+- **Environment.** An environment is a value for every attribute seen in either stylesheet (unset, one of the values seen, or `*`: set to a value no selector names) plus a value for every media feature seen (unset, or one of the values seen). The equivalence check enumerates the full product. More than 200,000 environments is the error `import-too-many-environments`.
 - **Specificity** follows CSS: `:root` counts (0,1,0), as does each attribute selector. `:not(x)` counts as x. Ties go to later source order. All rules target the root element.
 - **Mapping a block to a mode key.** Enumerate every mode key over the config's loaded axes: each axis is either absent or one non-base value. Expand each key with the exported emit scope function (Task 6) and index the normalised scopes. Normalising means:
   - parse the media atoms and sort them;
   - parse the selector's attribute conditions and sort them;
-  - treat `html` as `:root`.
   
   A source block whose normalised scope is not in the index is `import-unmapped-scope`. The message names the scope and says which `airframe.yaml` web spelling would produce it.
 - **Values** (`internal/cssvalue`). Accepted forms:
@@ -124,7 +123,7 @@
 **Interfaces:** Produces:
 - `type Cond struct{ Attr, Value string; Present, Negated bool }`. `Present` with an empty Value means `[attr]`; `Negated` wraps it in `:not(…)`.
 - `type Selector struct{ Conds []Cond; Spec int }`. Spec counts the conditions plus 1 for `:root`.
-- `func ParseSelector(s string) (Selector, error)`: accepts `:root`/`html` followed by conditions, in any order; anything else is an error whose message names the selector.
+- `func ParseSelector(s string) (Selector, error)`: accepts `:root` followed by conditions (`html` is an error), in any order; anything else is an error whose message names the selector.
 - `type Atom struct{ Feature, Value string }`.
 - `func ParseMedia(conds []string) ([]Atom, error)`: splits on ` and `; anything other than a parenthesised `feature: value` is an error.
 - `func (s Selector) Key() string` and `func MediaKey(atoms []Atom) string`: sorted, canonical text used for indexing.
@@ -133,8 +132,8 @@
 - `func Envs(sheets ...*Sheet) ([]Env, error)`: the deterministic product; more than 200000 environments is an error.
 
 - [ ] **Step 1: Write failing tests:**
-  - `TestParseSelectorForms`: `:root`, `html`, `:root[data-theme='dark']`, `:root:not([data-theme="light"])[data-app='x']`, and `:root[data-density]` parse with the right Conds and Spec (1, 1, 2, 3, 2).
-  - `TestParseSelectorRejects`: `.dark`, `body`, `:root .card`, `:root:hover` and `[data-x]` (no `:root`) are errors.
+  - `TestParseSelectorForms`: `:root`, `:root[data-theme='dark']`, `:root:not([data-theme="light"])[data-app='x']`, and `:root[data-density]` parse with the right Conds and Spec (1, 2, 3, 2).
+  - `TestParseSelectorRejects`: `.dark`, `body`, `html`, `:root .card`, `:root:hover` and `[data-x]` (no `:root`) are errors.
   - `TestMatches`: a negated condition matches when the attribute is unset or has a different value. `[attr]` matches any set value.
   - `TestParseMediaForms`: `(prefers-color-scheme: dark) and (pointer: coarse)` gives 2 atoms; `not screen`, `(min-width: 40em) or (x: y)` and `print` are errors.
   - `TestEnvsProduct`: sheets using `data-theme` ∈ {dark, light} and `prefers-color-scheme` ∈ {dark} give 3 × 2 = 6 environments, in deterministic order.
