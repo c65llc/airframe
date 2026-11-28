@@ -93,6 +93,19 @@ func TestParseFontQuotedGeneric(t *testing.T) {
 	}
 }
 
+// An unquoted generic keyword is case-insensitive: any case is the
+// generic, stored lowercase.
+func TestParseFontGenericCase(t *testing.T) {
+	_, v, _, err := Parse("--body-font", `"A", SANS-SERIF, Monospace, System-UI`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"A", "sans-serif", "monospace", "system-ui"}
+	if got, _ := v.Lit.([]string); !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
 func TestParseFontByName(t *testing.T) {
 	typ, v, _, err := Parse("--body-font", `"IBM Plex Sans", system-ui`)
 	got, _ := v.Lit.([]string)

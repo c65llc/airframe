@@ -67,6 +67,17 @@ func TestCheckQuotedGenericFamily(t *testing.T) {
 	assert.Equal(t, []any{`"sans-serif"`, "serif"}, got)
 }
 
+// An unquoted generic in any case imports as the lowercase generic and
+// checks equivalent.
+func TestCheckGenericFamilyCase(t *testing.T) {
+	src := ":root { --body-font: \"A\", SANS-SERIF; }\n"
+	res := checkCSS(t, smallConfig, src)
+	assert.Empty(t, errorsIn(res.Diagnostics), "%v", res.Diagnostics)
+	r := run(t, smallConfig, src)
+	got := tokenFile(t, r, "ds/tokens/primitive.tokens.json")["body-font"]["$value"]
+	assert.Equal(t, []any{"A", "sans-serif"}, got)
+}
+
 func TestCheckFixtureEquivalent(t *testing.T) {
 	cfgData, r := fixture(t)
 	require.Empty(t, r.Diagnostics)

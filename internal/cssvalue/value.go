@@ -243,7 +243,12 @@ func parseFamilies(s string) ([]string, bool) {
 					return nil, false
 				}
 			}
-			out = append(out, strings.Join(strings.Fields(p), " "))
+			name := strings.Join(strings.Fields(p), " ")
+			if low := strings.ToLower(name); emit.GenericFamily(low) {
+				// An unquoted generic keyword is case-insensitive.
+				name = low
+			}
+			out = append(out, name)
 		}
 	}
 	return out, len(out) > 0
