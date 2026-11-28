@@ -367,7 +367,7 @@ func TestEmitFormatUnknown(t *testing.T) {
 }
 
 func TestEmitFutureFormatsAccepted(t *testing.T) {
-	c := mustLoad(t, "version: 1\nplatforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: kotlin}\n  windows: {emit: [xaml]}\n")
+	c := mustLoad(t, "version: 1\nplatforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: kotlin, options: {package: com.example.design}}\n  windows: {emit: [xaml]}\n")
 	assert.Equal(t, []string{"swift", "colorsets"}, c.Platforms[0].Emit)
 }
 
@@ -410,6 +410,22 @@ func TestAxisValueNamesReserved(t *testing.T) {
 	}
 }
 
+// TestFileOutNotADirectory: a file format's out with a trailing slash
+// names a directory, which build cannot write a file to (it exited 2
+// with "readfile dist/: invalid argument"); colorsets, a folder, may.
+func TestFileOutNotADirectory(t *testing.T) {
+	for _, src := range []string{
+		"version: 1\nplatforms:\n  web:\n    emit: css\n    out: dist/\n",
+		"version: 1\nplatforms:\n  web:\n    emit: [css, json]\n    out:\n      json: dist/\n",
+	} {
+		d := loadErr(t, src)
+		assert.Contains(t, d.Path, "platforms.web.out", src)
+		assert.Contains(t, d.Message, "dist/ must name a file, not a directory", src)
+	}
+	c := mustLoad(t, "version: 1\nplatforms:\n  apple:\n    emit: [colorsets]\n    out: {colorsets: gen/Tokens/}\n")
+	assert.Equal(t, "gen/Tokens/", c.Platforms[0].Out["colorsets"])
+}
+
 func TestOutMustNameAPath(t *testing.T) {
 	for _, in := range []string{"", ".", "./", "a/.."} {
 		for _, src := range []string{
@@ -444,7 +460,8 @@ func TestPlatformFanOutParsed(t *testing.T) {
 	assert.Equal(t, "", got["web"])
 	for _, p := range c.Platforms {
 		if p.Name == "android" {
-			assert.Equal(t, true, p.Options["material3Scheme"])
+			assert.Equal(t, "com.example.design", p.KotlinPackage())
+			assert.Equal(t, [][2]string{{"primary", "accent"}, {"onPrimary", "accent-contrast"}, {"primaryContainer", "accent-soft"}}, p.Material3Roles())
 			v, ok := p.Option("sharedOut")
 			assert.True(t, ok)
 			assert.Equal(t, "android/shared/src/main/kotlin/DesignTokens.kt", v)
@@ -476,6 +493,71 @@ func TestAppleOptions(t *testing.T) {
 	d = loadErr(t, pre+"{ bogus: 1 }\n")
 	assert.Equal(t, "platforms.apple.options.bogus", d.Path)
 	loadErr(t, pre+"{ accentColor: \"\" }\n")
+}
+
+func TestKotlinOptions(t *testing.T) {
+	pre := fanOutBase + "platforms:\n  droid:\n    emit: [kotlin]\n    out: x.kt\n    fanOut: app\n    options: "
+	for _, tc := range []struct{ name, opts, path, msg string }{
+		{"missing package", "{ gamut: clip }", "platforms.droid.options.package", "package"},
+		{"digit segment", "{ package: com.2x.app }", "platforms.droid.options.package", "2x"},
+		{"keyword segment", "{ package: com.in.app }", "platforms.droid.options.package", "in"},
+		{"unknown key", "{ package: a.b, bogus: 1 }", "platforms.droid.options.bogus", "bogus"},
+		{"colorSpace", "{ package: a.b, colorSpace: cmyk }", "platforms.droid.options.colorSpace", "cmyk"},
+		{"gamut", "{ package: a.b, gamut: clip-p3 }", "platforms.droid.options.gamut", "clip-p3"},
+		{"sharedOut fans out", "{ package: a.b, sharedOut: \"android/{app}/x.kt\" }", "platforms.droid.options.sharedOut", "sharedOut"},
+		{"scalar scheme", "{ package: a.b, material3Scheme: true }", "platforms.droid.options.material3Scheme", "maps Material 3 roles to tokens, as in { primary: accent }"},
+		{"unknown role", "{ package: a.b, material3Scheme: { primry: accent } }", "platforms.droid.options.material3Scheme.primry", "primry"},
+		{"package number", "{ package: 5 }", "platforms.droid.options.package", "must be a string"},
+		{"sharedOut number", "{ package: a.b, sharedOut: 5 }", "platforms.droid.options.sharedOut", "must be a string"},
+		{"sharedOut escapes", "{ package: a.b, sharedOut: ../x.kt }", "platforms.droid.options.sharedOut", "sharedOut"},
+		{"sharedOut escapes after cleaning", "{ package: a.b, sharedOut: android/../../x.kt }", "platforms.droid.options.sharedOut", "under the project root"},
+		{"sharedOut root", "{ package: a.b, sharedOut: \".\" }", "platforms.droid.options.sharedOut", "must name a file under the root"},
+		{"sharedOut dot slash", "{ package: a.b, sharedOut: ./ }", "platforms.droid.options.sharedOut", "must name a file under the root"},
+		{"sharedOut cleans to root", "{ package: a.b, sharedOut: android/.. }", "platforms.droid.options.sharedOut", "must name a file under the root"},
+		{"sharedOut directory", "{ package: a.b, sharedOut: android/shared/ }", "platforms.droid.options.sharedOut", "must name a file, not a directory"},
+		{"sharedOut other placeholder", "{ package: a.b, sharedOut: \"android/{channel}/x.kt\" }", "platforms.droid.options.sharedOut", "may not contain { or }"},
+		{"sharedOut stray brace", "{ package: a.b, sharedOut: \"android/x}.kt\" }", "platforms.droid.options.sharedOut", "may not contain { or }"},
+		{"sharedOut fanOut after other", "{ package: a.b, sharedOut: \"a/{x}/{app}.kt\" }", "platforms.droid.options.sharedOut", "cannot fan out"},
+		{"colorSpace mapping", "{ package: a.b, colorSpace: {} }", "platforms.droid.options.colorSpace", "colorSpace must be a string, one of"},
+		{"gamut mapping", "{ package: a.b, gamut: [] }", "platforms.droid.options.gamut", "gamut must be a string, one of"},
+		{"role number", "{ package: a.b, material3Scheme: { primary: 5 } }", "platforms.droid.options.material3Scheme.primary", "must be a string"},
+		{"empty scheme", "{ package: a.b, material3Scheme: {} }", "platforms.droid.options.material3Scheme", "no roles"},
+		{"empty token", "{ package: a.b, material3Scheme: { primary: \"\" } }", "platforms.droid.options.material3Scheme.primary", "primary"},
+	} {
+		d := loadErr(t, pre+tc.opts+"\n")
+		assert.Equal(t, tc.path, d.Path, tc.name)
+		assert.Contains(t, d.Message, tc.msg, tc.name)
+	}
+	for _, src := range []string{
+		fanOutBase + "platforms:\n  droid:\n    emit: [kotlin]\n    out: x.kt\n",
+		fanOutBase + "platforms:\n  droid:\n    emit: kotlin\n    out: x.kt\n",
+	} {
+		d := loadErr(t, src)
+		assert.Equal(t, "platforms.droid.options.package", d.Path)
+		assert.Equal(t, "platform droid: options.package is required for kotlin", d.Message)
+		assert.Equal(t, 6, d.Line)
+	}
+	mustLoad(t, pre+"{ package: \"a.b\", sharedOut: \"x.kt\" }\n")
+	// sharedOut is stored as cleaned, so the emitter and the collision
+	// check see the path that is written.
+	for in, want := range map[string]string{
+		"./android/shared/DesignTokens.kt":         "android/shared/DesignTokens.kt",
+		"android/x/../shared/DesignTokens.kt":      "android/shared/DesignTokens.kt",
+		"android//shared/./DesignTokens.kt":        "android/shared/DesignTokens.kt",
+		"android/shared/src/main/kotlin/Tokens.kt": "android/shared/src/main/kotlin/Tokens.kt",
+	} {
+		got, ok := mustLoad(t, pre+"{ package: a.b, sharedOut: \""+in+"\" }\n").Platforms[0].Option("sharedOut")
+		assert.True(t, ok, in)
+		assert.Equal(t, want, got, in)
+	}
+	c := mustLoad(t, pre+"{ package: com.example.design, sharedOut: android/shared/DesignTokens.kt, colorSpace: display-p3, gamut: clip, material3Scheme: { onPrimary: b, primary: a, surfaceDim: c } }\n")
+	p := c.Platforms[0]
+	assert.Equal(t, "com.example.design", p.KotlinPackage())
+	assert.Equal(t, [][2]string{{"primary", "a"}, {"onPrimary", "b"}, {"surfaceDim", "c"}}, p.Material3Roles())
+	assert.Nil(t, mustLoad(t, pre+"{ package: a.b }\n").Platforms[0].Material3Roles())
+	assert.Equal(t, "DesignTokens.{camel}", c.NamingFor("kotlin"))
+	// Other platforms' kotlin-ish options are not checked.
+	mustLoad(t, "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    options: { package: 1 }\n")
 }
 
 func TestNamingTemplates(t *testing.T) {

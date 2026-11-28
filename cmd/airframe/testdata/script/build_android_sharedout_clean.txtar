@@ -1,0 +1,14 @@
+# options.sharedOut is used as cleaned: a ./-prefixed path builds to the
+# same file as the plain one, and build --check is then clean (it once
+# exited 2 reading "./android/...").
+fixture android
+replace airframe.yaml 'sharedOut: android/shared' 'sharedOut: ./android/shared'
+
+exec airframe build
+stdout '^wrote android/shared/src/main/kotlin/DesignTokens\.kt$'
+! stdout '\./android'
+exists android/shared/src/main/kotlin/DesignTokens.kt
+
+exec airframe build --check
+! stdout .
+! stderr 'error'

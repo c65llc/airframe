@@ -6,12 +6,13 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.3.0 is the current release: the core, the CSS importer and the Apple emitters. Nothing here is stable yet.
+v0.4.0 is the current release: the core, the CSS importer and the Apple and Android emitters. Nothing here is stable yet.
 
-**What v0.3.0 does**
+**What v0.4.0 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
-- **Emits Apple outputs** (new in v0.3.0). The `apple` platform writes an asset catalog of Display P3 colorsets (light and dark, one catalog per app target) and a SwiftUI `DesignTokens` file naming every token as a typed member. See [Apple: Swift and asset catalogs](docs/guides/apple.md).
+- **Emits Apple outputs** (since v0.3.0). The `apple` platform writes an asset catalog of Display P3 colorsets (light and dark, one catalog per app target) and a SwiftUI `DesignTokens` file naming every token as a typed member. See [Apple: Swift and asset catalogs](docs/guides/apple.md).
+- **Emits Kotlin/Compose** (new in v0.4.0). The `android` platform writes a shared Jetpack Compose `DesignTokens` class naming every token as a typed member, and per app a `DesignColorValues` object of light and dark colours, with optional Material 3 colour schemes. See [Android: Kotlin and Jetpack Compose](docs/guides/android.md).
 - **Lints the token source.** Tiers (a primitive aliases nothing; a semantic token reads primitives; a component token reads semantics), literals in semantic tokens, density coverage, accent groups, hue families, alias cycles and type mismatches, ambiguous or conflicting mode values, stale generated files and unformatted sources. `airframe rules` lists every rule; each has a page at `https://airframe.c65llc.com/rules/<rule>/`.
 - **Checks invariants.** `invariants.yaml` declares contrast floors, reserved hues, hue stability across appearances and minimum dimensions; lint computes each in every context it applies to.
 - **Formats.** `airframe fmt` rewrites config, token and invariants files in canonical form.
@@ -19,9 +20,9 @@ v0.3.0 is the current release: the core, the CSS importer and the Apple emitters
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
 - **Imports existing CSS** (since v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
-**Planned (not in v0.3.0)**
+**Planned (not in v0.4.0)**
 
-- Native emitters: Kotlin/Compose and C#/XAML. `airframe.yaml` already accepts `kotlin` and `xaml`; v0.3.0 builds nothing for them and says so (`emit-unsupported`, a warning).
+- Native emitter: C#/XAML. `airframe.yaml` already accepts `xaml`; nothing is built for it yet, and Airframe says so (`emit-unsupported`, a warning).
 - Consumer rules: reading tokens where they are used (every platform's code, not just the token files) to enforce tiers and ownership at the consumer.
 - Components and a reference surface for asking which token to use and whether a file may read it.
 
@@ -64,7 +65,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.3.0
+    version: v0.4.0
     args: lint --format gate
 ```
 
