@@ -207,6 +207,9 @@ func (c *codemod) edit(ref consumer.Reference) (*consumerEdit, error) {
 		}
 		newName = n
 	}
+	if newName == name {
+		return nil, nil // a custom spelling (a names entry) the rename keeps
+	}
 	return &consumerEdit{
 		Edit: Edit{File: ref.File, Line: ref.Line, Col: ref.Col + off, Old: name, New: newName},
 		Raw:  ref.Raw, RefCol: ref.Col,

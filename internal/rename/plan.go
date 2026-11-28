@@ -230,9 +230,13 @@ func (r *renamer) tokenFiles() error {
 		}
 		docs = append(docs, doc{f, root})
 	}
-	// Collisions first: nothing is changed before every file passes.
+	// Collisions and names first: nothing is changed before every file
+	// passes.
 	for _, d := range docs {
 		if err := r.collision(d.file, d.root); err != nil {
+			return err
+		}
+		if err := r.names(d.file, d.root, nil); err != nil {
 			return err
 		}
 	}
@@ -260,6 +264,11 @@ func (r *renamer) tokenFiles() error {
 				found = append(found, slices.Clone(p))
 			}
 		})
+		if len(found) > 0 {
+			if err := r.names(d.file, d.root, cols); err != nil {
+				return err
+			}
+		}
 		for _, from := range found {
 			if err := r.move(d.file, d.root, from); err != nil {
 				return err
@@ -273,6 +282,56 @@ func (r *renamer) tokenFiles() error {
 		}
 	}
 	return nil
+}
+
+// names rewrites each fixed-naming format's names entry of old's nodes in
+// root: such an entry must be the format's default spelling of old, which
+// becomes the default spelling of new. Any other spelling there is
+// refused, since the renamed token could not keep it. A native format's
+// names entry is a custom spelling and stays. With cols nil it only
+// checks.
+func (r *renamer) names(file string, root *ojson.Node, cols *columns) error {
+	var err error
+	walkTokens(root, nil, func(p []string, n *ojson.Node) {
+		if err != nil || strings.Join(p, "-") != r.pl.Old {
+			return
+		}
+		ext := n.Fields["$extensions"]
+		if ext == nil || ext.Kind != ojson.Object {
+			return
+		}
+		x := ext.Fields[tokens.Namespace]
+		if x == nil || x.Kind != ojson.Object {
+			return
+		}
+		names := x.Fields["names"]
+		if names == nil || names.Kind != ojson.Object {
+			return
+		}
+		for _, f := range names.Keys {
+			v := names.Fields[f]
+			if !slices.Contains(config.FixedNaming, f) || v.Kind != ojson.String {
+				continue
+			}
+			want := config.DefaultName(f, r.pl.Old)
+			if v.Str != want {
+				err = refuse("rename: %s:%d: %s's names.%s is %q, not %q, its default %s spelling, which the rename would rewrite; fix it first",
+					file, v.Line, r.pl.Old, f, v.Str, want, f)
+				return
+			}
+			if cols == nil {
+				continue
+			}
+			col := cols.at(v.Line, `"`+v.Str+`"`)
+			if col > 0 {
+				col++ // past the quote
+			}
+			nv := config.DefaultName(f, r.pl.New)
+			r.pl.Edits = append(r.pl.Edits, Edit{File: file, Line: v.Line, Col: col, Old: v.Str, New: nv})
+			v.Str = nv
+		}
+	})
+	return err
 }
 
 // walkTokens calls fn on every token node under group n, in source order.

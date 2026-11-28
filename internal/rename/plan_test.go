@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/c65llc/airframe/internal/format"
+	"github.com/c65llc/airframe/internal/ojson"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/tokens"
 )
@@ -411,4 +412,39 @@ func TestOverlay(t *testing.T) {
 	assert.Equal(t, int64(1), st.Size())
 	_, err = fs.Stat(o, "nope")
 	assert.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// A fixed-naming format's names entry is its default spelling of the
+// token's name, so it follows the rename; a custom native spelling stays.
+func TestPlanNames(t *testing.T) {
+	fsys := fixture()
+	fsys["design-system/tokens/base.tokens.json"] = strings.Replace(fixtureBase,
+		`"$extensions": {"com.c65llc.airframe": {"tier": "semantic", "modes": {"density:compact": "{color.surface}"}}}`,
+		`"$extensions": {"com.c65llc.airframe": {"tier": "semantic", "modes": {"density:compact": "{color.surface}"}, "names": {"css": "--color-accent", "colorsets": "ColorAccent", "swift": "brandAccent"}}}`, 1)
+	pl := plan(t, fsys, "color-accent", "color-brand", "")
+	brand := pl.After.Tokens.Tokens["color-brand"]
+	require.NotNil(t, brand)
+	assert.Equal(t, map[string]string{"css": "--color-brand", "colorsets": "ColorBrand", "swift": "brandAccent"}, brand.Names)
+	var got []string
+	for _, e := range pl.Edits {
+		if strings.Contains(e.Old, "Accent") || strings.HasPrefix(e.Old, "--") {
+			got = append(got, e.Old+" → "+e.New)
+		}
+	}
+	assert.Equal(t, []string{"--color-accent → --color-brand", "ColorAccent → ColorBrand"}, got)
+	for _, e := range pl.Edits {
+		assert.NotZero(t, e.Col, "%+v", e)
+	}
+}
+
+// A fixed-naming entry that is not old's default spelling is refused
+// before anything changes (the loader rejects one, so call names directly).
+func TestPlanNamesRefused(t *testing.T) {
+	root, err := ojson.Parse([]byte(`{"gap": {"$value": 1, "$extensions": {"com.c65llc.airframe": {"names": {"css": "--other"}}}}}`))
+	require.NoError(t, err)
+	r := &renamer{pl: &EditPlan{Old: "gap", New: "spacing"}}
+	err = r.names("x.tokens.json", root, nil)
+	var ref *Refusal
+	require.ErrorAs(t, err, &ref)
+	assert.Equal(t, `rename: x.tokens.json:1: gap's names.css is "--other", not "--gap", its default css spelling, which the rename would rewrite; fix it first`, ref.Msg)
 }
