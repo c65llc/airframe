@@ -247,21 +247,28 @@ func (sw *swifter) axesOf(t *tokens.Token) (swiftMember, error) {
 // or layer count change with axis x, its colours aside (their colorsets
 // carry appearance, and every app's catalog its own colour).
 func (sw *swifter) geometryVaries(m swiftMember, x config.Axis) (bool, error) {
+	return shadowGeometryVaries(sw.p, sw.np, m.t, m.varies, x)
+}
+
+// shadowGeometryVaries reports whether shadow t's offsets, blur, spread,
+// inset or layer count change with axis x, its colours aside; varies is
+// np.Varies of t.
+func shadowGeometryVaries(p *project.Project, np NativePlan, t *tokens.Token, varies []string, x config.Axis) (bool, error) {
 	var axes []config.Axis
-	for _, a := range sw.allAxes() {
-		if slices.Contains(m.varies, a.Name) {
+	for _, a := range np.allAxes() {
+		if slices.Contains(varies, a.Name) {
 			axes = append(axes, a)
 		}
 	}
 	for _, ctx := range combos(axes) {
-		ref, err := sw.geometry(m.t, ctx)
+		ref, err := shadowGeometry(p, np, t, ctx)
 		if err != nil {
 			return false, err
 		}
 		for _, v := range x.Values {
 			c := maps.Clone(ctx)
 			c[x.Name] = v
-			g, err := sw.geometry(m.t, c)
+			g, err := shadowGeometry(p, np, t, c)
 			if err != nil {
 				return false, err
 			}
@@ -273,21 +280,23 @@ func (sw *swifter) geometryVaries(m swiftMember, x config.Axis) (bool, error) {
 	return false, nil
 }
 
-// allAxes are the axes a Swift value can depend on: fan-out, appearance
+// allAxes are the axes a native value can depend on: fan-out, appearance
 // and runtime.
-func (sw *swifter) allAxes() []config.Axis {
+func (np NativePlan) allAxes() []config.Axis {
 	var out []config.Axis
-	if sw.np.FanOut != nil {
-		out = append(out, *sw.np.FanOut)
+	if np.FanOut != nil {
+		out = append(out, *np.FanOut)
 	}
-	if sw.np.Appearance != nil {
-		out = append(out, *sw.np.Appearance)
+	if np.Appearance != nil {
+		out = append(out, *np.Appearance)
 	}
-	return append(out, sw.np.Runtime...)
+	return append(out, np.Runtime...)
 }
 
-func (sw *swifter) geometry(t *tokens.Token, ctx config.Context) (string, error) {
-	v, err := sw.np.Value(sw.p.Tokens, t.Name, ctx)
+// shadowGeometry is shadow t's geometry in ctx, colours aside, as a
+// comparable string.
+func shadowGeometry(p *project.Project, np NativePlan, t *tokens.Token, ctx config.Context) (string, error) {
+	v, err := np.Value(p.Tokens, t.Name, ctx)
 	if err != nil {
 		return "", fmt.Errorf("token %q%s: %w", t.Name, inContext(ctx), err)
 	}

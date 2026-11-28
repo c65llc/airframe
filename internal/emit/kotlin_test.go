@@ -9,6 +9,7 @@ import (
 	"maps"
 	"math"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -67,58 +68,142 @@ func androidFS(t *testing.T, edit func(yaml string) string) project.MemFS {
 	return fsys
 }
 
-// TestKotlinColorValuesGolden: the fixture's shared file and both apps'
-// DesignColorValues.kt equal the committed goldens. -update rewrites them.
-func TestKotlinColorValuesGolden(t *testing.T) {
-	out := androidKotlin(t)
-	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(out)))
+// kotlinEdgesDir is a scratch project for Kotlin's edges: members named
+// in, object, when and 2xl, a negative dimension, a fractional duration in
+// seconds, a fractional font weight, a quoted font family and a shadow
+// whose geometry varies on appearance and density. It does not fan out,
+// so its one file holds the shared declarations and the values.
+var kotlinEdgesDir = filepath.Join("..", "..", "testdata", "kotlin-edges")
+
+const edgesKotlin = "android/src/main/kotlin/Design.kt"
+
+// kotlinGolden checks dir's kotlin output against the .kt goldens under
+// dir/android; -update rewrites them.
+func kotlinGolden(t *testing.T, dir string, out map[string][]byte) {
+	t.Helper()
 	if *update {
-		require.NoError(t, os.RemoveAll(filepath.Join(androidDir, "android")))
+		require.NoError(t, os.RemoveAll(filepath.Join(dir, "android")))
 		for path, b := range out {
-			full := filepath.Join(androidDir, filepath.FromSlash(path))
+			full := filepath.Join(dir, filepath.FromSlash(path))
 			require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
 			require.NoError(t, os.WriteFile(full, b, 0o644))
 		}
 	}
-	golden := map[string][]byte{}
-	require.NoError(t, fs.WalkDir(os.DirFS(androidDir), "android", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".kt") {
-			return err
-		}
-		b, err := os.ReadFile(filepath.Join(androidDir, filepath.FromSlash(path)))
-		golden[path] = b
-		return err
-	}))
+	golden := kotlinGoldenFiles(t, dir)
 	require.Equal(t, slices.Sorted(maps.Keys(golden)), slices.Sorted(maps.Keys(out)), "run go test ./internal/emit -update")
 	for path, b := range out {
 		assert.Equal(t, string(golden[path]), string(b), path)
 	}
 }
 
+// kotlinGoldenFiles reads the .kt goldens under dir/android.
+func kotlinGoldenFiles(t *testing.T, dir string) map[string][]byte {
+	t.Helper()
+	golden := map[string][]byte{}
+	require.NoError(t, fs.WalkDir(os.DirFS(dir), "android", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".kt") {
+			return err
+		}
+		b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
+		golden[path] = b
+		return err
+	}))
+	return golden
+}
+
+// TestKotlinGolden: the android fixture's shared file and both apps'
+// DesignColorValues.kt, and the edges project's one file, equal the
+// committed goldens. -update rewrites them.
+func TestKotlinGolden(t *testing.T) {
+	out := androidKotlin(t)
+	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(out)))
+	kotlinGolden(t, androidDir, out)
+	edges := kotlinOf(t, loadFS(t, os.DirFS(kotlinEdgesDir)))
+	require.Equal(t, []string{edgesKotlin}, slices.Sorted(maps.Keys(edges)))
+	kotlinGolden(t, kotlinEdgesDir, edges)
+
+	// The shared file: the class with its runtime parameters, enums,
+	// Shadow, companion and members, then DesignColors.
+	s := string(out[sharedKotlin])
+	for _, want := range []string{
+		"public class DesignTokens(\n    public val colors: DesignColors,\n    public val appearance: Appearance = Appearance.Light,\n    public val density: Density = Density.Standard,\n) {\n",
+		"    public enum class Appearance { Light, Dark }\n",
+		"    public enum class Density { Compact, Standard, Relaxed }\n",
+		"    public data class Shadow(\n        public val color: Color,\n        public val x: Dp,\n        public val y: Dp,\n        public val blur: Dp,\n        public val spread: Dp,\n        public val inset: Boolean,\n    )\n",
+		"    public companion object {\n",
+		"        public val radius: Dp = 4.dp\n",
+		"        public val opacityMuted: Float = 0.6f\n",
+		"        public val durationFast: Duration = 150.milliseconds\n",
+		"        public val easeStandard: CubicBezierEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)\n",
+		"        public val fontBody: List<String> = listOf(\"Inter\", \"system-ui\")\n",
+		"        public val weightStrong: FontWeight = FontWeight(650)\n",
+		"    public val accent: Color get() = colors.accent\n",
+		"    public val elevation: List<Shadow> get() = listOf(Shadow(color = colors.elevationLayer1, x = 0.dp, y = 1.dp, blur = 2.dp, spread = 0.dp, inset = false))\n",
+		"    public val gap: Dp get() = when (density) {\n        Density.Compact -> 4.dp\n        Density.Standard -> 4.dp\n        Density.Relaxed -> 8.dp\n    }\n",
+		"    public val surface: Color get() = when (density) {\n        Density.Compact -> colors.surfaceCompact\n        Density.Standard -> colors.surfaceStandard\n        Density.Relaxed -> colors.surfaceRelaxed\n    }\n",
+		"    public val hairline: Dp get() = when (appearance) {\n        Appearance.Light -> when (density) {\n            Density.Compact -> 0.5.dp\n",
+		"public data class DesignColors(\n",
+	} {
+		assert.Contains(t, s, want)
+	}
+	assert.Less(t, strings.Index(s, "public class DesignTokens("), strings.Index(s, "public data class DesignColors("))
+	for _, imp := range []string{"androidx.compose.animation.core.CubicBezierEasing", "androidx.compose.ui.graphics.Color",
+		"androidx.compose.ui.text.font.FontWeight", "androidx.compose.ui.unit.Dp", "androidx.compose.ui.unit.dp",
+		"kotlin.time.Duration", "kotlin.time.Duration.Companion.milliseconds"} {
+		assert.Contains(t, s, "\nimport "+imp+"\n")
+	}
+}
+
+// TestKotlinStaticAndInstance: a non-colour token varying on nothing is a
+// companion val, with an instance val forwarding to it so every member
+// reads alike on an instance (as Swift's static let does); a colour or
+// shadow is always an instance val, as it reads colors.
+func TestKotlinStaticAndInstance(t *testing.T) {
+	s := string(androidKotlin(t)[sharedKotlin])
+	assert.Contains(t, s, "        public val space1: Dp = 4.dp\n")
+	assert.Contains(t, s, "    public val space1: Dp get() = Companion.space1\n")
+	assert.Contains(t, s, "    public val ink: Color get() = colors.ink\n")
+	companion := s[strings.Index(s, "    public companion object {"):]
+	companion = companion[:strings.Index(companion, "\n    }\n")]
+	assert.NotContains(t, companion, "Color", "no colour is static")
+	assert.NotContains(t, companion, "gap", "a varying token is no static")
+}
+
 // TestKotlinFileShape: every file starts with the header and the package,
 // lists only the imports it uses, and ends in one newline; the shared file
-// holds DesignColors only, the per-app file DesignColorValues only.
+// holds DesignTokens and DesignColors, the per-app file DesignColorValues.
 func TestKotlinFileShape(t *testing.T) {
 	out := androidKotlin(t)
-	head := "// GENERATED by airframe from design-system/ — do not edit. Regenerate with `airframe build`.\n\npackage com.example.design\n\n" +
-		"import androidx.compose.ui.graphics.Color\n\n"
+	head := "// GENERATED by airframe from design-system/ — do not edit. Regenerate with `airframe build`.\n\npackage com.example.design\n\n"
 	for path, b := range out {
 		s := string(b)
-		assert.True(t, strings.HasPrefix(s, head), "%s:\n%s", path, s)
+		assert.True(t, strings.HasPrefix(s, head+"import "), "%s:\n%s", path, s)
 		assert.True(t, strings.HasSuffix(s, ")\n") || strings.HasSuffix(s, "}\n"), path)
 		assert.False(t, strings.HasSuffix(s, "\n\n"), path)
 		assert.NotContains(t, s, "\r", path)
+		assert.NotContains(t, s, "\n\n\n", path)
 		assert.NotContains(t, s, "ColorSpaces", "srgb needs no colour space: %s", path)
+		var imports []string
+		for _, m := range regexp.MustCompile(`(?m)^import (.+)$`).FindAllStringSubmatch(s, -1) {
+			imports = append(imports, m[1])
+		}
+		assert.True(t, slices.IsSorted(imports), "%s: %v", path, imports)
+		for _, imp := range imports {
+			short := imp[strings.LastIndex(imp, ".")+1:]
+			assert.Regexp(t, `\b`+short+`\b`, s[strings.Index(s, "\n\npublic"):], "%s imports %s but does not use it", path, imp)
+		}
 	}
 	shared := string(out[sharedKotlin])
 	assert.Contains(t, shared, "public data class DesignColors(\n")
+	assert.Contains(t, shared, "public class DesignTokens(\n")
 	assert.NotContains(t, shared, "DesignColorValues")
 	notes := string(out[notesKotlin])
-	assert.Contains(t, notes, "public object DesignColorValues {\n")
+	assert.True(t, strings.HasPrefix(notes, head+"import androidx.compose.ui.graphics.Color\n\npublic object DesignColorValues {\n"), notes)
 	assert.Contains(t, notes, "    public val light: DesignColors = DesignColors(\n")
 	assert.Contains(t, notes, "    public val dark: DesignColors = DesignColors(\n")
 	assert.Less(t, strings.Index(notes, "val light"), strings.Index(notes, "val dark"), "appearance axis order")
 	assert.NotContains(t, notes, "data class")
+	assert.NotContains(t, notes, "class DesignTokens")
 }
 
 // TestKotlinColorSlots (Review Focus 1): surface, varying on density, has
@@ -127,6 +212,7 @@ func TestKotlinFileShape(t *testing.T) {
 func TestKotlinColorSlots(t *testing.T) {
 	out := androidKotlin(t)
 	shared := string(out[sharedKotlin])
+	shared = shared[strings.Index(shared, "public data class DesignColors("):]
 	for _, s := range []string{"surfaceCompact", "surfaceStandard", "surfaceRelaxed", "cardShadowLayer1", "elevationLayer1", "shadowSmLayer1", "buttonBg", "ink"} {
 		assert.Contains(t, shared, "    public val "+s+": Color,\n")
 	}
@@ -292,7 +378,7 @@ func TestKotlinSharedOut(t *testing.T) {
 	require.Error(t, err)
 	d := failure(androidPlatform(t, p), "kotlin", err)
 	assert.Equal(t, "emit-failed", d.Rule)
-	assert.Equal(t, "platform android: kotlin: kotlin out fans out per app; set options.sharedOut for the shared DesignTokens file", d.Message)
+	assert.Equal(t, "platform android: kotlin: out fans out per app; set options.sharedOut for the shared DesignTokens file", d.Message)
 
 	// No fan-out: one file, shared declarations first, imports once.
 	fsys := androidFS(t, func(y string) string {
@@ -308,7 +394,8 @@ func TestKotlinSharedOut(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(s, "import androidx.compose.ui.graphics.Color\n"))
 	assert.Less(t, strings.Index(s, "public data class DesignColors("), strings.Index(s, "public object DesignColorValues {"))
 	shared := string(androidKotlin(t)[sharedKotlin])
-	assert.Contains(t, s, shared[strings.Index(shared, "public data class"):], "the shared part is the same declarations")
+	assert.Contains(t, s, shared[strings.Index(shared, "public class DesignTokens"):], "the shared part is the same declarations")
+	assert.Less(t, strings.Index(s, "public class DesignTokens("), strings.Index(s, "public data class DesignColors("))
 }
 
 // TestKotlinOnePerAppFileMustNotVary: a per-app out without {app} would
@@ -374,4 +461,277 @@ func TestKotlinNoAppearance(t *testing.T) {
 	s := string(out[notesKotlin])
 	assert.Contains(t, s, "public object DesignColorValues {\n    public val colors: DesignColors = DesignColors(\n")
 	assert.NotContains(t, s, "val light")
+}
+
+// TestKotlinIdentifiers (Review Focus 2): members named after hard
+// keywords are backticked, a leading digit gets a _ prefix, and both
+// compile (TestKotlinTypechecks); space-4 and space4 are emit-failed
+// naming both.
+func TestKotlinIdentifiers(t *testing.T) {
+	s := string(kotlinOf(t, loadFS(t, os.DirFS(kotlinEdgesDir)))[edgesKotlin])
+	for _, want := range []string{
+		"        public val `in`: Float = 1f\n",
+		"    public val `in`: Float get() = Companion.`in`\n",
+		"    public val `object`: Color get() = colors.`object`\n",
+		"    public val `object`: Color,\n",
+		"        `object` = Color(",
+		"    public val `when`: Dp get() = when (density) {\n",
+		"        public val _2xl: Dp = 24.dp\n",
+	} {
+		assert.Contains(t, s, want)
+	}
+
+	fsys := memFS(t, kotlinEdgesDir)
+	fsys["design-system/tokens/extra.tokens.json"] = `{ "space4": { "$type": "number", "$value": 4,
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } },
+  "space": { "4": { "$type": "number", "$value": 4,
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } } }`
+	p := loadFS(t, fsys)
+	_, err := Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	d := failure(androidPlatform(t, p), "kotlin", err)
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Contains(t, d.Message, `"space-4"`)
+	assert.Contains(t, d.Message, `"space4"`)
+	assert.Contains(t, d.Message, "Kotlin identifier space4")
+
+	// A token taking an axis's parameter name, or colors, collides too.
+	for _, name := range []string{"density", "colors"} {
+		fsys := memFS(t, kotlinEdgesDir)
+		fsys["design-system/tokens/extra.tokens.json"] = `{ "` + name + `": { "$type": "number", "$value": 4,
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } }`
+		p := loadFS(t, fsys)
+		_, err := Kotlin(p, androidPlatform(t, p))
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), `"`+name+`"`)
+	}
+}
+
+// TestKotlinTypeNameKeyword: a naming template whose type part is a hard
+// keyword is emit-failed naming the template.
+func TestKotlinTypeNameKeyword(t *testing.T) {
+	fsys := androidFS(t, func(y string) string {
+		return strings.Replace(y, "platforms:", "naming: {kotlin: \"object.{camel}\"}\nplatforms:", 1)
+	})
+	p := loadFS(t, fsys)
+	_, err := Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	d := failure(androidPlatform(t, p), "kotlin", err)
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Contains(t, d.Message, "object.{camel}")
+
+	// An axis whose enum would shadow a type the file uses.
+	fsys = memFS(t, kotlinEdgesDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "  density: {", "  color: {", 1)
+	for path, src := range fsys {
+		if strings.HasSuffix(path, ".json") {
+			fsys[path] = strings.ReplaceAll(src, "density:", "color:")
+		}
+	}
+	p = loadFS(t, fsys)
+	_, err = Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "axis color")
+}
+
+// TestKotlinUnresolvableSlot: a colour aliasing a token that does not
+// exist is emit-failed naming it.
+func TestKotlinUnresolvableSlot(t *testing.T) {
+	fsys := memFS(t, androidDir)
+	fsys["design-system/tokens/extra.tokens.json"] = `{ "lone": { "$type": "color", "$value": "{nowhere}",
+  "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } } }`
+	p := loadFS(t, fsys)
+	_, err := Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	d := failure(androidPlatform(t, p), "kotlin", err)
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Contains(t, d.Message, `"lone"`)
+}
+
+// TestKotlinFanOutNonColour: the DesignTokens file is shared, so a
+// non-colour token, or a shadow's geometry, that varies per app is
+// emit-failed; a shadow whose colour alone varies per app is not.
+func TestKotlinFanOutNonColour(t *testing.T) {
+	fsys := memFS(t, androidDir)
+	fsys["design-system/tokens/gutter.tokens.json"] = gutterTokens
+	p := loadFS(t, fsys)
+	_, err := Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	d := failure(androidPlatform(t, p), "kotlin", err)
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Equal(t, `platform android: kotlin: token "gutter" varies per app; Kotlin non-colour tokens are shared`, d.Message)
+
+	shadow := func(y int, alpha float64) string {
+		return fmt.Sprintf(`{ "color": { "colorSpace": "oklch", "components": [0.2, 0.01, 250], "alpha": %v },
+  "offsetX": { "value": 0, "unit": "px" }, "offsetY": { "value": %d, "unit": "px" },
+  "blur": { "value": 2, "unit": "px" }, "spread": { "value": 0, "unit": "px" } }`, alpha, y)
+	}
+	glow := func(tasks string) string {
+		return `{ "glow": { "$type": "shadow", "$value": ` + shadow(1, 0.2) + `,
+  "$extensions": { "com.c65llc.airframe": { "tier": "semantic", "modes": { "app:tasks": ` + tasks + ` } } } } }`
+	}
+	fsys = memFS(t, androidDir)
+	fsys["design-system/tokens/glow.tokens.json"] = glow(shadow(3, 0.2))
+	p = loadFS(t, fsys)
+	_, err = Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `token "glow" varies per app; Kotlin non-colour tokens are shared`)
+
+	fsys["design-system/tokens/glow.tokens.json"] = glow(shadow(1, 0.5))
+	out := kotlinOf(t, loadFS(t, fsys))
+	assert.Contains(t, string(out[sharedKotlin]), "    public val glow: List<Shadow> get() = listOf(Shadow(color = colors.glowLayer1, x = 0.dp, y = 1.dp,")
+	assert.NotEqual(t, block(t, string(out[notesKotlin]), "light"), block(t, string(out[tasksKotlin]), "light"))
+}
+
+// noColourFS is the android fixture with only non-colour tokens.
+func noColourFS(t *testing.T) project.MemFS {
+	t.Helper()
+	fsys := memFS(t, androidDir)
+	for path := range fsys {
+		if strings.HasPrefix(path, "design-system/") {
+			delete(fsys, path)
+		}
+	}
+	fsys["design-system/tokens/scale.tokens.json"] = `{ "gap": { "$type": "dimension", "$value": { "value": 4, "unit": "px" },
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive", "modes": { "density:relaxed": { "value": 8, "unit": "px" } } } } },
+  "radius": { "$type": "dimension", "$value": { "value": 4, "unit": "px" },
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } }`
+	return fsys
+}
+
+// TestKotlinNoColourSlots: with no colour or shadow token there is no
+// DesignColors and no colors parameter, and each app still gets an empty
+// DesignColorValues.
+func TestKotlinNoColourSlots(t *testing.T) {
+	out := kotlinOf(t, loadFS(t, noColourFS(t)))
+	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(out)))
+	shared := string(out[sharedKotlin])
+	assert.NotContains(t, shared, "DesignColors")
+	assert.NotContains(t, shared, "colors")
+	assert.NotContains(t, shared, "graphics.Color")
+	assert.Contains(t, shared, "public class DesignTokens(\n    public val density: Density = Density.Standard,\n) {\n")
+	head := "// GENERATED by airframe from design-system/ — do not edit. Regenerate with `airframe build`.\n\npackage com.example.design\n\n"
+	for _, f := range []string{notesKotlin, tasksKotlin} {
+		assert.Equal(t, head+"public object DesignColorValues\n", string(out[f]), f)
+	}
+}
+
+// TestKotlinValueFormats: dimensions, durations and weights spell as the
+// plan's types table says.
+func TestKotlinValueFormats(t *testing.T) {
+	s := string(kotlinOf(t, loadFS(t, os.DirFS(kotlinEdgesDir)))[edgesKotlin])
+	for _, want := range []string{
+		"        public val nudge: Dp = (-1).dp\n",
+		"        public val settle: Duration = (37.5).milliseconds\n",
+		"        public val weightBook: FontWeight = FontWeight(450)\n",
+		"        public val fontMono: List<String> = listOf(\"JetBrains \\\"Mono\\\"\", \"\\$mono\")\n",
+		"        Density.Compact -> 1.5.dp\n",
+	} {
+		assert.Contains(t, s, want)
+	}
+
+	// Load keeps a weight within 1..1000; rounding stays there too.
+	fsys := memFS(t, kotlinEdgesDir)
+	fsys["design-system/tokens/extra.tokens.json"] = `{ "weight-odd": { "$type": "fontWeight", "$value": 999.6,
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive" } } } }`
+	assert.Contains(t, string(kotlinOf(t, loadFS(t, fsys))[edgesKotlin]), "        public val weightOdd: FontWeight = FontWeight(1000)\n")
+}
+
+// kotlinUse is a Kotlin source using every member of the DesignTokens
+// class in src, with its declared type: companion members on the type,
+// instance members on an instance built for every value of every axis,
+// from the first <Type>Colors of values ("" when the class takes none).
+func kotlinUse(t *testing.T, src, values string) string {
+	t.Helper()
+	pkg := regexp.MustCompile(`(?m)^package (.+)$`).FindStringSubmatch(src)
+	typ := regexp.MustCompile(`(?m)^public class (\w+)`).FindStringSubmatch(src)
+	require.NotNil(t, pkg)
+	require.NotNil(t, typ)
+	class := src[strings.Index(src, typ[0]):]
+	class = class[:strings.Index(class, "\n}\n")]
+	var b strings.Builder
+	fmt.Fprintf(&b, "package %s\n\n", pkg[1])
+	for _, m := range regexp.MustCompile(`(?m)^import .+$`).FindAllString(src, -1) {
+		b.WriteString(m + "\n")
+	}
+	b.WriteString("\nfun useAll() {\n")
+	params := regexp.MustCompile(`(?m)^    public val (\S+): (\w+) = \w+\.\w+,$`).FindAllStringSubmatch(class, -1)
+	var args []string
+	if regexp.MustCompile(`(?m)^    public val colors: \w+,$`).MatchString(class) {
+		v := regexp.MustCompile(`(?m)^    public val (\S+): \w+Colors = `).FindStringSubmatch(values)
+		require.NotNil(t, v, "no colours in\n%s", values)
+		args = append(args, "colors = "+regexp.MustCompile(`(?m)^public object (\w+)`).FindStringSubmatch(values)[1]+"."+v[1])
+	}
+	for i, p := range params {
+		fmt.Fprintf(&b, "    for (v%d in %s.%s.entries) {\n", i, typ[1], p[2])
+		args = append(args, fmt.Sprintf("%s = v%d", p[1], i))
+	}
+	fmt.Fprintf(&b, "    val tokens = %s(%s)\n", typ[1], strings.Join(args, ", "))
+	qualify := func(decl string) string {
+		return regexp.MustCompile(`\bShadow\b`).ReplaceAllString(decl, typ[1]+".Shadow")
+	}
+	n := 0
+	for _, m := range regexp.MustCompile(`(?m)^    public val (\S+): (.+?) get\(\) = `).FindAllStringSubmatch(class, -1) {
+		fmt.Fprintf(&b, "    run { val v: %s = tokens.%s }\n", qualify(m[2]), m[1])
+		n++
+	}
+	for _, m := range regexp.MustCompile(`(?m)^        public val (\S+): (.+?) = `).FindAllStringSubmatch(class, -1) {
+		fmt.Fprintf(&b, "    run { val v: %s = %s.%s }\n", qualify(m[2]), typ[1], m[1])
+		n++
+	}
+	require.Positive(t, n)
+	b.WriteString(strings.Repeat("    }\n", len(params)) + "}\n")
+	return b.String()
+}
+
+// kotlinSets are the sources TestKotlinTypechecks compiles, by name: each
+// golden's shared file with one app's values, the edges file, and the
+// no-colour and display-p3 variants.
+func kotlinSets(t *testing.T) map[string][]string {
+	t.Helper()
+	android := kotlinGoldenFiles(t, androidDir)
+	edges := kotlinGoldenFiles(t, kotlinEdgesDir)
+	noColour := kotlinOf(t, loadFS(t, noColourFS(t)))
+	p3 := kotlinOf(t, loadFS(t, androidFS(t, func(y string) string {
+		return strings.Replace(y, "      package: com.example.design\n", "      package: com.example.design\n      colorSpace: display-p3\n", 1)
+	})))
+	return map[string][]string{
+		"android-notes": {string(android[sharedKotlin]), string(android[notesKotlin])},
+		"android-tasks": {string(android[sharedKotlin]), string(android[tasksKotlin])},
+		"edges":         {string(edges[edgesKotlin]), string(edges[edgesKotlin])},
+		"no-colour":     {string(noColour[sharedKotlin]), string(noColour[notesKotlin])},
+		"display-p3":    {string(p3[sharedKotlin]), string(p3[notesKotlin])},
+	}
+}
+
+// TestKotlinTypechecks: every golden set, with a source using every
+// member, compiles with kotlinc against the Compose stubs in
+// testdata/kotlin-stubs. Skipped without kotlinc on PATH.
+func TestKotlinTypechecks(t *testing.T) {
+	kotlinc, err := exec.LookPath("kotlinc")
+	if err != nil {
+		t.Skip("kotlinc is not on PATH")
+	}
+	stubs, err := filepath.Glob(filepath.Join("testdata", "kotlin-stubs", "*.kt"))
+	require.NoError(t, err)
+	require.NotEmpty(t, stubs)
+	for name, set := range kotlinSets(t) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			files := []string{filepath.Join(dir, "Shared.kt"), filepath.Join(dir, "Use.kt")}
+			require.NoError(t, os.WriteFile(files[0], []byte(set[0]), 0o644))
+			if set[1] != set[0] {
+				files = append(files, filepath.Join(dir, "Values.kt"))
+				require.NoError(t, os.WriteFile(files[2], []byte(set[1]), 0o644))
+			}
+			use := kotlinUse(t, set[0], set[1])
+			require.NoError(t, os.WriteFile(files[1], []byte(use), 0o644))
+			args := append([]string{"-nowarn"}, files...)
+			args = append(args, stubs...)
+			b, err := exec.Command(kotlinc, append(args, "-d", filepath.Join(dir, "out"))...).CombinedOutput()
+			require.NoError(t, err, "kotlinc %s:\n%s\nuse:\n%s", name, b, use)
+			t.Logf("kotlinc %s: ok%s", name, strings.TrimRight("\n"+string(b), "\n"))
+		})
+	}
 }

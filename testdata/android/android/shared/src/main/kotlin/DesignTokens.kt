@@ -2,7 +2,98 @@
 
 package com.example.design
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+
+public class DesignTokens(
+    public val colors: DesignColors,
+    public val appearance: Appearance = Appearance.Light,
+    public val density: Density = Density.Standard,
+) {
+    public enum class Appearance { Light, Dark }
+
+    public enum class Density { Compact, Standard, Relaxed }
+
+    public data class Shadow(
+        public val color: Color,
+        public val x: Dp,
+        public val y: Dp,
+        public val blur: Dp,
+        public val spread: Dp,
+        public val inset: Boolean,
+    )
+
+    public companion object {
+        public val default: Float = 1f
+        public val durationFast: Duration = 150.milliseconds
+        public val easeStandard: CubicBezierEasing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+        public val fontBody: List<String> = listOf("Inter", "system-ui")
+        public val opacityMuted: Float = 0.6f
+        public val radius: Dp = 4.dp
+        public val space1: Dp = 4.dp
+        public val space2: Dp = 8.dp
+        public val weightStrong: FontWeight = FontWeight(650)
+    }
+
+    public val accent: Color get() = colors.accent
+    public val banner: Color get() = colors.banner
+    public val blue500: Color get() = colors.blue500
+    public val buttonBg: Color get() = colors.buttonBg
+    public val buttonInk: Color get() = colors.buttonInk
+    public val cardShadow: List<Shadow> get() = listOf(Shadow(color = colors.cardShadowLayer1, x = 0.dp, y = 1.dp, blur = 2.dp, spread = 0.dp, inset = false))
+    public val default: Float get() = Companion.default
+    public val durationFast: Duration get() = Companion.durationFast
+    public val easeStandard: CubicBezierEasing get() = Companion.easeStandard
+    public val elevation: List<Shadow> get() = listOf(Shadow(color = colors.elevationLayer1, x = 0.dp, y = 1.dp, blur = 2.dp, spread = 0.dp, inset = false))
+    public val fontBody: List<String> get() = Companion.fontBody
+
+    public val gap: Dp get() = when (density) {
+        Density.Compact -> 4.dp
+        Density.Standard -> 4.dp
+        Density.Relaxed -> 8.dp
+    }
+
+    public val gray200: Color get() = colors.gray200
+    public val gray50: Color get() = colors.gray50
+    public val gray800: Color get() = colors.gray800
+    public val gray900: Color get() = colors.gray900
+    public val green500: Color get() = colors.green500
+
+    public val hairline: Dp get() = when (appearance) {
+        Appearance.Light -> when (density) {
+            Density.Compact -> 0.5.dp
+            Density.Standard -> 1.dp
+            Density.Relaxed -> 1.dp
+        }
+        Appearance.Dark -> when (density) {
+            Density.Compact -> 1.dp
+            Density.Standard -> 1.5.dp
+            Density.Relaxed -> 1.5.dp
+        }
+    }
+
+    public val highlight: Color get() = colors.highlight
+    public val ink: Color get() = colors.ink
+    public val opacityMuted: Float get() = Companion.opacityMuted
+    public val radius: Dp get() = Companion.radius
+    public val shadowSm: List<Shadow> get() = listOf(Shadow(color = colors.shadowSmLayer1, x = 0.dp, y = 1.dp, blur = 2.dp, spread = 0.dp, inset = false))
+    public val space1: Dp get() = Companion.space1
+    public val space2: Dp get() = Companion.space2
+
+    public val surface: Color get() = when (density) {
+        Density.Compact -> colors.surfaceCompact
+        Density.Standard -> colors.surfaceStandard
+        Density.Relaxed -> colors.surfaceRelaxed
+    }
+
+    public val vivid: Color get() = colors.vivid
+    public val weightStrong: FontWeight get() = Companion.weightStrong
+}
 
 public data class DesignColors(
     public val accent: Color,
