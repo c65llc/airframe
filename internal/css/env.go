@@ -15,8 +15,8 @@ const RuleTooManyEnvironments = "import-too-many-environments"
 // MaxEnvs caps the number of environments Envs will enumerate.
 const MaxEnvs = 200000
 
-// anyValue stands in for "some value" on an attribute that is only ever
-// tested for presence.
+// anyValue stands for "set to a value no selector names"; every attribute
+// gets it.
 const anyValue = "*"
 
 type dim struct {
@@ -26,8 +26,8 @@ type dim struct {
 }
 
 // Envs returns the product of every attribute and media feature mentioned in
-// the sheets. Each attribute is unset or one of its mentioned values (a
-// presence-only attribute gets the synthetic value "*"); each media feature
+// the sheets. Each attribute is unset or one of its mentioned values or
+// the synthetic "*" (set to a value no selector names); each media feature
 // is unset or one of its values. Attributes come before features, each sorted
 // by name, with unset first and then values sorted; the last dimension varies
 // fastest. A rule with an unsupported selector or media condition is an
@@ -57,10 +57,9 @@ func Envs(sheets ...*Sheet) ([]Env, error) {
 	}
 	var dims []dim
 	for _, name := range sortedKeys(attrs) {
-		vals := sortedKeys(attrs[name])
-		if len(vals) == 0 {
-			vals = []string{anyValue}
-		}
+		set := attrs[name]
+		set[anyValue] = true
+		vals := sortedKeys(set)
 		dims = append(dims, dim{name, true, append([]string{""}, vals...)})
 	}
 	for _, name := range sortedKeys(feats) {

@@ -16,14 +16,13 @@ func TestParseSelectorForms(t *testing.T) {
 		spec  int
 	}{
 		{":root", nil, 1},
-		{"html", nil, 1},
 		{":root[data-theme='dark']", []Cond{{Attr: "data-theme", Value: "dark", Present: true}}, 2},
 		{`:root:not([data-theme="light"])[data-app='x']`, []Cond{
 			{Attr: "data-theme", Value: "light", Present: true, Negated: true},
 			{Attr: "data-app", Value: "x", Present: true},
 		}, 3},
 		{":root[data-density]", []Cond{{Attr: "data-density", Present: true}}, 2},
-		{"html[ Data-Theme = 'Dark' ]", []Cond{{Attr: "data-theme", Value: "Dark", Present: true}}, 2},
+		{":root[ Data-Theme = 'Dark' ]", []Cond{{Attr: "data-theme", Value: "Dark", Present: true}}, 2},
 		{":root:not([data-x])", []Cond{{Attr: "data-x", Present: true, Negated: true}}, 2},
 	}
 	for _, c := range cases {
@@ -40,7 +39,7 @@ func TestParseSelectorForms(t *testing.T) {
 
 func TestParseSelectorRejects(t *testing.T) {
 	for _, in := range []string{".dark", "body", ":root .card", ":root:hover", "[data-x]", "",
-		":rootx", ":root[a~='b']", ":root[a='']", ":root[a='b' i]", ":root:not(.x)", ":root:not([a][b])", ":root[a='b", ":root > body"} {
+		":rootx", ":root[a~='b']", ":root[a='']", ":root[a='b' i]", ":root:not(.x)", ":root:not([a][b])", ":root[a='b", ":root > body", "html", "HTML", "html[data-a='b']"} {
 		_, err := ParseSelector(in)
 		if err == nil {
 			t.Errorf("%q: want error", in)
@@ -78,7 +77,7 @@ func TestMatches(t *testing.T) {
 	if !negp.Matches(env()) || negp.Matches(env("data-x", "v")) {
 		t.Error("negated presence wrong")
 	}
-	if !mk("html").Matches(env("a", "b")) {
+	if !mk(":root").Matches(env("a", "b")) {
 		t.Error("bare root must match")
 	}
 	if mk(":root[data-theme='dark']").Matches(env("data-theme", "Dark")) {
@@ -87,7 +86,7 @@ func TestMatches(t *testing.T) {
 }
 
 func TestSelectorKey(t *testing.T) {
-	a, _ := ParseSelector(`html[data-b='1'][data-a='2']`)
+	a, _ := ParseSelector(`:root[data-b='1'][data-a='2']`)
 	b, _ := ParseSelector(`:root[data-a="2"][data-b="1"]`)
 	if a.Key() != b.Key() {
 		t.Errorf("keys differ: %q vs %q", a.Key(), b.Key())
@@ -106,11 +105,11 @@ func TestParseMediaForms(t *testing.T) {
 	if atoms[0] != (Atom{"prefers-color-scheme", "dark"}) || atoms[1] != (Atom{"pointer", "coarse"}) {
 		t.Errorf("atoms %+v", atoms)
 	}
-	nested, err := ParseMedia([]string{"(Pointer:coarse)", "(prefers-color-scheme : DARK) AND (x: y)"})
+	nested, err := ParseMedia([]string{"(Pointer:coarse)", "(prefers-color-scheme : DARK) AND (hover: none)"})
 	if err != nil || len(nested) != 3 || nested[0] != (Atom{"pointer", "coarse"}) || nested[1].Value != "dark" {
 		t.Errorf("nested %+v %v", nested, err)
 	}
-	for _, in := range []string{"not screen", "(min-width: 40em) or (x: y)", "print", "screen and (x: y)",
+	for _, in := range []string{"not screen", "(min-width: 40em) or (x: y)", "(min-width: 40em)", "(width: 600px)", "(x: y)", "print", "screen and (x: y)",
 		"(hover)", "(width >= 40px)", "(a: b) and", "(a: b)(c: d)", "(a: b", "only screen", "(: b)", "(a: )"} {
 		if _, err := ParseMedia([]string{in}); err == nil {
 			t.Errorf("%q: want error", in)
@@ -120,6 +119,16 @@ func TestParseMediaForms(t *testing.T) {
 	}
 	if a, err := ParseMedia(nil); err != nil || len(a) != 0 {
 		t.Errorf("empty: %v %v", a, err)
+	}
+}
+
+func TestParseMediaAllowList(t *testing.T) {
+	if _, err := ParseMedia([]string{"(prefers-reduced-motion: reduce)"}); err != nil {
+		t.Error(err)
+	}
+	_, err := ParseMedia([]string{"(min-width: 40em)"})
+	if err == nil || !strings.Contains(err.Error(), "min-width") {
+		t.Errorf("got %v", err)
 	}
 }
 

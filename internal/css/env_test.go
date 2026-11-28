@@ -32,6 +32,8 @@ func TestEnvsProduct(t *testing.T) {
 	want := []string{
 		"map[]|map[]",
 		"map[]|map[prefers-color-scheme:dark]",
+		"map[data-theme:*]|map[]",
+		"map[data-theme:*]|map[prefers-color-scheme:dark]",
 		"map[data-theme:dark]|map[]",
 		"map[data-theme:dark]|map[prefers-color-scheme:dark]",
 		"map[data-theme:light]|map[]",
@@ -60,8 +62,8 @@ func TestEnvsAcrossSheetsAndPresenceOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// data-b {unset,v} x data-x {unset,*} x data-y {unset,*} x pointer {unset,coarse}
-	if len(envs) != 16 {
+	// data-b {unset,*,v} x data-x {unset,*} x data-y {unset,*} x pointer {unset,coarse}
+	if len(envs) != 24 {
 		t.Fatalf("got %d envs", len(envs))
 	}
 	if got := envString(envs[1]); got != "map[]|map[pointer:coarse]" {
@@ -69,6 +71,28 @@ func TestEnvsAcrossSheetsAndPresenceOnly(t *testing.T) {
 	}
 	if got := envString(envs[2]); got != "map[data-y:*]|map[]" {
 		t.Errorf("env 2 = %s", got)
+	}
+}
+
+func TestEnvsSetToUnnamedValue(t *testing.T) {
+	s := sheetOf(t, `:root[data-density='relaxed'] { --a: 1; }
+@media (pointer: coarse) { :root:not([data-density]) { --a: 2; } }`)
+	envs, err := Envs(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	neg, _ := ParseSelector(":root:not([data-density])")
+	found := false
+	for _, e := range envs {
+		if e.Attrs["data-density"] == "*" && e.Media["pointer"] == "coarse" {
+			found = true
+			if neg.Matches(e) {
+				t.Error(":not([data-density]) must not match a set attribute")
+			}
+		}
+	}
+	if !found {
+		t.Error("no env with data-density=* and pointer=coarse")
 	}
 }
 

@@ -42,7 +42,7 @@ type Selector struct {
 	Spec  int
 }
 
-// ParseSelector accepts :root or html followed by attribute conditions and
+// ParseSelector accepts :root (not html) followed by attribute conditions and
 // :not() of one attribute condition, in any order. Attribute names are
 // lower-cased; values keep their case.
 func ParseSelector(s string) (Selector, error) {
@@ -53,10 +53,8 @@ func ParseSelector(s string) (Selector, error) {
 	switch {
 	case strings.HasPrefix(rest, ":root"):
 		rest = rest[len(":root"):]
-	case len(rest) >= 4 && strings.EqualFold(rest[:4], "html"):
-		rest = rest[4:]
 	default:
-		return bad("only :root and html compounds are supported")
+		return bad("only :root compounds are supported")
 	}
 	sel := Selector{Spec: 1}
 	for rest != "" {
@@ -141,8 +139,7 @@ func isIdent(s string) bool {
 	return true
 }
 
-// Key is the canonical text of the selector: conditions sorted, html written
-// as :root.
+// Key is the canonical text of the selector: :root plus the sorted conditions.
 func (s Selector) Key() string {
 	keys := make([]string, len(s.Conds))
 	for i, c := range s.Conds {
@@ -166,6 +163,15 @@ func (s Selector) Matches(e Env) bool {
 
 // Atom is one (feature: value) media condition. Both are lower-cased.
 type Atom struct{ Feature, Value string }
+
+// discreteFeatures is the allow-list of media features whose values are
+// discrete keywords. Range features (width, min-width, ...) are unsupported.
+var discreteFeatures = map[string]bool{
+	"prefers-color-scheme": true, "prefers-contrast": true, "prefers-reduced-motion": true,
+	"prefers-reduced-transparency": true, "forced-colors": true, "inverted-colors": true,
+	"pointer": true, "any-pointer": true, "hover": true, "any-hover": true,
+	"color-gamut": true, "dynamic-range": true, "display-mode": true,
+}
 
 // ParseMedia parses the raw conditions of enclosing @media blocks, each a
 // conjunction of (feature: value) atoms, into one flat atom list.
@@ -196,6 +202,9 @@ func parseConj(raw string) ([]Atom, error) {
 		f, v = strings.ToLower(strings.TrimSpace(f)), strings.ToLower(strings.TrimSpace(v))
 		if !ok || f == "" || v == "" || strings.ContainsAny(f+v, "():<>=") || strings.ContainsAny(f, " \t\r\n") {
 			return nil, fmt.Errorf("an atom must be (feature: value)")
+		}
+		if !discreteFeatures[f] {
+			return nil, fmt.Errorf("media feature %q is not a supported discrete feature", f)
 		}
 		atoms = append(atoms, Atom{f, v})
 		rest = rest[end+1:]
