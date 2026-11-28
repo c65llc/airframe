@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/c65llc/airframe/internal/css"
+	"github.com/c65llc/airframe/internal/diag"
 )
 
 // The diagnostic IDs the importer reports beyond those internal/css does.
@@ -33,4 +34,13 @@ func IDs() []string {
 	}
 	slices.Sort(ids)
 	return ids
+}
+
+// Severity is the severity an import reports id at: warn for
+// RuleDuplicate and RuleFallbackDropped, error for every other ID.
+func Severity(id string) diag.Severity {
+	if id == RuleDuplicate || id == RuleFallbackDropped {
+		return diag.Warn
+	}
+	return diag.Error
 }

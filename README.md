@@ -16,6 +16,7 @@ v0.1.2 is the first release: the core. Nothing here is stable yet.
 - **Formats.** `airframe fmt` rewrites config, token and invariants files in canonical form.
 - **Speaks a gate protocol.** `airframe lint --format gate` prints a JSON verdict for CI gates, and `--json` prints the findings.
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
+- **Imports existing CSS** (new since v0.1.2, first released in v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
 **Planned (not in v0.1.2)**
 
@@ -40,6 +41,7 @@ airframe init      # write a starter project (airframe.yaml + design-system/) an
 airframe lint      # check it; exit 1 on findings
 airframe build     # regenerate the CSS and JSON outputs
 airframe fmt       # rewrite the sources in canonical form
+airframe import css theme.css   # adopt an existing stylesheet's custom properties as tokens
 ```
 
 `airframe help` lists every command. Exit status is 0 when clean, 1 on findings or drift, 2 on a usage or I/O error.

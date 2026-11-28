@@ -1,0 +1,23 @@
+# import never overwrites a token file unless --force.
+exits 2 airframe import css theme.css
+stderr 'already exist; use --force to overwrite: design-system/tokens/primitive.tokens.json$'
+cmp design-system/tokens/primitive.tokens.json mine.json
+! exists design-system/tokens/semantic.tokens.json
+
+exec airframe import css theme.css --force
+stdout '^wrote design-system/tokens/primitive.tokens.json$'
+! cmp design-system/tokens/primitive.tokens.json mine.json
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- theme.css --
+:root { --gap: 4px; }
+-- design-system/tokens/primitive.tokens.json --
+{"mine": true}
+-- mine.json --
+{"mine": true}

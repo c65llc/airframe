@@ -7,27 +7,44 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/c65llc/airframe/internal/importer"
 	"github.com/c65llc/airframe/internal/lint"
 )
 
-// defaults is each rule ID's default severity.
-func defaults() map[string]string {
-	out := map[string]string{}
+// page is what a rule ID's docs page must declare in its front matter.
+type page struct{ severity, since string }
+
+// pages is every documented ID: the lint rules at their default severity,
+// since v0.1.0, and the import findings at the severity an import reports
+// them, since v0.2.0.
+func pages() map[string]page {
+	out := map[string]page{}
 	for _, id := range lint.AllIDs() {
-		out[id] = string(lint.DefaultSeverity(id))
+		out[id] = page{string(lint.DefaultSeverity(id)), "v0.1.0"}
+	}
+	for _, id := range importer.IDs() {
+		out[id] = page{string(importer.Severity(id)), "v0.2.0"}
 	}
 	return out
 }
 
+// documented is every ID that has a page, sorted.
+func documented() []string {
+	ids := slices.Concat(lint.AllIDs(), importer.IDs())
+	slices.Sort(ids)
+	return ids
+}
+
 func TestEveryRuleHasDocs(t *testing.T) {
-	sev := defaults()
-	for _, id := range lint.AllIDs() {
+	want := pages()
+	for _, id := range documented() {
 		t.Run(id, func(t *testing.T) {
 			page, ok := Rule(id)
 			require.True(t, ok, "docs/rules/%s.md", id)
@@ -38,7 +55,7 @@ func TestEveryRuleHasDocs(t *testing.T) {
 			assert.LessOrEqual(t, len(lines), 40, "short")
 
 			require.GreaterOrEqual(t, len(lines), 7)
-			assert.Equal(t, []string{"---", "severity: " + sev[id], "since: v0.1.0", "---", "", "# " + id, ""}, lines[:7])
+			assert.Equal(t, []string{"---", "severity: " + want[id].severity, "since: " + want[id].since, "---", "", "# " + id, ""}, lines[:7])
 			summary := lines[7]
 			assert.NotEmpty(t, summary, "a one-line summary under the H1")
 			assert.False(t, strings.HasPrefix(summary, "#") || strings.HasPrefix(summary, "**"), summary)
@@ -58,7 +75,8 @@ func TestNoOrphanPages(t *testing.T) {
 	for _, n := range names {
 		ids = append(ids, strings.TrimSuffix(path.Base(n), ".md"))
 	}
-	assert.Equal(t, lint.AllIDs(), ids, "one page per rule ID, no others")
+	assert.Equal(t, documented(), ids, "one page per rule ID and import finding, no others")
+	assert.Len(t, slices.Compact(documented()), len(documented()), "no import ID is also a lint ID")
 }
 
 func TestRuleUnknown(t *testing.T) {

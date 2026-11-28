@@ -5,7 +5,8 @@
 // command and flag; Main parses a command line against it and runs it. The
 // exit status is 0 when the command succeeds cleanly, 1 for findings (lint
 // errors, warnings under --strict, files fmt --check or build --check would
-// change, a project that did not load, files fmt cannot format), and 2 for
+// change, a project that did not load, files fmt cannot format, an import
+// that failed), and 2 for
 // a usage error or a command that could not run.
 package cli
 
@@ -134,6 +135,15 @@ var Commands = []Command{
 		},
 	},
 	{
+		Name:    "import",
+		Args:    "css <file>...",
+		Summary: "Turn stylesheets of CSS custom properties into token files, proving the generated CSS equivalent.",
+		Flags: []Flag{
+			{Name: "dry-run", Summary: "check the import, print what it would write, and write nothing"},
+			{Name: "force", Summary: "overwrite existing token files"},
+		},
+	},
+	{
 		Name:    "show",
 		Args:    "<token>",
 		Summary: "Print a token's tier, component, type, description, value per mode key and alias chain.",
@@ -166,6 +176,7 @@ var handlers = map[string]func(*invocation) int{
 	"fmt":     runFmt,
 	"lint":    runLint,
 	"build":   runBuild,
+	"import":  runImport,
 	"show":    runShow,
 	"explain": runExplain,
 	"rules":   runRules,

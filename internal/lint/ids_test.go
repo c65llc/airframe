@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/c65llc/airframe/internal/importer"
 )
 
 func TestAllIDsSortedAndComplete(t *testing.T) {
@@ -33,15 +35,23 @@ func TestAllIDsSortedAndComplete(t *testing.T) {
 }
 
 // ruleLiteral matches the ways the code names a rule ID when it builds a
-// diagnostic: a Rule field, a rule-ID constant, a registered rule's ID, a
-// docs link, or the first argument of a diagnostic constructor.
-var ruleLiteral = regexp.MustCompile(`(?:Rule:\s*|\.Rule\s*=\s*|ID:\s*|const (?:id|RuleID)\s*=\s*|DocsURL\(|\b(?:report|finding|diagnostic)\()"([a-z][a-z0-9-]*)"`)
+// diagnostic: a Rule field, a rule-ID constant (const id, const RuleID, or
+// a Rule… constant such as RuleNoBase), a registered rule's ID, a docs
+// link, or the first argument of a diagnostic constructor.
+var ruleLiteral = regexp.MustCompile(`(?:Rule:\s*|\.Rule\s*=\s*|ID:\s*|const (?:id|RuleID)\s*=\s*|\bRule[A-Z]\w*\s*=\s*|DocsURL\(|\b(?:report|finding|diagnostic)\()"([a-z][a-z0-9-]*)"`)
+
+// importPackages are the directories, relative to the scan's root
+// (internal/), whose IDs may be import findings (importer.IDs()) rather
+// than lint rules.
+var importPackages = []string{"../importer/", "../css/"}
 
 // TestAllIDsCoversEveryEmittedID scans the non-test sources for rule-ID
 // literals, so an ID added anywhere without a docs page and a self-test
-// fixture fails here rather than shipping.
+// fixture fails here rather than shipping. An ID the importer or the CSS
+// parser emits counts as known when importer.IDs() lists it: those are
+// command findings, documented but not lint rules.
 func TestAllIDsCoversEveryEmittedID(t *testing.T) {
-	var found []string
+	var found, imported []string
 	err := filepath.WalkDir("..", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
@@ -53,8 +63,16 @@ func TestAllIDsCoversEveryEmittedID(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		inImport := slices.ContainsFunc(importPackages, func(p string) bool {
+			return strings.HasPrefix(filepath.ToSlash(path), p)
+		})
 		for _, m := range ruleLiteral.FindAllSubmatch(b, -1) {
-			found = append(found, string(m[1]))
+			id := string(m[1])
+			if inImport && slices.Contains(importer.IDs(), id) {
+				imported = append(imported, id)
+				continue
+			}
+			found = append(found, id)
 		}
 		return nil
 	})
@@ -67,6 +85,11 @@ func TestAllIDsCoversEveryEmittedID(t *testing.T) {
 	}
 	for _, id := range AllIDs() {
 		assert.Contains(t, found, id, "%s is in AllIDs but nothing emits it", id)
+	}
+	slices.Sort(imported)
+	assert.Equal(t, importer.IDs(), slices.Compact(imported), "every import ID is named in its package, and only there")
+	for _, id := range importer.IDs() {
+		assert.NotContains(t, AllIDs(), id, "%s is an import finding, not a lint rule", id)
 	}
 }
 

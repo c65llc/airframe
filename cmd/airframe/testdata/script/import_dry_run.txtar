@@ -1,0 +1,17 @@
+# --dry-run checks the import and writes nothing.
+exec airframe import css --dry-run theme.css
+stdout '^imported 2 tokens from 3 declarations \(0 non-custom ignored\); equivalent in \d+ environments across 2 properties$'
+! stdout 'wrote'
+! exists design-system/tokens/primitive.tokens.json
+! exists design-system/tokens/semantic.tokens.json
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- theme.css --
+:root { --gray: #888; --ink: var(--gray); }
+:root[data-theme='dark'] { --ink: #fff; }

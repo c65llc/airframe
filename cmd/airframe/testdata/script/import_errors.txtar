@@ -1,0 +1,32 @@
+# An unsupported selector is an error at its line: nothing is written, and
+# the equivalence check does not run.
+exits 1 airframe import css theme.css
+stdout '^theme.css:3: error import-unsupported-selector: '
+stdout '; equivalence not checked \(import errors\)$'
+! stdout 'wrote'
+! exists design-system/tokens
+
+# --force does not write past an error either.
+exits 1 airframe import css theme.css --force
+! exists design-system/tokens
+
+# A file that cannot be read is named, and stops the command.
+exits 2 airframe import css missing.css
+stderr 'missing.css'
+
+# import needs the css subcommand and at least one file.
+exits 2 airframe import
+exits 2 airframe import css
+exits 2 airframe import scss theme.css
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- theme.css --
+:root { --gap: 4px; }
+
+.dark :root { --gap: 8px; }

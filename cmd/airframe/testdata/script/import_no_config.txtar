@@ -1,0 +1,7 @@
+# import runs inside a project: without airframe.yaml it is a finding.
+exits 1 airframe import css theme.css
+stdout 'config-missing'
+! exists design-system
+
+-- theme.css --
+:root { --gap: 4px; }
