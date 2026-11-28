@@ -1,0 +1,67 @@
+# diff compares the tokens at two git refs, or at one ref and the working
+# tree, in text, Markdown or JSON. The script builds its own repository.
+[!exec:git] skip 'git is not installed'
+env HOME=$WORK
+env GIT_CONFIG_NOSYSTEM=1
+env GIT_CONFIG_GLOBAL=$WORK/no-gitconfig
+
+exec git -c init.defaultBranch=main init -q
+exec git -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q --allow-empty -m 'before airframe'
+exec git tag v0
+fixture consumers
+exec git add -A
+exec git -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m 'adopt airframe'
+exec git tag v1
+replace design-system/tokens/semantic.tokens.json '"gap"' '"row-gap"'
+exec git -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -am 'rename gap'
+exec git tag v2
+
+# Two commits, in each format.
+exec airframe diff v1 v2
+stdout '^v1 → v2: 1 added, 1 removed, 1 possibly renamed, 0 changed$'
+stdout '^  gap → row-gap$'
+exec airframe diff v1 v2 --format md
+stdout '^## Token changes: `v1` → `v2`$'
+stdout '^- `gap` → `row-gap`$'
+exec airframe diff v1 v2 --format json
+stdout '"ref": "v1"'
+stdout '"commit": "[0-9a-f]{40}'
+stdout '"from": "gap",'
+stdout '"to": "row-gap"'
+
+# --exit-code exits 1 when the tokens changed, 0 when they did not.
+exits 1 airframe diff v1 v2 --exit-code
+exec airframe diff v2 HEAD --exit-code
+stdout '^v2 → HEAD: no token changes$'
+
+# One ref compares with the working tree, and diff writes nothing.
+exec airframe diff HEAD
+stdout '^HEAD → working tree: no token changes$'
+replace design-system/tokens/semantic.tokens.json '"row-gap"' '"gap"'
+exec git status --porcelain
+cp stdout .git/status-before
+exec airframe diff HEAD
+stdout '^HEAD → working tree: 1 added, 1 removed, 1 possibly renamed, 0 changed$'
+stdout '^  row-gap → gap$'
+exec git status --porcelain
+cmp stdout .git/status-before
+
+# A ref from before airframe.yaml is an empty side, with a note.
+exec airframe diff v0 v1
+stderr '^airframe diff: v0 has no airframe.yaml at the repository root; comparing against an empty token set$'
+stdout '^v0 → v1: [0-9]+ added, 0 removed, 0 possibly renamed, 0 changed$'
+exec airframe diff v0 v1 --format md
+stdout '`v0` has no airframe.yaml at the repository root'
+exec airframe diff v0 v1 --format json
+stdout '"missing": true'
+
+# A ref that looks like an option never reaches git.
+exits 2 airframe diff -- -x
+stderr 'ref "-x": starts with "-"; refusing to pass it to git'
+exits 2 airframe diff v1 -- -x
+stderr 'starts with "-"'
+exits 2 airframe diff nope
+stderr '^airframe diff: ref "nope": names no commit in this repository$'
+
+exec airframe schema diff
+stdout 'airframe diff --format json'

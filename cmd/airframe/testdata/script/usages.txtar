@@ -22,6 +22,21 @@ stdout '--accent'
 exits 1 airframe usages acent
 stderr 'unknown token acent; did you mean accent\?'
 
+# A read of a component's token says whether the file is one of its owners,
+# or that the component is shared.
+mkdir web/src/button
+cp button.tsx web/src/button/Button.tsx
+exec airframe usages button-bg
+stdout '^  web  web/src/app.css:1:64  --button-bg  \[not owner\]$'
+stdout '^  web  web/src/button/Button.tsx:1:63  --button-bg  \[owner\]$'
+exec airframe usages button-bg --json
+stdout '"owner": false'
+stdout '"owner": true'
+cp shared-button.yaml design-system/components/button.yaml
+exec airframe usages button-bg
+stdout '^  web  web/src/app.css:1:64  --button-bg  \[shared\]$'
+! stdout 'owner\]'
+
 exec airframe schema usages
 stdout 'airframe usages --json'
 
@@ -30,4 +45,10 @@ package com.example.app
 
 val gap = LocalTokens.current.gap
 -- app.css --
-.a { margin: var(--gap); color: var(--accent); }
+.a { margin: var(--gap); color: var(--accent); background: var(--button-bg); }
+-- button.tsx --
+export const Button = () => <button style={{ background: "var(--button-bg)", color: "var(--button-ink)" }} />;
+-- shared-button.yaml --
+id: button
+tokens: [button-bg, button-ink]
+shared: true

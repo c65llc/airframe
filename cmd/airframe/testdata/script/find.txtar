@@ -1,0 +1,55 @@
+# find ranks tokens against a free-text query: a synonym matches one point
+# below the word itself, --file keeps only what that file may read and says
+# why, and a query with no hit exits 1.
+fixture consumers
+mkdir web/src/button
+
+exec airframe find background
+stdout '^surface  semantic  color  var\(--gray-50\)$'
+stdout '^button-bg  component  color  var\(--accent\)$'
+! stdout '^gray-'
+
+# --file is relative to the working directory, and keeps only the tokens
+# that file may read, each with its reason.
+exec airframe find button background --file web/src/app.css
+stdout '^surface  semantic  color  var\(--gray-50\)$'
+stdout '^  semantic: consumers may read$'
+! stdout 'button-bg'
+exec airframe find button background --file web/src/button/Button.tsx
+stdout '^button-bg  component  color  var\(--accent\)$'
+stdout '^  component button: owners include web/src/button/\*\*$'
+cd web/src
+exec airframe find button --file button/Button.tsx
+stdout '^button-bg  '
+exits 1 airframe find button --file app.css
+stderr '^airframe find: 2 tokens match "button" but web/src/app.css may read none of them \(button-bg: component button: owners \(web/src/button/\*\*, '
+exits 2 airframe find surface --file ../../../elsewhere.css
+stderr 'is outside the project root'
+cd ../..
+
+# --type filters by DTCG type, --limit caps the list, --json prints the hits.
+exec airframe find space --type dimension --limit 2
+stdout -count=2 '  dimension  '
+exec airframe find gap --json
+stdout '"name": "gap"'
+stdout '"score": 3'
+exits 1 airframe find background --type dimension
+stderr '^airframe find: no token matches "background"$'
+
+# A retired token is left out unless --retired.
+replace design-system/tokens/semantic.tokens.json '"tier": "semantic"' '"tier": "semantic", "retired": true'
+exec airframe find surface
+! stdout '^surface  '
+exec airframe find surface --retired
+stdout '^surface  '
+
+# Usage errors exit 2.
+exits 2 airframe find
+stderr 'find takes a query'
+exits 2 airframe find the
+stderr 'has no words to search for'
+exits 2 airframe find gap --limit 0
+stderr '--limit takes a positive number'
+
+exec airframe schema find
+stdout 'airframe find --json'
