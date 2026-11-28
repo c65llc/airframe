@@ -34,7 +34,7 @@
 Options are validated for every platform whose `emit` includes `xaml`. Errors are `schema-invalid`, and every value must be a YAML string.
 
 - **`gamut`:** `css-color-4` (default) or `clip-srgb`. XAML colours are sRGB `#AARRGGBB`. With `css-color-4` the colour is gamut-mapped with `color.ToSRGB(CSSColor4)`; with `clip-srgb` it uses `Clip`.
-- **`highContrast`:** a mapping from a colour token name to one of the WinUI high-contrast system colours: `SystemColorWindowTextColor`, `SystemColorWindowColor`, `SystemColorHighlightColor`, `SystemColorHighlightTextColor`, `SystemColorHotlightColor`, `SystemColorGrayTextColor`, `SystemColorButtonFaceColor`, `SystemColorButtonTextColor`. An empty mapping, an unknown system colour, or a non-string value is schema-invalid. Export the list as `config.SystemColors`.
+- **`highContrast`:** a mapping from a colour or shadow token name to one of the WinUI high-contrast system colours: `SystemColorWindowTextColor`, `SystemColorWindowColor`, `SystemColorHighlightColor`, `SystemColorHighlightTextColor`, `SystemColorHotlightColor`, `SystemColorGrayTextColor`, `SystemColorButtonFaceColor`, `SystemColorButtonTextColor`. An empty mapping, an unknown system colour, or a non-string value is schema-invalid. Export the list as `config.SystemColors`.
 - **Any other key** is schema-invalid.
 - **Accessor:** `func (p Platform) HighContrast() [][2]string`, returning (token, system colour) pairs sorted by token.
 
@@ -63,8 +63,8 @@ Every emitted colour token, and each shadow layer's colour (`<Key>Layer<N>`), is
   - With no appearance axis, Light and Dark carry the same values.
   - An appearance axis with any other value is `emit-failed`.
 - **HighContrast:**
-  - If `highContrast` is set, a `x:Key="HighContrast"` dictionary maps every colour brush to `Color="{ThemeResource <SystemColor>}"`. Every colour token, including shadow layer colours (they take their token's mapping), must be mapped. Otherwise it is `emit-failed`, listing the unmapped tokens.
-  - A mapped token that isn't an emitted xaml colour token is `emit-failed`.
+  - If `highContrast` is set, a `x:Key="HighContrast"` dictionary maps every colour brush to `Color="{ThemeResource <SystemColor>}"`. Every colour token and every shadow token (one mapping covers all its layers) must be mapped. Otherwise it is `emit-failed`, listing the unmapped tokens.
+  - A mapped token that isn't an emitted xaml colour or shadow token is `emit-failed`.
   - If `highContrast` is absent, `x:Key="Default"` repeats the base appearance values, so a high-contrast theme still resolves every key. The guide says to set `highContrast` for accessible high-contrast support.
 - **Brush shape:** `<SolidColorBrush x:Key="DesignInk" Color="#FF12171B" />`. Values are 8-bit, rounded half up.
 
