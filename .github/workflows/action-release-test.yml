@@ -1,0 +1,131 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright 2026 C65 LLC
+#
+# Action release test — runs this repository's action.yml (`uses: ./`) against
+# a REAL published release on Linux, macOS and Windows: the full download,
+# checksum and run path that action-test.yml (which uses a local snapshot
+# binary) cannot reach. It lints, build --checks and fmt --checks
+# testdata/minimal, reads the action's `path` output, and checks that an
+# inexact `version` fails before anything is downloaded.
+#
+# It runs on pull requests that touch the action, and by hand
+# (workflow_dispatch) after every release to check the published assets.
+name: Action release test
+
+on:
+  pull_request:
+    paths:
+      - action.yml
+      - .github/workflows/action-release-test.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release to test, as vX.Y.Z
+        required: false
+        default: v0.1.2
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  AIRFRAME_TEST_VERSION: ${{ inputs.version || 'v0.1.2' }}
+
+jobs:
+  release:
+    name: release exists
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          v="$AIRFRAME_TEST_VERSION"
+          if [[ ! "$v" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::AIRFRAME_TEST_VERSION must be vX.Y.Z, got '$v'"
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          # Only "release not found" skips; any other failure (auth, rate
+          # limit, network) fails the job rather than hiding the test.
+          if err=$(gh release view "$v" --repo c65llc/airframe --json tagName 2>&1 > /dev/null); then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$err" == *"release not found"* ]]; then
+            echo "::notice::Airframe $v is not released yet; skipping. Dispatch this workflow with a released version."
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::gh release view $v failed: $err"
+            exit 1
+          fi
+
+  action:
+    name: action (${{ matrix.os }})
+    needs: release
+    if: needs.release.outputs.available == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: lint
+        id: lint
+        uses: ./
+        with:
+          version: ${{ needs.release.outputs.version }}
+          working-directory: testdata/minimal
+
+      - name: build --check (two whitespace-split args)
+        uses: ./
+        with:
+          version: ${{ needs.release.outputs.version }}
+          args: build --check
+          working-directory: testdata/minimal
+
+      - name: fmt --check
+        uses: ./
+        with:
+          version: ${{ needs.release.outputs.version }}
+          args: fmt --check
+          working-directory: testdata/minimal
+
+      - name: the path output is the installed release binary
+        shell: bash
+        env:
+          BIN: ${{ steps.lint.outputs.path }}
+          WANT: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          [ -n "$BIN" ] || { echo "::error::the action's path output is empty"; exit 1; }
+          got=$("$BIN" version)
+          [ "$got" = "airframe ${WANT#v}" ] || { echo "::error::$BIN reports '$got', want 'airframe ${WANT#v}'"; exit 1; }
+
+      - name: an inexact version is refused
+        id: bad-version
+        continue-on-error: true
+        uses: ./
+        with:
+          version: v0.1
+
+      - name: the inexact version failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.bad-version.outcome }}
+        run: |
+          if [ "$OUTCOME" != failure ]; then
+            echo "::error::version v0.1 should have been refused (outcome: $OUTCOME)"
+            exit 1
+          fi
