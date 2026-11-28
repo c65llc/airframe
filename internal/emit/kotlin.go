@@ -321,19 +321,31 @@ func (k *kotliner) colorsDecl(slots []kotlinSlot) []kotlinDecl {
 
 // values declares <Type>ColorValues for output o: one <Type>Colors per
 // appearance value, named by the value, or a single colors with no
-// appearance axis.
+// appearance axis, then any Material 3 schemes (see schemes). With
+// neither it is an empty object.
 func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
-	if len(slots) == 0 {
+	schemes, schemeImports, err := k.schemes(o)
+	if err != nil {
+		return nil, err
+	}
+	if len(slots) == 0 && schemes == "" {
 		return []kotlinDecl{{body: "public object " + k.valuesType() + "\n"}}, nil
 	}
-	imports := []string{kotlinColorImport}
+	imports := append([]string{kotlinColorImport}, schemeImports...)
 	if k.space == "display-p3" {
 		imports = append(imports, "androidx.compose.ui.graphics.colorspace.ColorSpaces")
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "public object %s {\n", k.valuesType())
+	if len(slots) == 0 {
+		schemes = strings.TrimPrefix(schemes, "\n")
+	}
+	var avs []string // the appearances with a <Type>Colors: none without slots
+	if len(slots) > 0 {
+		avs = k.appearances()
+	}
 	seen := map[string]string{} // val name → appearance value
-	for i, av := range k.appearances() {
+	for i, av := range avs {
 		name := "colors"
 		if av != "" {
 			name = KotlinIdent(Camel(av))
@@ -358,8 +370,69 @@ func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
 		}
 		b.WriteString("    )\n")
 	}
+	b.WriteString(schemes)
 	b.WriteString("}\n")
 	return []kotlinDecl{{imports: imports, body: b.String()}}, nil
+}
+
+const kotlinMaterial3 = "androidx.compose.material3."
+
+// schemes declares, when material3Scheme is set, one Material 3
+// ColorScheme per appearance value of output o, after the <Type>Colors
+// vals: <value>Scheme = <value>ColorScheme(…) for light and dark, or
+// lightScheme alone with no appearance axis, its named role arguments in
+// Material3Roles order. Each role is its token's colour literal, resolved
+// as a slot is: a val's slot could only be named through the val, and a
+// role token need not be a slot. A role token must be a colour with a
+// single value per output and appearance.
+func (k *kotliner) schemes(o Output) (string, []string, error) {
+	roles := k.np.Platform.Material3Roles()
+	if len(roles) == 0 {
+		return "", nil, nil
+	}
+	for _, r := range roles {
+		t, ok := k.p.Tokens.Tokens[r[1]]
+		switch {
+		case !ok:
+			return "", nil, fmt.Errorf("material3Scheme role %s names token %q, but there is no such token", r[0], r[1])
+		case t.Type != "color":
+			return "", nil, fmt.Errorf("material3Scheme role %s names token %q, a %s token; a role needs a color token", r[0], r[1], t.Type)
+		}
+		varies := k.np.Varies(k.p.Tokens, t)
+		for _, a := range k.np.Runtime {
+			if slices.Contains(varies, a.Name) {
+				return "", nil, fmt.Errorf("material3Scheme role %s names token %q, which varies on %s; a role needs one colour per appearance", r[0], r[1], a.Name)
+			}
+		}
+	}
+	imports := []string{kotlinMaterial3 + "ColorScheme"}
+	var b strings.Builder
+	for _, av := range k.appearances() {
+		kind := "light"
+		switch av {
+		case "", "light":
+		case "dark":
+			kind = "dark"
+		default:
+			return "", nil, fmt.Errorf("appearance value %q has no Material 3 color scheme; material3Scheme needs appearance values light and dark", av)
+		}
+		imports = append(imports, kotlinMaterial3+kind+"ColorScheme")
+		fmt.Fprintf(&b, "\n    public val %sScheme: ColorScheme = %sColorScheme(\n", kind, kind)
+		for _, r := range roles {
+			full := k.full(config.Context{}, o, av)
+			v, err := k.np.Value(k.p.Tokens, r[1], full)
+			if err != nil {
+				return "", nil, fmt.Errorf("material3Scheme role %s: token %q%s: %w", r[0], r[1], inContext(full), err)
+			}
+			c, ok := v.Lit.(color.OKLCH)
+			if !ok {
+				return "", nil, fmt.Errorf("material3Scheme role %s: token %q%s resolves to %T", r[0], r[1], inContext(full), v.Lit)
+			}
+			fmt.Fprintf(&b, "        %s = %s,\n", r[0], kotlinColor(c, k.space, k.gamut))
+		}
+		b.WriteString("    )\n")
+	}
+	return b.String(), imports, nil
 }
 
 // slotColor resolves slot s in output o at appearance value av.
@@ -845,9 +918,14 @@ func kotlinDp(d tokens.Dim) (string, error) {
 
 // kotlinReceiver is v (num) as the receiver of an extension property: an
 // Int or Double literal, parenthesised when negative so the minus does not
-// apply to the property. A fractional duration is parenthesised too.
+// apply to the property. An integral v outside Int's range is written as
+// a Double (3000000000.0): a larger integer literal is a Long, and
+// Compose has no Long.dp. A fractional duration is parenthesised too.
 func kotlinReceiver(v float64) string {
 	s := num(v)
+	if !strings.Contains(s, ".") && (v > math.MaxInt32 || v < math.MinInt32) {
+		s += ".0"
+	}
 	if strings.HasPrefix(s, "-") {
 		return "(" + s + ")"
 	}

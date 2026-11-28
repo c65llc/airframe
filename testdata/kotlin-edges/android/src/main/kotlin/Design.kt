@@ -29,14 +29,17 @@ public class DesignTokens(
 
     public companion object {
         public val _2xl: Dp = 24.dp
+        public val abyss: Dp = (-3000000000.0).dp
         public val fontMono: List<String> = listOf("JetBrains \"Mono\"", "\$mono")
         public val `in`: Float = 1f
         public val nudge: Dp = (-1).dp
         public val settle: Duration = (37.5).milliseconds
+        public val vast: Dp = 3000000000.0.dp
         public val weightBook: FontWeight = FontWeight(450)
     }
 
     public val _2xl: Dp get() = Companion._2xl
+    public val abyss: Dp get() = Companion.abyss
     public val fontMono: List<String> get() = Companion.fontMono
     public val `in`: Float get() = Companion.`in`
 
@@ -54,6 +57,7 @@ public class DesignTokens(
     public val nudge: Dp get() = Companion.nudge
     public val `object`: Color get() = colors.`object`
     public val settle: Duration get() = Companion.settle
+    public val vast: Dp get() = Companion.vast
     public val weightBook: FontWeight get() = Companion.weightBook
 
     public val `when`: Dp get() = when (density) {

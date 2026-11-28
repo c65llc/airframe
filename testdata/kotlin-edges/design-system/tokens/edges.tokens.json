@@ -76,6 +76,30 @@
       }
     }
   },
+  "vast": {
+    "$type": "dimension",
+    "$value": {
+      "value": 3000000000,
+      "unit": "px"
+    },
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  },
+  "abyss": {
+    "$type": "dimension",
+    "$value": {
+      "value": -3000000000,
+      "unit": "px"
+    },
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  },
   "settle": {
     "$type": "duration",
     "$value": {

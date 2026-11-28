@@ -2,6 +2,9 @@
 
 package com.example.design
 
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
 public object DesignColorValues {
@@ -47,5 +50,17 @@ public object DesignColorValues {
         surfaceRelaxed = Color(0xFF12171B),
         surfaceStandard = Color(0xFF12171B),
         vivid = Color(0xFF00C300),
+    )
+
+    public val lightScheme: ColorScheme = lightColorScheme(
+        primary = Color(0xFF3AA85B),
+        onPrimary = Color(0xFF12171B),
+        tertiary = Color(0xFF00C300),
+    )
+
+    public val darkScheme: ColorScheme = darkColorScheme(
+        primary = Color(0xFF3AA85B),
+        onPrimary = Color(0xFFF6F9FB),
+        tertiary = Color(0xFF00C300),
     )
 }

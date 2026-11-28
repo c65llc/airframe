@@ -22,7 +22,9 @@ import (
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
+	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/tokens"
 )
 
 // androidDir is the android fixture: appearance, density, app (fanned out
@@ -198,7 +200,8 @@ func TestKotlinFileShape(t *testing.T) {
 	assert.Contains(t, shared, "public class DesignTokens(\n")
 	assert.NotContains(t, shared, "DesignColorValues")
 	notes := string(out[notesKotlin])
-	assert.True(t, strings.HasPrefix(notes, head+"import androidx.compose.ui.graphics.Color\n\npublic object DesignColorValues {\n"), notes)
+	assert.True(t, strings.HasPrefix(notes, head+"import androidx.compose.material3.ColorScheme\nimport androidx.compose.material3.darkColorScheme\n"+
+		"import androidx.compose.material3.lightColorScheme\nimport androidx.compose.ui.graphics.Color\n\npublic object DesignColorValues {\n"), notes)
 	assert.Contains(t, notes, "    public val light: DesignColors = DesignColors(\n")
 	assert.Contains(t, notes, "    public val dark: DesignColors = DesignColors(\n")
 	assert.Less(t, strings.Index(notes, "val light"), strings.Index(notes, "val dark"), "appearance axis order")
@@ -440,6 +443,16 @@ func TestKotlinColorTypeNames(t *testing.T) {
 // TestKotlinNoAppearance: with no appearance axis the values object has a
 // single colors val.
 func TestKotlinNoAppearance(t *testing.T) {
+	out := kotlinOf(t, loadFS(t, noAppearanceFS(t)))
+	s := string(out[notesKotlin])
+	assert.Contains(t, s, "public object DesignColorValues {\n    public val colors: DesignColors = DesignColors(\n")
+	assert.NotContains(t, s, "val light:")
+}
+
+// noAppearanceFS is the android fixture with no appearance axis and its
+// appearance modes removed.
+func noAppearanceFS(t *testing.T) project.MemFS {
+	t.Helper()
 	fsys := memFS(t, androidDir)
 	fsys["airframe.yaml"] = regexp.MustCompile(`(?m)^  appearance: .*\n`).ReplaceAllString(fsys["airframe.yaml"], "")
 	delete(fsys, "design-system/themes/dark.tokens.json")
@@ -457,10 +470,7 @@ func TestKotlinNoAppearance(t *testing.T) {
 		`,
           "appearance:dark+density:compact": "{gray.800}",
           "appearance:dark+density:relaxed": "{gray.900}"`, "").Replace(fsys["design-system/tokens/semantic.tokens.json"])
-	out := kotlinOf(t, loadFS(t, fsys))
-	s := string(out[notesKotlin])
-	assert.Contains(t, s, "public object DesignColorValues {\n    public val colors: DesignColors = DesignColors(\n")
-	assert.NotContains(t, s, "val light")
+	return fsys
 }
 
 // TestKotlinIdentifiers (Review Focus 2): members named after hard
@@ -583,10 +593,13 @@ func TestKotlinFanOutNonColour(t *testing.T) {
 	assert.NotEqual(t, block(t, string(out[notesKotlin]), "light"), block(t, string(out[tasksKotlin]), "light"))
 }
 
-// noColourFS is the android fixture with only non-colour tokens.
+// noColourFS is the android fixture with only non-colour tokens and no
+// material3Scheme.
 func noColourFS(t *testing.T) project.MemFS {
 	t.Helper()
-	fsys := memFS(t, androidDir)
+	fsys := androidFS(t, func(y string) string {
+		return regexp.MustCompile(`(?m)^      material3Scheme: .*\n`).ReplaceAllString(y, "")
+	})
 	for path := range fsys {
 		if strings.HasPrefix(path, "design-system/") {
 			delete(fsys, path)
@@ -626,6 +639,8 @@ func TestKotlinValueFormats(t *testing.T) {
 		"        public val weightBook: FontWeight = FontWeight(450)\n",
 		"        public val fontMono: List<String> = listOf(\"JetBrains \\\"Mono\\\"\", \"\\$mono\")\n",
 		"        Density.Compact -> 1.5.dp\n",
+		"        public val vast: Dp = 3000000000.0.dp\n",
+		"        public val abyss: Dp = (-3000000000.0).dp\n",
 	} {
 		assert.Contains(t, s, want)
 	}
@@ -686,7 +701,7 @@ func kotlinUse(t *testing.T, src, values string) string {
 
 // kotlinSets are the sources TestKotlinTypechecks compiles, by name: each
 // golden's shared file with one app's values, the edges file, and the
-// no-colour and display-p3 variants.
+// no-colour, display-p3, no-appearance and scheme-without-slots variants.
 func kotlinSets(t *testing.T) map[string][]string {
 	t.Helper()
 	android := kotlinGoldenFiles(t, androidDir)
@@ -695,12 +710,16 @@ func kotlinSets(t *testing.T) map[string][]string {
 	p3 := kotlinOf(t, loadFS(t, androidFS(t, func(y string) string {
 		return strings.Replace(y, "      package: com.example.design\n", "      package: com.example.design\n      colorSpace: display-p3\n", 1)
 	})))
+	noAppearance := kotlinOf(t, loadFS(t, noAppearanceFS(t)))
+	m3NoColour := kotlinOf(t, loadFS(t, material3NoColourFS(t)))
 	return map[string][]string{
 		"android-notes": {string(android[sharedKotlin]), string(android[notesKotlin])},
 		"android-tasks": {string(android[sharedKotlin]), string(android[tasksKotlin])},
 		"edges":         {string(edges[edgesKotlin]), string(edges[edgesKotlin])},
 		"no-colour":     {string(noColour[sharedKotlin]), string(noColour[notesKotlin])},
 		"display-p3":    {string(p3[sharedKotlin]), string(p3[notesKotlin])},
+		"m3-no-appear":  {string(noAppearance[sharedKotlin]), string(noAppearance[notesKotlin])},
+		"m3-no-colour":  {string(m3NoColour[sharedKotlin]), string(m3NoColour[notesKotlin])},
 	}
 }
 
@@ -734,4 +753,165 @@ func TestKotlinTypechecks(t *testing.T) {
 			t.Logf("kotlinc %s: ok%s", name, strings.TrimRight("\n"+string(b), "\n"))
 		})
 	}
+}
+
+// TestKotlinDpRange: an integral dp outside Int's range is a Double
+// receiver, as Compose has no Long.dp.
+func TestKotlinDpRange(t *testing.T) {
+	for _, c := range []struct {
+		d    tokens.Dim
+		want string
+	}{
+		{tokens.Dim{V: 2147483647, Unit: "px"}, "2147483647.dp"},
+		{tokens.Dim{V: 2147483648, Unit: "px"}, "2147483648.0.dp"},
+		{tokens.Dim{V: 3000000000, Unit: "px"}, "3000000000.0.dp"},
+		{tokens.Dim{V: -2147483647, Unit: "px"}, "(-2147483647).dp"},
+		{tokens.Dim{V: -2147483648, Unit: "px"}, "(-2147483648).dp"},
+		{tokens.Dim{V: -2147483649, Unit: "px"}, "(-2147483649.0).dp"},
+		{tokens.Dim{V: -3000000000, Unit: "px"}, "(-3000000000.0).dp"},
+		{tokens.Dim{V: 200000000, Unit: "rem"}, "3200000000.0.dp"},
+		{tokens.Dim{V: 1.5, Unit: "px"}, "1.5.dp"},
+		{tokens.Dim{V: 1e15, Unit: "px"}, "1000000000000000.0.dp"},
+	} {
+		got, err := kotlinDp(c.d)
+		require.NoError(t, err)
+		assert.Equal(t, c.want, got, "%v", c.d)
+	}
+}
+
+// material3FS is the android fixture with its material3Scheme mapping
+// replaced by scheme.
+func material3FS(t *testing.T, scheme string) project.MemFS {
+	t.Helper()
+	return androidFS(t, func(y string) string {
+		const fixture = "material3Scheme: {primary: accent, onPrimary: button-ink, tertiary: highlight}"
+		require.Contains(t, y, fixture)
+		return strings.Replace(y, fixture, "material3Scheme: "+scheme, 1)
+	})
+}
+
+// kotlinFailure is the emit diagnostic for the android platform of fsys,
+// which must fail.
+func kotlinFailure(t *testing.T, fsys project.MemFS) diag.Diagnostic {
+	t.Helper()
+	p := loadFS(t, fsys)
+	_, err := Kotlin(p, androidPlatform(t, p))
+	require.Error(t, err)
+	return failure(androidPlatform(t, p), "kotlin", err)
+}
+
+// TestMaterial3Golden: with material3Scheme set, each app's values object
+// ends with lightScheme and darkScheme, lightColorScheme and
+// darkColorScheme with the named roles in role-list order, each role the
+// colour its token has in that app and appearance.
+func TestMaterial3Golden(t *testing.T) {
+	out := androidKotlin(t)
+	slot := func(file, val, name string) string {
+		m := regexp.MustCompile(`(?m)^        ` + name + ` = (.+),$`).FindStringSubmatch(block(t, file, val))
+		require.NotNil(t, m, "no %s in %s", name, val)
+		return m[1]
+	}
+	for _, f := range []string{notesKotlin, tasksKotlin} {
+		s := string(out[f])
+		for _, imp := range []string{"androidx.compose.material3.ColorScheme", "androidx.compose.material3.darkColorScheme",
+			"androidx.compose.material3.lightColorScheme"} {
+			assert.Contains(t, s, "\nimport "+imp+"\n", f)
+		}
+		for _, av := range []string{"light", "dark"} {
+			want := fmt.Sprintf("\n    public val %sScheme: ColorScheme = %sColorScheme(\n"+
+				"        primary = %s,\n        onPrimary = %s,\n        tertiary = %s,\n    )\n",
+				av, av, slot(s, av, "accent"), slot(s, av, "buttonInk"), slot(s, av, "highlight"))
+			assert.Contains(t, s, want, f)
+		}
+		assert.Less(t, strings.Index(s, "public val dark: DesignColors"), strings.Index(s, "public val lightScheme:"), f)
+		assert.Less(t, strings.Index(s, "public val lightScheme:"), strings.Index(s, "public val darkScheme:"), f)
+		assert.True(t, strings.HasSuffix(s, "    )\n}\n"), f)
+	}
+	assert.NotEqual(t, block(t, string(out[notesKotlin]), "lightScheme"), block(t, string(out[tasksKotlin]), "lightScheme"))
+	assert.NotContains(t, string(out[sharedKotlin]), "material3")
+
+	// Roles come out in role-list order whatever order the YAML gives.
+	s := string(kotlinOf(t, loadFS(t, material3FS(t, "{surface: banner, primary: accent, onSurface: ink}")))[notesKotlin])
+	assert.Regexp(t, `lightColorScheme\(\n        primary = .+,\n        surface = .+,\n        onSurface = .+,\n    \)`, s)
+
+	// Without material3Scheme there is no scheme and no material3 import.
+	plain := string(kotlinOf(t, loadFS(t, androidFS(t, func(y string) string {
+		return regexp.MustCompile(`(?m)^      material3Scheme: .*\n`).ReplaceAllString(y, "")
+	})))[notesKotlin])
+	assert.NotContains(t, plain, "Scheme")
+	assert.NotContains(t, plain, "material3")
+}
+
+// TestMaterial3RoleVaries (Review Focus 1): surface varies on density, so
+// it has no single value for a role and is emit-failed, not given its
+// base; a role token varying per app alone is fine (accent).
+func TestMaterial3RoleVaries(t *testing.T) {
+	d := kotlinFailure(t, material3FS(t, "{primary: accent, surface: surface}"))
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Contains(t, d.Message, "material3Scheme role surface")
+	assert.Contains(t, d.Message, `"surface"`)
+	assert.Contains(t, d.Message, "density")
+}
+
+// TestMaterial3BadRole: a role naming an unknown token, or a non-colour
+// one (a dimension, a shadow), is emit-failed naming the role and token.
+func TestMaterial3BadRole(t *testing.T) {
+	for scheme, want := range map[string][]string{
+		"{primary: nowhere}":    {"material3Scheme role primary", `"nowhere"`, "no such token"},
+		"{primary: radius}":     {"material3Scheme role primary", `"radius"`, "dimension"},
+		"{scrim: elevation}":    {"material3Scheme role scrim", `"elevation"`, "shadow"},
+		"{onSurface: gray-800}": nil,
+	} {
+		if want == nil {
+			kotlinOf(t, loadFS(t, material3FS(t, scheme)))
+			continue
+		}
+		d := kotlinFailure(t, material3FS(t, scheme))
+		assert.Equal(t, "emit-failed", d.Rule, scheme)
+		for _, w := range want {
+			assert.Contains(t, d.Message, w, scheme)
+		}
+	}
+}
+
+// TestMaterial3Appearance: an appearance value other than light and dark
+// has no Material 3 scheme and is emit-failed naming it; with no
+// appearance axis there is lightScheme alone, after colors.
+func TestMaterial3Appearance(t *testing.T) {
+	fsys := memFS(t, androidDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "appearance: {values: [light, dark],", "appearance: {values: [light, dark, dim],", 1)
+	d := kotlinFailure(t, fsys)
+	assert.Equal(t, "emit-failed", d.Rule)
+	assert.Contains(t, d.Message, `appearance value "dim"`)
+	assert.Contains(t, d.Message, "material3Scheme")
+
+	s := string(kotlinOf(t, loadFS(t, noAppearanceFS(t)))[notesKotlin])
+	assert.Contains(t, s, "\n    public val lightScheme: ColorScheme = lightColorScheme(\n        primary = ")
+	assert.NotContains(t, s, "darkScheme")
+	assert.NotContains(t, s, "darkColorScheme")
+	assert.Less(t, strings.Index(s, "public val colors: DesignColors"), strings.Index(s, "public val lightScheme:"))
+}
+
+// material3NoColourFS is noColourFS with material3Scheme {primary: brand},
+// brand a colour token emitted to css alone.
+func material3NoColourFS(t *testing.T) project.MemFS {
+	t.Helper()
+	fsys := noColourFS(t)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "      package: com.example.design\n",
+		"      package: com.example.design\n      material3Scheme: {primary: brand}\n", 1)
+	fsys["design-system/tokens/brand.tokens.json"] = `{ "brand": { "$type": "color", "$value": { "colorSpace": "oklch", "components": [0.6, 0.15, 255] },
+  "$extensions": { "com.c65llc.airframe": { "tier": "semantic", "emit": ["css"] } } } }`
+	return fsys
+}
+
+// TestMaterial3NoColourSlots: a role token that is not emitted to kotlin
+// still gives its scheme, in a values object with no <Type>Colors.
+func TestMaterial3NoColourSlots(t *testing.T) {
+	out := kotlinOf(t, loadFS(t, material3NoColourFS(t)))
+	assert.NotContains(t, string(out[sharedKotlin]), "DesignColors")
+	assert.Equal(t, "// GENERATED by airframe from design-system/ — do not edit. Regenerate with `airframe build`.\n\n"+
+		"package com.example.design\n\nimport androidx.compose.material3.ColorScheme\nimport androidx.compose.material3.darkColorScheme\n"+
+		"import androidx.compose.material3.lightColorScheme\nimport androidx.compose.ui.graphics.Color\n\n"+
+		"public object DesignColorValues {\n    public val lightScheme: ColorScheme = lightColorScheme(\n        primary = Color(0xFF3A81D7),\n    )\n\n"+
+		"    public val darkScheme: ColorScheme = darkColorScheme(\n        primary = Color(0xFF3A81D7),\n    )\n}\n", string(out[notesKotlin]))
 }
