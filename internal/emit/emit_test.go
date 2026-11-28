@@ -5,6 +5,7 @@ package emit
 
 import (
 	"flag"
+	"fmt"
 	"io/fs"
 	"maps"
 	"os"
@@ -19,9 +20,9 @@ import (
 
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
+	"github.com/c65llc/airframe/internal/ojson"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/testfix"
-	"github.com/c65llc/airframe/internal/tokens"
 )
 
 var update = flag.Bool("update", false, "rewrite the golden files under testdata/minimal")
@@ -121,26 +122,8 @@ func TestBuildExplicitOut(t *testing.T) {
 }
 
 func TestBuildDeterministic(t *testing.T) {
-	p := loadFS(t, os.DirFS(minimalDir))
-	first, ds := Build(p, nil)
-	require.Empty(t, ds)
-	again, _ := Build(p, nil)
-	assert.Equal(t, first, again)
-
-	// Re-parse with the token files fed in reverse order.
-	slices.Reverse(p.TokenFiles)
-	files := map[string][]byte{}
-	for _, f := range p.TokenFiles {
-		files[f] = p.Sources[f]
-	}
-	set, tds := tokens.Parse(p.Config, files)
-	require.Empty(t, tds)
-	p.Tokens = set
-	reversed, _ := Build(p, nil)
-	require.Equal(t, len(first), len(reversed))
-	for path := range first {
-		assert.Equal(t, string(first[path]), string(reversed[path]), path)
-	}
+	first := requireDeterministic(t, memFS(t, minimalDir))
+	assert.Equal(t, []string{minimalCSS, minimalJSON}, slices.Sorted(maps.Keys(first)))
 }
 
 // scopeLine is a line opening a rule block (not an @media block).
@@ -217,50 +200,112 @@ func TestBuildReportsUnsupported(t *testing.T) {
 	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")
 }
 
-// TestAndroidDeterministic: the android fixture builds the same bytes
-// twice and with its token files read in reverse order, for every output
-// path: the shared DesignTokens.kt and each app's DesignColorValues.kt.
-func TestAndroidDeterministic(t *testing.T) {
-	p := loadFS(t, os.DirFS(androidDir))
+// reorderedFS returns fsys with the token files under content renamed so
+// that path order — the order tokens.Parse reads them in — becomes perm
+// (perm[i] is the original sorted index of the file read i-th), each file
+// keeping its directories under a new ranking directory; with keys, every
+// JSON object's keys are also reversed. Both reach Parse: it reads files
+// in path order and declares tokens in key order.
+func reorderedFS(t *testing.T, fsys project.MemFS, content string, perm []int, keys bool) project.MemFS {
+	t.Helper()
+	var files []string
+	for f := range fsys {
+		if strings.HasPrefix(f, content+"/") && strings.HasSuffix(f, ".tokens.json") {
+			files = append(files, f)
+		}
+	}
+	slices.Sort(files)
+	require.Len(t, perm, len(files))
+	out := project.MemFS{}
+	for f, b := range fsys {
+		if !slices.Contains(files, f) {
+			out[f] = b
+		}
+	}
+	for rank, i := range perm {
+		f, data := files[i], fsys[files[i]]
+		if keys {
+			n, err := ojson.Parse([]byte(data))
+			require.NoError(t, err, f)
+			reverseKeys(n)
+			data = string(ojson.Marshal(n, "  "))
+		}
+		out[fmt.Sprintf("%s/r%02d/%s", content, rank, strings.TrimPrefix(f, content+"/"))] = data
+	}
+	return out
+}
+
+func reverseKeys(n *ojson.Node) {
+	slices.Reverse(n.Keys)
+	for _, c := range n.Fields {
+		reverseKeys(c)
+	}
+	for _, c := range n.Items {
+		reverseKeys(c)
+	}
+}
+
+// requireDeterministic builds fsys, then builds it again with its token
+// files read reversed, rotated by one, with every object's keys reversed,
+// and both at once, and requires every output byte for byte the same.
+// Each variant must change the declaration order Parse sees, or it would
+// test nothing.
+func requireDeterministic(t *testing.T, fsys project.MemFS) map[string][]byte {
+	t.Helper()
+	p := loadFS(t, fsys)
 	first, ds := Build(p, nil)
 	for _, d := range ds {
 		require.NotEqual(t, diag.Error, d.Severity, "%v", d)
 	}
-	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(first)))
-	again, _ := Build(p, nil)
-	assert.Equal(t, first, again)
+	require.NotEmpty(t, first)
+	again, _ := Build(loadFS(t, fsys), nil)
+	require.Equal(t, first, again)
 
-	// Reverse, then rotate by one: two read orders unlike the first.
-	rotate := func(fs []string) { head := fs[0]; copy(fs, fs[1:]); fs[len(fs)-1] = head }
-	for _, shuffle := range []func([]string){slices.Reverse[[]string], rotate} {
-		shuffle(p.TokenFiles)
-		files := map[string][]byte{}
-		for _, f := range p.TokenFiles {
-			files[f] = p.Sources[f]
-		}
-		set, tds := tokens.Parse(p.Config, files)
-		require.Empty(t, tds)
-		p.Tokens = set
-		shuffled, _ := Build(p, nil)
-		require.Equal(t, slices.Sorted(maps.Keys(first)), slices.Sorted(maps.Keys(shuffled)), "%v", p.TokenFiles)
+	n := len(p.TokenFiles)
+	require.Greater(t, n, 1)
+	identity, reversed, rotated := make([]int, n), make([]int, n), make([]int, n)
+	for i := range n {
+		identity[i], reversed[i], rotated[i] = i, n-1-i, (i+1)%n
+	}
+	for _, v := range []struct {
+		name string
+		perm []int
+		keys bool
+	}{
+		{"files reversed", reversed, false},
+		{"files rotated", rotated, false},
+		{"keys reversed", identity, true},
+		{"files and keys reversed", reversed, true},
+	} {
+		q := loadFS(t, reorderedFS(t, fsys, p.Config.Content, v.perm, v.keys))
+		require.NotEqual(t, p.Tokens.Order, q.Tokens.Order, "%s: Parse saw the same declaration order", v.name)
+		got, _ := Build(q, nil)
+		require.Equal(t, slices.Sorted(maps.Keys(first)), slices.Sorted(maps.Keys(got)), v.name)
 		for path := range first {
-			assert.Equal(t, string(first[path]), string(shuffled[path]), "%s, read order %v", path, p.TokenFiles)
+			assert.Equal(t, string(first[path]), string(got[path]), "%s: %s", v.name, path)
 		}
 	}
+	return first
 }
 
-// TestAppleDeterministic: the apple fixture builds the same bytes twice
-// and with its token files read in reverse order, for every output path,
-// Swift and colorsets alike. The per-app Swift variant is held to the
-// same standard.
+// TestAndroidDeterministic: the android fixture builds the same bytes
+// however its token files and keys are ordered, for every output path:
+// the shared DesignTokens.kt and each app's DesignColorValues.kt.
+func TestAndroidDeterministic(t *testing.T) {
+	first := requireDeterministic(t, memFS(t, androidDir))
+	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(first)))
+}
+
+// TestAppleDeterministic: the apple fixture builds the same bytes however
+// its token files and keys are ordered, for every output path, Swift and
+// colorsets alike. The per-app Swift variant is held to the same standard.
 func TestAppleDeterministic(t *testing.T) {
-	for name, p := range map[string]*project.Project{
-		"fixture": loadFS(t, os.DirFS(appleDir)),
-		"per-app": loadFS(t, perAppFS(t)),
+	for name, fsys := range map[string]project.MemFS{
+		"fixture": memFS(t, appleDir),
+		"per-app": perAppFS(t),
 	} {
 		t.Run(name, func(t *testing.T) {
-			first, _ := Build(p, nil)
-			require.NotEmpty(t, first)
+			first := requireDeterministic(t, fsys)
 			var swift, colorsets int
 			for path := range first {
 				if strings.HasSuffix(path, ".swift") {
@@ -273,22 +318,6 @@ func TestAppleDeterministic(t *testing.T) {
 			assert.Positive(t, swift)
 			if name == "fixture" {
 				assert.Positive(t, colorsets)
-			}
-			again, _ := Build(p, nil)
-			assert.Equal(t, first, again)
-
-			slices.Reverse(p.TokenFiles)
-			files := map[string][]byte{}
-			for _, f := range p.TokenFiles {
-				files[f] = p.Sources[f]
-			}
-			set, tds := tokens.Parse(p.Config, files)
-			require.Empty(t, tds)
-			p.Tokens = set
-			reversed, _ := Build(p, nil)
-			require.Equal(t, slices.Sorted(maps.Keys(first)), slices.Sorted(maps.Keys(reversed)))
-			for path := range first {
-				assert.Equal(t, string(first[path]), string(reversed[path]), path)
 			}
 		})
 	}
