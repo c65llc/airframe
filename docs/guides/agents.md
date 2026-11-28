@@ -275,8 +275,8 @@ airframe skills mcp claude-code
 
 Merge it into `.mcp.json` at the project root, or add it with
 `claude mcp add`. Cursor's goes in `.cursor/mcp.json`, Copilot's in
-`.vscode/mcp.json` and Gemini's in `.gemini/settings.json`; those two
-editors start the server with `--root` set to the workspace folder. Codex
+`.vscode/mcp.json` and Gemini's in `.gemini/settings.json`; Cursor and
+VS Code start the server with `--root` set to the workspace folder. Codex
 reads TOML from `~/.codex/config.toml`, and starts the server in the
 directory you start Codex from:
 

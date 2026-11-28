@@ -7,7 +7,7 @@
 - **Skills.** Airframe ships its skills as Markdown, embedded in the binary. `airframe skills install|list|hooks|mcp` installs them for each agent and prints the agent's hook and MCP configuration.
 - **MCP server.** `airframe mcp [--read-only]` is an MCP server on stdio. Its tools are typed reads and edits over the same core the CLI uses.
 
-**Architecture: port, don't reinvent.** Starboard ships both surfaces at `~/projects/starboard`: same org, same licence, same author. Its design was reviewed, in `docs/specs/2026-11-27-mcp-server-design.md`, which covers the protocol subset, version negotiation, bounds, fencing, previews, record versions, the audit line and input checks. Port these Starboard packages with their tests, change only what is Starboard-specific, and keep their behaviour:
+**Architecture: port, don't reinvent.** Starboard (the `c65llc/starboard` repository) ships both surfaces: same org, same licence, same author. Its design was reviewed, in `docs/specs/2026-11-27-mcp-server-design.md`, which covers the protocol subset, version negotiation, bounds, fencing, previews, record versions, the audit line and input checks. Port these Starboard packages with their tests, change only what is Starboard-specific, and keep their behaviour:
 
 | Starboard path | Airframe path |
 |---|---|
