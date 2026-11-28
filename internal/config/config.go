@@ -858,8 +858,9 @@ func checkXAMLOptions(p Platform, o *yaml.Node) *buildError {
 }
 
 var (
-	wrapperRoot  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
-	wrapperGroup = regexp.MustCompile(`\{(\d+)\}`)
+	wrapperRoot   = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
+	wrapperMember = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	wrapperGroup  = regexp.MustCompile(`\{(\d+)\}`)
 )
 
 // isString is a plain YAML string scalar: not a number, bool, null or
@@ -915,6 +916,10 @@ func buildWrappers(platform string, n *yaml.Node) ([]Wrapper, *buildError) {
 			}
 			w.Map = map[string]string{}
 			for j, k := range ks {
+				// The scanner only ever matches identifier members.
+				if !wrapperMember.MatchString(k.Value) {
+					return nil, bad(at+".map."+k.Value, k.Line, "wrapper %s: map member %q must be an identifier ([A-Za-z_][A-Za-z0-9_]*)", w.Root, k.Value)
+				}
 				if !isString(vs[j]) || vs[j].Value == "" {
 					return nil, bad(at+".map."+k.Value, vs[j].Line, "wrapper %s: map member %s must be a non-empty string naming a token", w.Root, k.Value)
 				}

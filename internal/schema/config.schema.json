@@ -82,7 +82,7 @@
               "properties": {
                 "root": { "type": "string", "description": "dotted identifiers, as in AppTheme.spacing; unique per platform" },
                 "generated": { "type": "boolean", "description": "only true; exactly one of generated: true, or map and/or patterns" },
-                "map": { "type": "object", "description": "member to token; non-empty", "additionalProperties": { "type": "string" } },
+                "map": { "type": "object", "description": "identifier member to token; non-empty", "additionalProperties": { "type": "string" } },
                 "patterns": {
                   "type": "array",
                   "description": "non-empty; {1}…{9} in token are match's capture groups",

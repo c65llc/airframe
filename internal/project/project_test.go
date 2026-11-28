@@ -157,7 +157,7 @@ func loadTabs(t *testing.T, component string, extra MemFS) (*Project, []diag.Dia
 func TestLoadComponents(t *testing.T) {
 	p, ds := loadTabs(t, "id: tabstrip\ntokens: [tabstrip-h, tabstrip-gap]\nowners: [web/tabs/**]\n", MemFS{
 		"design-system/components/nested/ignored.yaml": "id: ignored\n",
-		"design-system/components/notes.md":            "not a component",
+		"design-system/components/.DS_Store":           "finder",
 	})
 	require.Empty(t, ds)
 	require.Len(t, p.Components, 1)
@@ -230,4 +230,18 @@ func TestComponentConsistency(t *testing.T) {
 	// sidebar-w's component has no file: not a load error.
 	_, ds = loadTabs(t, "id: tabstrip\ntokens: [tabstrip-h, tabstrip-gap]\nowners: [x/**]\n", nil)
 	assert.Empty(t, ds)
+}
+
+func TestLoadComponentDirOtherFilesReported(t *testing.T) {
+	_, ds := loadTabs(t, "id: tabstrip\ntokens: [tabstrip-h, tabstrip-gap]\nowners: [x/**]\n", MemFS{
+		"design-system/components/sidebar.yml": "id: sidebar\nowners: [x/**]\n",
+		"design-system/components/notes.md":    "not a component",
+		"design-system/components/.DS_Store":   "finder",
+	})
+	require.Len(t, ds, 2)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "design-system/components/notes.md", ds[0].File)
+	assert.Equal(t, "components/notes.md: component files end in .yaml", ds[0].Message)
+	assert.Equal(t, "design-system/components/sidebar.yml", ds[1].File)
+	assert.Equal(t, "components/sidebar.yml: component files end in .yaml", ds[1].Message)
 }

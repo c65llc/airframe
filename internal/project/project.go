@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"path"
 	"slices"
+	"strings"
 
 	"github.com/bmatcuk/doublestar/v4"
 
@@ -131,6 +132,23 @@ func (p *Project) loadComponents() ([]diag.Diagnostic, error) {
 	slices.Sort(files)
 	p.ComponentFiles = files
 	var all []diag.Diagnostic
+	// Every other file in components/ is reported, never skipped: a
+	// component.yml would otherwise declare no owners and say nothing.
+	// Dotfiles (.DS_Store) and subdirectories are not component files.
+	ents, err := fs.ReadDir(p.FS, dir)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("read %s: %w", dir, err)
+	}
+	for _, e := range ents { // sorted by name
+		n := e.Name()
+		if e.IsDir() || strings.HasPrefix(n, ".") || strings.HasSuffix(n, ".yaml") {
+			continue
+		}
+		all = append(all, diag.Diagnostic{
+			Rule: "schema-invalid", Severity: diag.Error, File: path.Join(dir, n),
+			Message: fmt.Sprintf("%s/%s: component files end in .yaml", component.Dir, n), Docs: diag.DocsURL("schema-invalid"),
+		})
+	}
 	for _, f := range files {
 		b, err := fs.ReadFile(p.FS, f)
 		if err != nil {
