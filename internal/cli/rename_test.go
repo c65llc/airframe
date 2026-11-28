@@ -93,7 +93,9 @@ func TestRenameRefusals(t *testing.T) {
 		"exists":   {[]string{"gap", "hairline"}, ExitFindings, "token hairline already exists"},
 		"invalid":  {[]string{"gap", "Spacing!"}, ExitFindings, "is not a valid token name"},
 		"no build": {[]string{"gap", "space2"}, ExitFindings, "the renamed project does not build"},
-		"one arg":  {[]string{"gap"}, ExitUsage, "rename takes <old> <new>"},
+		"app-local": {[]string{"gap", "sidebar-w"}, ExitFindings,
+			"airframe rename: --sidebar-w is already an app-local property of platform web, defined at web/src/app.css:2;"},
+		"one arg": {[]string{"gap"}, ExitUsage, "rename takes <old> <new>"},
 	} {
 		code, stdout, stderr := run(append([]string{"--root", dir, "rename"}, c.args...)...)
 		assert.Equal(t, c.code, code, name)
@@ -223,4 +225,59 @@ func TestRenameSymlink(t *testing.T) {
 	assert.Equal(t, ExitFindings, code, stderr)
 	assert.Contains(t, stderr, "design-system/tokens/semantic.tokens.json is a symbolic link")
 	assert.Equal(t, before, treeHash(t, dir))
+}
+
+const inkColorset = "apple/Generated/Assets.xcassets/Tokens/Ink.colorset"
+
+func TestRenameStaleColorsetDotfile(t *testing.T) {
+	// Finder's .DS_Store in a stale colorset is removed with it.
+	dir := lintCleanProject(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, inkColorset, ".DS_Store"), []byte("x"), 0o644))
+	code, stdout, stderr := run("--root", dir, "rename", "ink", "foreground", "--dry-run")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Contains(t, stdout, "would remove "+inkColorset+"\n")
+	code, stdout, stderr = run("--root", dir, "rename", "ink", "foreground")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Empty(t, stderr)
+	assert.Contains(t, stdout, "removed "+inkColorset+"\n")
+	assert.NoDirExists(t, filepath.Join(dir, inkColorset))
+	code, stdout, stderr = run("--root", dir, "build", "--check")
+	assert.Equal(t, ExitOK, code, stdout+stderr)
+}
+
+func TestRenameStaleColorsetKept(t *testing.T) {
+	// A file airframe did not write keeps the folder, whole, with a warning.
+	dir := lintCleanProject(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, inkColorset, "notes.txt"), []byte("mine"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, inkColorset, ".DS_Store"), []byte("x"), 0o644))
+	before := treeHash(t, dir)
+	code, stdout, stderr := run("--root", dir, "rename", "ink", "foreground", "--dry-run")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Contains(t, stdout, "would keep "+inkColorset+": it holds files airframe did not write (notes.txt)\n")
+	assert.NotContains(t, stdout, "would remove")
+	assert.Equal(t, before, treeHash(t, dir))
+
+	code, stdout, stderr = run("--root", dir, "rename", "ink", "foreground")
+	require.Equal(t, ExitOK, code, stdout+stderr)
+	assert.Contains(t, stderr, "kept "+inkColorset+": it holds files airframe did not write (notes.txt)\n")
+	assert.NotContains(t, stdout, "removed")
+	for _, f := range []string{"Contents.json", "notes.txt", ".DS_Store"} {
+		assert.FileExists(t, filepath.Join(dir, inkColorset, f))
+	}
+	assert.Contains(t, readFile(t, dir, "apple/Generated/DesignTokens.swift"), "foreground")
+	// lint reports it stale until it is deleted by hand.
+	_, stdout, _ = run("--root", dir, "lint")
+	assert.Contains(t, stdout, "Ink.colorset")
+}
+
+func TestRenameRemovalFailureStillBuilds(t *testing.T) {
+	dir := lintCleanProject(t)
+	was := removeStale
+	t.Cleanup(func() { removeStale = was })
+	removeStale = func(*os.Root, string, []string) error { return fs.ErrPermission }
+	code, stdout, stderr := run("--root", dir, "rename", "ink", "foreground")
+	assert.Equal(t, ExitUsage, code, stdout+stderr)
+	assert.Contains(t, stderr, "remove stale colorset "+inkColorset)
+	assert.Contains(t, stdout, "wrote apple/Generated/DesignTokens.swift\n", "the build still runs")
+	assert.Contains(t, readFile(t, dir, "apple/Generated/DesignTokens.swift"), "foreground")
 }

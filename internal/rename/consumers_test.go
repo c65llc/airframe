@@ -259,3 +259,59 @@ func TestRenameValidation(t *testing.T) {
 	require.True(t, errors.As(err, &r), "%v", err)
 	assert.Equal(t, "rename: the project does not build; fix it first", r.Msg)
 }
+
+func TestRenameAppLocalCollision(t *testing.T) {
+	// --sidebar-w is defined in app.css: renaming gap to it would make
+	// app.css's var(--sidebar-w) read the token.
+	_, err := Codemod(load(t, consumers()), "gap", "sidebar-w", "")
+	var r *Refusal
+	require.True(t, errors.As(err, &r), "%v", err)
+	assert.Equal(t, "rename: --sidebar-w is already an app-local property of platform web, defined at web/src/app.css:2; renaming gap to sidebar-w would change what its reads mean. Rename it, or pick another name; nothing was written", r.Msg)
+
+	// A name in externalProperties is refused too.
+	fsys := project.MemFS{}
+	require.NoError(t, fs.WalkDir(consumers(), ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(consumers(), p)
+		fsys[p] = string(b)
+		return err
+	}))
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "    emit: [css]\n", "    emit: [css]\n    externalProperties: [\"--lib-*\"]\n", 1)
+	_, err = Codemod(load(t, fsys), "gap", "lib-gap", "")
+	require.True(t, errors.As(err, &r), "%v", err)
+	assert.Equal(t, `rename: --lib-gap matches platform web's externalProperties glob "--lib-*" (airframe.yaml:9), a property a library or script defines; renaming gap to lib-gap would change what its reads mean. Pick another name; nothing was written`, r.Msg)
+}
+
+func TestRenameValidateMeaningChange(t *testing.T) {
+	// Defence in depth: an unedited reference that resolves to another
+	// token after the rename is refused, even past the up-front check.
+	c := &codemod{p: load(t, consumers())}
+	pl, err := Plan(c.p, "gap", "sidebar-w", "")
+	require.NoError(t, err)
+	c.pl = pl
+	c.before, err = consumer.Scan(c.p)
+	require.NoError(t, err)
+	pl.Consumers = map[string][]byte{}
+	err = c.validate(nil)
+	var r *Refusal
+	require.True(t, errors.As(err, &r), "%v", err)
+	var msgs []string
+	for _, d := range r.Diagnostics {
+		msgs = append(msgs, d.File+":"+strconv.Itoa(d.Line)+" "+d.Message)
+	}
+	assert.Contains(t, msgs, `web/src/app.css:5 platform web: --sidebar-w read no token before the rename and reads sidebar-w after it`)
+}
+
+func TestRenameGeneratedNonIdentifier(t *testing.T) {
+	// web's tokens wrapper reads css names: brand-accent is no member.
+	pl := mustCodemod(t, consumers(), "accent", "brand-accent")
+	var msgs []string
+	for _, m := range pl.Manual {
+		msgs = append(msgs, m.File+":"+strconv.Itoa(m.Line)+"  "+m.Message)
+	}
+	assert.Equal(t, []string{"web/src/page.tsx:6  tokens.accent: a generated wrapper member must be an identifier; brand-accent is not — rename the wrapper read by hand"}, msgs)
+	assert.NotContains(t, pl.Consumers, "web/src/page.tsx")
+	assert.Contains(t, string(pl.Consumers["apple/Sources/ContentView.swift"]), ".tint(Theme.brandAccent)")
+}

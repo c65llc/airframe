@@ -30,7 +30,7 @@ var renameCommand = Command{
 	Summary: "Rename a token in its token files, airframe.yaml, components, invariants and every platform's consumer files, then rebuild; refuses a rename that would not load, build or rewrite every reference.",
 	Flags: []Flag{
 		{Name: "path", Arg: "a.b.c", Summary: "the new token's DTCG path (default: new split on \"-\", when old's path is old split on \"-\")"},
-		{Name: "dry-run", Summary: "print the edits, moves, manual items and stale colorsets it would remove, and write nothing"},
+		{Name: "dry-run", Summary: "print the edits, moves, manual items and the stale colorsets it would remove or keep, and write nothing"},
 		{Name: "allow-manual", Summary: "write the rename even though some references are left to finish by hand, listing them"},
 	},
 }
@@ -76,13 +76,20 @@ func runRename(inv *invocation) int {
 	if c := inv.refuseLinks(dir, files); c != ExitOK {
 		return c
 	}
-	remove, err := staleByRename(p, pl)
+	stale, err := staleByRename(p, pl)
+	if err != nil {
+		return inv.fail(err)
+	}
+	remove, keep, err := planRemovals(p.FS, stale)
 	if err != nil {
 		return inv.fail(err)
 	}
 	if dry {
-		for _, d := range remove {
-			_, _ = fmt.Fprintln(inv.stdout, "would remove", d)
+		for _, s := range remove {
+			_, _ = fmt.Fprintln(inv.stdout, "would remove", s.dir)
+		}
+		for _, s := range keep {
+			_, _ = fmt.Fprintln(inv.stdout, "would keep", s.kept())
 		}
 		return ExitOK
 	}
@@ -130,17 +137,67 @@ func runRename(inv *invocation) int {
 	if err != nil {
 		return inv.fail(err)
 	}
-	for _, d := range remove {
-		if err := removeColorset(root, d); err != nil {
-			return inv.fail(err)
+	// The sources are written: a colorset that cannot be removed is
+	// warned about, and the outputs are still regenerated.
+	failed := false
+	for _, s := range remove {
+		if err := removeStale(root, s.dir, s.files); err != nil {
+			_, _ = fmt.Fprintf(inv.stderr, "airframe rename: remove stale colorset %s: %v; delete it by hand\n", s.dir, err)
+			failed = true
+			continue
 		}
-		_, _ = fmt.Fprintln(inv.stdout, "removed", d)
+		_, _ = fmt.Fprintln(inv.stdout, "removed", s.dir)
+	}
+	for _, s := range keep {
+		_, _ = fmt.Fprintf(inv.stderr, "airframe rename: kept %s\n", s.kept())
 	}
 	code := inv.build(dir, p, ds, nil, false)
 	if len(pl.Manual) > 0 {
 		_, _ = fmt.Fprintf(inv.stdout, "%d reference(s) left to finish by hand (manual, above)\n", len(pl.Manual))
 	}
+	if failed {
+		return ExitUsage
+	}
 	return code
+}
+
+// staleDir is a stale colorset folder: files are the entries airframe may
+// remove with it (its Contents.json and any dotfile, such as Finder's
+// .DS_Store), foreign the entries it did not write.
+type staleDir struct {
+	dir            string
+	files, foreign []string
+}
+
+func (s staleDir) kept() string {
+	return fmt.Sprintf("%s: it holds files airframe did not write (%s)", s.dir, strings.Join(s.foreign, ", "))
+}
+
+// planRemovals reads each stale colorset folder before anything is
+// written. One holding only its Contents.json and dotfiles is to be
+// removed; one holding anything else is kept, untouched.
+func planRemovals(fsys fs.FS, dirs []string) (remove, keep []staleDir, err error) {
+	for _, d := range dirs {
+		entries, err := fs.ReadDir(fsys, d)
+		if err != nil {
+			return nil, nil, err
+		}
+		s := staleDir{dir: d}
+		for _, e := range entries {
+			n := e.Name()
+			if e.Type().IsRegular() && (n == "Contents.json" || strings.HasPrefix(n, ".")) {
+				s.files = append(s.files, n)
+			} else {
+				s.foreign = append(s.foreign, n)
+			}
+		}
+		if len(s.foreign) > 0 {
+			keep = append(keep, s)
+		} else {
+			remove = append(remove, s)
+		}
+	}
+	return remove, keep, nil
 }
 
 // staleByRename lists the colorset folders the rename makes stale: those
@@ -162,18 +219,20 @@ func staleByRename(p *project.Project, pl *rename.EditPlan) ([]string, error) {
 	return slices.DeleteFunc(after, func(d string) bool { return slices.Contains(before, d) }), nil
 }
 
-// removeColorset removes the generated colorset folder dir: its
-// Contents.json, then the folder, which must then be empty, so a file the
-// user added there is never removed.
-func removeColorset(root *os.Root, dir string) error {
+// removeStale is removeColorset; a test replaces it to fail.
+var removeStale = removeColorset
+
+// removeColorset removes the generated colorset folder dir: files, the
+// entries planRemovals found safe to remove, then the folder, which must
+// then be empty, so a file the user added there since is never removed.
+func removeColorset(root *os.Root, dir string, files []string) error {
 	d := filepath.FromSlash(dir)
-	if err := root.Remove(filepath.Join(d, "Contents.json")); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return err
+	for _, f := range files {
+		if err := root.Remove(filepath.Join(d, f)); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return err
+		}
 	}
-	if err := root.Remove(d); err != nil {
-		return fmt.Errorf("remove stale colorset %s: %w", dir, err)
-	}
-	return nil
+	return root.Remove(d)
 }
 
 // writePlan prints a plan: one line per edit, file:line:col  old → new;

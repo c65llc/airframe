@@ -549,8 +549,17 @@ gone from the sources, the outputs and the consumer code in one change.
   `button-bg` and `button-ink`, so `rename ink button` is refused;
 - the new path does not sit under a token (`ink.subtle` would put a
   token inside `ink`);
-- the renamed project loads and builds, and no consumer reference still
-  reads `old` once the edits are made.
+- on a platform that emits css, the new token's custom property is not
+  one the app already has: a property a scanned consumer file defines
+  (app-local, such as `--sidebar-w: 240px;`) or one matching the
+  platform's `externalProperties`. Renaming `gap` to `sidebar-w` would
+  make every `var(--sidebar-w)` read the token instead, so it is refused
+  with `airframe rename: --sidebar-w is already an app-local property of
+  platform web, defined at <file>:<line>; …`, naming the definition (for
+  `externalProperties`, the glob and its line in `airframe.yaml`);
+- the renamed project loads and builds, no consumer reference still
+  reads `old` once the edits are made, and every reference the plan did
+  not edit reads the same token it read before.
 
 **The new path.** A token's name is its DTCG path joined with `-`, so
 `button.ink` is `button-ink`. When the old token's path is its name split
@@ -599,8 +608,15 @@ design-system/tokens/semantic.tokens.json:4  move ink-muted → ink-subtle
 - **Generated outputs.** They are rebuilt, as `build` would. Renaming a
   colour leaves the old name's colorset in each asset catalog; `rename`
   removes the colorsets the rename makes stale, and lists each one
-  (`removed <dir>`). It removes only the `Contents.json` and then the
-  folder, which must then be empty, so a file you added there stays.
+  (`removed <dir>`). Before writing anything it reads each of those
+  folders. One that holds only its `Contents.json` and dotfiles (such as
+  Finder's `.DS_Store`) is removed with them. One that holds anything
+  else is kept whole, nothing in it removed, with the warning `airframe
+  rename: kept <dir>: it holds files airframe did not write (<names>)`;
+  the rename still succeeds, and `build` and lint report the folder as
+  stale until you delete it by hand. If a removal fails once the sources
+  are written, `rename` warns, still rebuilds the outputs, and then
+  exits 2.
 
 The token, config, component and invariants files it touches are
 written in canonical form, as `airframe fmt` would.
@@ -610,7 +626,8 @@ written in canonical form, as `airframe fmt` would.
 `--dry-run` prints the plan and writes nothing: one line per text edit
 (`file:line:col  old → new`), then each token moved (`file:line  move
 from → to`), then each manual item, then `would remove <dir>` for each
-stale colorset. Renaming the page background:
+stale colorset it would remove and `would keep <dir>: it holds files
+airframe did not write (<names>)` for each it would keep. Renaming the page background:
 
 ```text
 $ airframe rename surface canvas --dry-run
@@ -646,7 +663,7 @@ of the generated outputs changes with it.
 
 ### Manual items and `--allow-manual`
 
-Two kinds of reference cannot be rewritten safely, and are left to you
+Three kinds of reference cannot be rewritten safely, and are left to you
 as **manual items**:
 
 - **Wrapper patterns.** A pattern template in `airframe.yaml` is not
@@ -656,6 +673,12 @@ as **manual items**:
 - **Invariant globs.** A glob in `match` or `only` that matched `old`
   and does not match `new`, or the reverse, would change what the
   invariant covers.
+- **Generated wrapper members that are not identifiers.** A generated
+  wrapper whose members are css names, such as web's `tokens`, would
+  need `tokens.brand-accent` after renaming `accent` to `brand-accent`,
+  which is no member. The read is a manual item: `tokens.accent: a
+  generated wrapper member must be an identifier; brand-accent is not —
+  rename the wrapper read by hand`.
 
 `gap-floor` covers every token matching `gap*`, and `row-gap` does not
 match it:
@@ -712,8 +735,8 @@ wrote web/src/generated/tokens.css
 | Exit | When |
 | --- | --- |
 | 0 | the rename was written, or `--dry-run` printed the plan |
-| 1 | a precondition failed, the renamed project would not load or build, a reference would be left reading `old`, manual items without `--allow-manual`, a planned file changed since it was read, or a symbolic link |
-| 2 | a usage error, or an I/O error, including a failure partway through the renames |
+| 1 | a precondition failed (an app-local or external property named like the new token included), the renamed project would not load or build, a reference would be left reading `old` or would read another token, manual items without `--allow-manual`, a planned file changed since it was read, or a symbolic link |
+| 2 | a usage error, or an I/O error, including a failure partway through the renames, or a stale colorset that could not be removed (the outputs are rebuilt first) |
 
 ## 6. `airframe retire`
 

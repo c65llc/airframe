@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"go.yaml.in/yaml/v3"
+
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/consumer"
 	"github.com/c65llc/airframe/internal/diag"
@@ -50,8 +52,11 @@ func Codemod(p *project.Project, old, new, dotted string) (*EditPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &codemod{p: p, pl: pl, oldV: map[[2]string]map[string]emit.Variant{}, newN: map[[2]string]map[emit.Variant]string{},
+	c := &codemod{p: p, pl: pl, before: scan, oldV: map[[2]string]map[string]emit.Variant{}, newN: map[[2]string]map[emit.Variant]string{},
 		patternReads: map[patternRef]bool{}}
+	if err := c.foreignCSS(); err != nil {
+		return nil, err
+	}
 	edits := map[string][]consumerEdit{}
 	for _, ref := range scan.Refs {
 		if ref.Token != old {
@@ -99,10 +104,11 @@ type consumerEdit struct {
 }
 
 type codemod struct {
-	p    *project.Project
-	pl   *EditPlan
-	oldV map[[2]string]map[string]emit.Variant // (platform, format) → old ReferenceVariants
-	newN map[[2]string]map[emit.Variant]string // (platform, format) → renamed VariantNames
+	p      *project.Project
+	pl     *EditPlan
+	before consumer.Result                       // the scan of p
+	oldV   map[[2]string]map[string]emit.Variant // (platform, format) → old ReferenceVariants
+	newN   map[[2]string]map[emit.Variant]string // (platform, format) → renamed VariantNames
 	// patternReads are the wrapper patterns some read resolves through to old.
 	patternReads map[patternRef]bool
 }
@@ -148,6 +154,59 @@ func (c *codemod) respell(pl config.Platform, format, name string) (string, bool
 	return n, ok, nil
 }
 
+// foreignCSS refuses a rename whose css name for new, on a css platform,
+// is a property the app defines (an app-local property, defined in a
+// scanned consumer file) or a library or script does (one matching the
+// platform's externalProperties): the reads of it would then read the
+// token instead, changing what they mean with no edit to show for it.
+func (c *codemod) foreignCSS() error {
+	for _, apl := range c.pl.After.Config.Platforms {
+		if !slices.Contains(apl.Emit, "css") {
+			continue
+		}
+		vs, err := emit.ReferenceVariants(c.pl.After, apl, "css")
+		if err != nil {
+			return err
+		}
+		for _, name := range slices.Sorted(maps.Keys(vs)) {
+			if vs[name].Token != c.pl.New {
+				continue
+			}
+			if i := slices.IndexFunc(c.before.Locals, func(l consumer.Local) bool { return l.Platform == apl.Name && l.Name == name }); i >= 0 {
+				l := c.before.Locals[i]
+				return refuse("rename: %s is already an app-local property of platform %s, defined at %s:%d; renaming %s to %s would change what its reads mean. Rename it, or pick another name; nothing was written",
+					name, apl.Name, l.File, l.Line, c.pl.Old, c.pl.New)
+			}
+			if i := consumer.External(apl, name); i >= 0 {
+				return refuse("rename: %s matches platform %s's externalProperties glob %q (%s:%d), a property a library or script defines; renaming %s to %s would change what its reads mean. Pick another name; nothing was written",
+					name, apl.Name, apl.ExternalProperties[i], config.File, c.externalLine(apl.Name, i), c.pl.Old, c.pl.New)
+			}
+		}
+	}
+	return nil
+}
+
+// externalLine is the line of platform's i'th externalProperties entry
+// in airframe.yaml, or 0 when it cannot be found.
+func (c *codemod) externalLine(platform string, i int) int {
+	src, err := fs.ReadFile(c.p.FS, config.File)
+	if err != nil {
+		return 0
+	}
+	var doc yaml.Node
+	if yaml.Unmarshal(src, &doc) != nil || len(doc.Content) == 0 {
+		return 0
+	}
+	e := field(field(field(doc.Content[0], "platforms"), platform), "externalProperties")
+	if e == nil || e.Kind != yaml.SequenceNode || i >= len(e.Content) {
+		return 0
+	}
+	return e.Content[i].Line
+}
+
+// identRE is a whole identifier, as a generated wrapper's member is read.
+var identRE = regexp.MustCompile(`^[\p{L}_][\p{L}\p{M}\p{N}_]*$`)
+
 // xamlIdentRE finds the resource key in a XAML or C# reference's raw text.
 var xamlIdentRE = regexp.MustCompile(`(?:StaticResource|ThemeResource)\s+([\p{L}_][\p{L}\p{M}\p{N}_]*)|Resources\["([\p{L}_][\p{L}\p{M}\p{N}_]*)"\]`)
 
@@ -170,6 +229,11 @@ func (c *codemod) edit(ref consumer.Reference) (*consumerEdit, error) {
 			}
 			if n == "" {
 				return nil, c.missing(ref)
+			}
+			if !identRE.MatchString(n) {
+				c.pl.Manual = append(c.pl.Manual, Manual{File: ref.File, Line: ref.Line, Message: fmt.Sprintf(
+					"%s: a generated wrapper member must be an identifier; %s is not — rename the wrapper read by hand", ref.Raw, n)})
+				return nil, nil
 			}
 			off, name, newName = len(root)+1, member, n
 		case w.Map[member] != "":
@@ -301,9 +365,11 @@ func splice(file string, src []byte, edits []consumerEdit) ([]byte, error) {
 }
 
 // validate loads the renamed project with the consumer edits laid over it
-// and scans it: no reference may still read old, and each
-// edited reference, at its column after the splices left of it, must read
-// new. The renamed project, consumers included, becomes pl.After.
+// and scans it: no reference may still read old, each edited reference,
+// at its column after the splices left of it, must read new, and every
+// other reference must read what it read before (c.before), so nothing
+// the plan did not edit changes meaning. The renamed project, consumers
+// included, becomes pl.After.
 func (c *codemod) validate(edits map[string][]consumerEdit) error {
 	pl := c.pl
 	files := maps.Clone(pl.Files)
@@ -323,23 +389,56 @@ func (c *codemod) validate(edits map[string][]consumerEdit) error {
 		file      string
 		line, col int
 	}
+	// shift is the column a reference at col on line of f has after the
+	// splices left of it.
+	shift := func(f string, line, col int) int {
+		out := col
+		for _, o := range edits[f] {
+			if o.Line == line && o.Col < col {
+				out += len(o.New) - len(o.Old)
+			}
+		}
+		return out
+	}
+	// was is what each reference read before, at its column after the
+	// rename; renamed are those that read old, which the checks below and
+	// the Manual items cover.
+	was, renamed := map[pos]consumer.Reference{}, map[pos]bool{}
+	for _, ref := range c.before.Refs {
+		at := pos{ref.File, ref.Line, shift(ref.File, ref.Line, ref.Col)}
+		if ref.Token == pl.Old {
+			renamed[at] = true
+			continue
+		}
+		was[at] = ref
+	}
 	reads := map[pos]string{}
 	var left []diag.Diagnostic
+	changed := func(ref consumer.Reference, before, after string) {
+		left = append(left, diag.Diagnostic{Rule: "reference-undeclared", Severity: diag.Error, Docs: diag.DocsURL("reference-undeclared"), File: ref.File, Line: ref.Line, Col: ref.Col,
+			Message: fmt.Sprintf("platform %s: %s read %s before the rename and reads %s after it", ref.Platform, ref.Raw, before, after)})
+	}
+	tokenOr := func(t string) string { return cmp.Or(t, "no token") }
 	for _, ref := range scan.Refs {
+		at := pos{ref.File, ref.Line, ref.Col}
+		if b, ok := was[at]; !renamed[at] && (!ok || b.Token != ref.Token) {
+			changed(ref, tokenOr(b.Token), tokenOr(ref.Token))
+		}
+		delete(was, at)
 		reads[pos{ref.File, ref.Line, ref.Col}] = ref.Token
 		if ref.Token == pl.Old {
 			left = append(left, diag.Diagnostic{Rule: "reference-undeclared", Severity: diag.Error, Docs: diag.DocsURL("reference-undeclared"), File: ref.File, Line: ref.Line, Col: ref.Col,
 				Message: fmt.Sprintf("platform %s: %s still reads %s after the rename", ref.Platform, ref.Raw, pl.Old)})
 		}
 	}
+	for _, b := range was {
+		if b.Token != "" {
+			changed(b, b.Token, "no token")
+		}
+	}
 	for f, ss := range edits {
 		for _, s := range ss {
-			col := s.RefCol
-			for _, o := range ss {
-				if o.Line == s.Line && o.Col < s.Col {
-					col += len(o.New) - len(o.Old)
-				}
-			}
+			col := shift(f, s.Line, s.RefCol)
 			if tok := reads[pos{f, s.Line, col}]; tok != pl.New {
 				left = append(left, diag.Diagnostic{Rule: "reference-undeclared", Severity: diag.Error, Docs: diag.DocsURL("reference-undeclared"), File: f, Line: s.Line, Col: col,
 					Message: fmt.Sprintf("%s rewritten as %s reads %q, not %s, after the rename", s.Raw, s.New, tok, pl.New)})
