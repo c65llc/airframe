@@ -192,6 +192,12 @@ func TestShowComponentScanFailureExits2(t *testing.T) {
 	bad := filepath.Join(dir, "web", "button", "Button.tsx")
 	require.NoError(t, os.Chmod(bad, 0))
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o644) })
+	if f, err := os.Open(bad); err == nil {
+		// Windows (and some filesystems) ignore a 0 mode: the file
+		// stays readable, so there is no I/O failure to provoke.
+		_ = f.Close()
+		t.Skip("chmod 0 does not make the file unreadable here")
+	}
 	code, stdout, stderr := run("--root", dir, "show", "button")
 	assert.Equal(t, ExitUsage, code, stderr)
 	assert.Empty(t, stdout)
