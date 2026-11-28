@@ -367,7 +367,7 @@ func TestEmitFormatUnknown(t *testing.T) {
 }
 
 func TestEmitFutureFormatsAccepted(t *testing.T) {
-	c := mustLoad(t, "version: 1\nplatforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: kotlin}\n  windows: {emit: [xaml]}\n")
+	c := mustLoad(t, "version: 1\nplatforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: kotlin, options: {package: com.example.design}}\n  windows: {emit: [xaml]}\n")
 	assert.Equal(t, []string{"swift", "colorsets"}, c.Platforms[0].Emit)
 }
 
@@ -491,12 +491,29 @@ func TestKotlinOptions(t *testing.T) {
 		{"sharedOut fans out", "{ package: a.b, sharedOut: \"android/{app}/x.kt\" }", "platforms.droid.options.sharedOut", "sharedOut"},
 		{"scalar scheme", "{ package: a.b, material3Scheme: true }", "platforms.droid.options.material3Scheme", "maps Material 3 roles to tokens, as in { primary: accent }"},
 		{"unknown role", "{ package: a.b, material3Scheme: { primry: accent } }", "platforms.droid.options.material3Scheme.primry", "primry"},
+		{"package number", "{ package: 5 }", "platforms.droid.options.package", "must be a string"},
+		{"sharedOut number", "{ package: a.b, sharedOut: 5 }", "platforms.droid.options.sharedOut", "must be a string"},
+		{"sharedOut escapes", "{ package: a.b, sharedOut: ../x.kt }", "platforms.droid.options.sharedOut", "sharedOut"},
+		{"colorSpace mapping", "{ package: a.b, colorSpace: {} }", "platforms.droid.options.colorSpace", "colorSpace must be a string, one of"},
+		{"gamut mapping", "{ package: a.b, gamut: [] }", "platforms.droid.options.gamut", "gamut must be a string, one of"},
+		{"role number", "{ package: a.b, material3Scheme: { primary: 5 } }", "platforms.droid.options.material3Scheme.primary", "must be a string"},
+		{"empty scheme", "{ package: a.b, material3Scheme: {} }", "platforms.droid.options.material3Scheme", "no roles"},
 		{"empty token", "{ package: a.b, material3Scheme: { primary: \"\" } }", "platforms.droid.options.material3Scheme.primary", "primary"},
 	} {
 		d := loadErr(t, pre+tc.opts+"\n")
 		assert.Equal(t, tc.path, d.Path, tc.name)
 		assert.Contains(t, d.Message, tc.msg, tc.name)
 	}
+	for _, src := range []string{
+		fanOutBase + "platforms:\n  droid:\n    emit: [kotlin]\n    out: x.kt\n",
+		fanOutBase + "platforms:\n  droid:\n    emit: kotlin\n    out: x.kt\n",
+	} {
+		d := loadErr(t, src)
+		assert.Equal(t, "platforms.droid.options.package", d.Path)
+		assert.Equal(t, "platform droid: options.package is required for kotlin", d.Message)
+		assert.Equal(t, 6, d.Line)
+	}
+	mustLoad(t, pre+"{ package: \"a.b\", sharedOut: \"x.kt\" }\n")
 	c := mustLoad(t, pre+"{ package: com.example.design, sharedOut: android/shared/DesignTokens.kt, colorSpace: display-p3, gamut: clip, material3Scheme: { onPrimary: b, primary: a, surfaceDim: c } }\n")
 	p := c.Platforms[0]
 	assert.Equal(t, "com.example.design", p.KotlinPackage())

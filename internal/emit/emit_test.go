@@ -198,7 +198,7 @@ func TestEmitListSkipsFormat(t *testing.T) {
 // the built formats still build.
 func TestBuildReportsUnsupported(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin]}", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin], options: {package: com.example.design}}", 1)
 	out, ds := Build(loadFS(t, fsys), nil)
 	require.Len(t, ds, 1, "%v", ds)
 	for i, f := range []string{"kotlin"} {

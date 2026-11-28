@@ -510,6 +510,9 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 				return p, err
 			}
 		}
+	} else if slices.Contains(p.Emit, "kotlin") {
+		return p, &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name),
+			path: "platforms." + p.Name + ".options.package", line: key.Line}
 	}
 	if o := field(n, "out"); o != nil {
 		p.Out = map[string]string{}
@@ -669,8 +672,8 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 		switch k.Value {
 		case "package":
 			hasPkg = true
-			if v.Kind != yaml.ScalarNode || v.Value == "" {
-				return bad("package", v.Line, "package must be a non-empty dotted Kotlin package")
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" || v.Value == "" {
+				return bad("package", v.Line, "package must be a string: a non-empty dotted Kotlin package")
 			}
 			for _, seg := range strings.Split(v.Value, ".") {
 				if !kotlinIdent.MatchString(seg) {
@@ -681,8 +684,8 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 				}
 			}
 		case "sharedOut":
-			if v.Kind != yaml.ScalarNode || v.Value == "" {
-				return bad("sharedOut", v.Line, "sharedOut must be a non-empty path")
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" || v.Value == "" {
+				return bad("sharedOut", v.Line, "sharedOut must be a string: a non-empty path")
 			}
 			if _, err := underRoot("sharedOut", v.Value, base+"sharedOut", v.Line); err != nil {
 				return err
@@ -691,11 +694,17 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 				return bad("sharedOut", v.Line, "sharedOut %s contains {%s}; the shared file is written once, so it cannot fan out", v.Value, p.FanOut)
 			}
 		case "colorSpace":
-			if v.Kind != yaml.ScalarNode || !slices.Contains(kotlinColorSpaces, v.Value) {
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" {
+				return bad("colorSpace", v.Line, "colorSpace must be a string, one of %s", strings.Join(kotlinColorSpaces, ", "))
+			}
+			if !slices.Contains(kotlinColorSpaces, v.Value) {
 				return bad("colorSpace", v.Line, "colorSpace %s is not one of %s", v.Value, strings.Join(kotlinColorSpaces, ", "))
 			}
 		case "gamut":
-			if v.Kind != yaml.ScalarNode || !slices.Contains(kotlinGamuts, v.Value) {
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" {
+				return bad("gamut", v.Line, "gamut must be a string, one of %s", strings.Join(kotlinGamuts, ", "))
+			}
+			if !slices.Contains(kotlinGamuts, v.Value) {
 				return bad("gamut", v.Line, "gamut %s is not one of %s", v.Value, strings.Join(kotlinGamuts, ", "))
 			}
 		case "material3Scheme":
@@ -710,8 +719,8 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 				if !slices.Contains(Material3Roles, rk.Value) {
 					return bad("material3Scheme."+rk.Value, rk.Line, "material3Scheme role %s is not a Material 3 ColorScheme role", rk.Value)
 				}
-				if rvs[j].Kind != yaml.ScalarNode || rvs[j].Value == "" {
-					return bad("material3Scheme."+rk.Value, rvs[j].Line, "material3Scheme role %s must name a token", rk.Value)
+				if rvs[j].Kind != yaml.ScalarNode || rvs[j].ShortTag() != "!!str" || rvs[j].Value == "" {
+					return bad("material3Scheme."+rk.Value, rvs[j].Line, "material3Scheme role %s must be a string naming a token", rk.Value)
 				}
 			}
 		default:

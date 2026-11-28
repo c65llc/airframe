@@ -36,7 +36,7 @@ modes:
 platforms:
   web: {emit: css}
   json: {emit: [json]}
-  android: {emit: [kotlin]}
+  android: {emit: [kotlin], options: {package: com.example.design}}
 -- outkey.yaml --
 version: 1
 content: design-system
