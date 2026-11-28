@@ -153,6 +153,15 @@ var Commands = []Command{
 		},
 	},
 	{
+		Name:    "usages",
+		Args:    "<token>",
+		Summary: "List every consumer read of a token, direct or through a wrapper, and the tokens that alias it.",
+		Flags: []Flag{
+			{Name: "json", Summary: "print the same as a JSON object"},
+			{Name: "platform", Arg: "P", Summary: "list only the reads in platform P"},
+		},
+	},
+	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",
 		Summary: "Print a rule's documentation, or show a token and which tiers may read it.",
@@ -164,7 +173,7 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants|component|retired>",
+		Args:    "<config|tokens|invariants|component|retired|usages>",
 		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files or retired.yaml.",
 	},
 	{
@@ -181,6 +190,7 @@ var handlers = map[string]func(*invocation) int{
 	"build":   runBuild,
 	"import":  runImport,
 	"show":    runShow,
+	"usages":  runUsages,
 	"explain": runExplain,
 	"rules":   runRules,
 	"schema":  runSchema,

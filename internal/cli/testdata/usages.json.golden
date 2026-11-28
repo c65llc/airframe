@@ -1,0 +1,71 @@
+{
+  "name": "button-bg",
+  "tier": "component",
+  "component": "button",
+  "references": [
+    {
+      "platform": "android",
+      "file": "android/src/button/Button.kt",
+      "line": 5,
+      "col": 10,
+      "raw": "DesignTokens.buttonBg",
+      "via": "direct",
+      "owner": true
+    },
+    {
+      "platform": "android",
+      "file": "android/src/main/Screen.kt",
+      "line": 13,
+      "col": 16,
+      "raw": "DesignTokens.buttonBg",
+      "via": "direct",
+      "owner": false
+    },
+    {
+      "platform": "apple",
+      "file": "apple/Sources/ButtonStyle.swift",
+      "line": 6,
+      "col": 25,
+      "raw": "DesignTokens.buttonBg",
+      "via": "direct",
+      "owner": true
+    },
+    {
+      "platform": "apple",
+      "file": "apple/Sources/ContentView.swift",
+      "line": 17,
+      "col": 21,
+      "raw": "DesignTokens.buttonBg",
+      "via": "direct",
+      "owner": false
+    },
+    {
+      "platform": "web",
+      "file": "web/src/button/Button.tsx",
+      "line": 6,
+      "col": 24,
+      "raw": "--button-bg",
+      "via": "direct",
+      "owner": true
+    },
+    {
+      "platform": "windows",
+      "file": "windows/App/ButtonView.xaml",
+      "line": 2,
+      "col": 23,
+      "raw": "{StaticResource DesignButtonBg}",
+      "via": "direct",
+      "owner": true
+    },
+    {
+      "platform": "windows",
+      "file": "windows/App/MainPage.xaml",
+      "line": 6,
+      "col": 25,
+      "raw": "{StaticResource DesignButtonBg}",
+      "via": "direct",
+      "owner": false
+    }
+  ],
+  "aliasedBy": []
+}

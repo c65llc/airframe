@@ -1,0 +1,33 @@
+# usages lists every read of a token, through wrappers too, and the tokens
+# that alias it; a token nobody reads is a result, an unknown one is not.
+fixture consumers
+mkdir android/src/main web/src
+cp screen.kt android/src/main/Screen.kt
+cp app.css web/src/app.css
+exec airframe usages gap
+stdout '^  web  web/src/app.css:1:18  --gap$'
+stdout '^  android  android/src/main/Screen.kt:3:11  LocalTokens.current.gap  \(via wrapper:LocalTokens.current\)$'
+
+exec airframe usages accent --json
+stdout '"aliasedBy"'
+stdout '"name": "button-bg"'
+
+exec airframe usages gray-900
+stdout '^  surface  appearance:dark  '
+
+exec airframe usages accent --platform web
+stdout '--accent'
+! stdout 'apple/'
+
+exits 1 airframe usages acent
+stderr 'unknown token acent; did you mean accent\?'
+
+exec airframe schema usages
+stdout 'airframe usages --json'
+
+-- screen.kt --
+package com.example.app
+
+val gap = LocalTokens.current.gap
+-- app.css --
+.a { margin: var(--gap); color: var(--accent); }
