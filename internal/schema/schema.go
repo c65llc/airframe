@@ -54,7 +54,7 @@ var sources = map[string][]byte{
 }
 
 // Kinds are the document kinds with a schema, in the order usage lists them.
-var Kinds = []string{"config", "tokens", "invariants", "component", "retired"}
+var Kinds = []string{"config", "tokens", "invariants", "component", "retired", "diff"}
 
 // Source returns the JSON Schema of a document kind as embedded.
 func Source(kind string) ([]byte, bool) {

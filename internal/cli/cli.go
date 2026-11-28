@@ -152,6 +152,7 @@ var Commands = []Command{
 			{Name: "json", Summary: "print the same as a JSON object"},
 		},
 	},
+	diffCommand,
 	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",
@@ -181,6 +182,7 @@ var handlers = map[string]func(*invocation) int{
 	"build":   runBuild,
 	"import":  runImport,
 	"show":    runShow,
+	"diff":    runDiff,
 	"explain": runExplain,
 	"rules":   runRules,
 	"schema":  runSchema,
