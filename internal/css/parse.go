@@ -8,6 +8,7 @@
 package css
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -47,15 +48,26 @@ type Decl struct {
 const (
 	RuleUnsupportedAtRule = "import-unsupported-at-rule"
 	RuleSyntax            = "import-css-syntax"
+	RuleUnsupportedValue  = "import-unsupported-value"
 )
+
+// maxMediaDepth caps @media nesting so deep input cannot blow up parsing.
+const maxMediaDepth = 64
+
+// bom is the UTF-8 byte order mark, stripped from the start of the input.
+const bom = "\xEF\xBB\xBF"
 
 // Parse reads src. An at-rule other than @media is reported as
 // import-unsupported-at-rule at its line and skipped. Malformed CSS (an
 // unbalanced brace or parenthesis, an unterminated string or comment) is
 // reported as import-css-syntax at the line where the problem starts, and
 // Parse returns what it parsed before it. A rule nested inside a rule is
-// reported as import-css-syntax and skipped.
+// reported as import-css-syntax and skipped, as is @media nested more than
+// 64 levels deep. A custom property whose value ends in !important is
+// reported as import-unsupported-value and not stored. A leading UTF-8 byte
+// order mark is ignored.
 func Parse(file string, src []byte) (*Sheet, []diag.Diagnostic) {
+	src = bytes.TrimPrefix(src, []byte(bom))
 	p := &parser{src: src, line: 1, sheet: &Sheet{File: file}}
 	p.parseList(nil, 0)
 	return p.sheet, p.diags
@@ -281,10 +293,21 @@ func (p *parser) atRule(media []string, line int) {
 	name := atName(prelude)
 	if strings.EqualFold(name, "@media") && stop == '{' {
 		p.advance()
+		if len(media) >= maxMediaDepth {
+			p.report(RuleSyntax, line, "nesting too deep (more than %d levels)", maxMediaDepth)
+			p.skipBlock(line)
+			return
+		}
 		cond := strings.TrimSpace(prelude[len(name):])
 		p.parseList(append(slices.Clip(media), cond), line)
 		return
 	}
+	p.unsupportedAtRule(name, stop, line)
+}
+
+// unsupportedAtRule reports the at-rule name on line and skips the rest of
+// it: through its ';', or through its balanced block when stop is '{'.
+func (p *parser) unsupportedAtRule(name string, stop byte, line int) {
 	p.report(RuleUnsupportedAtRule, line, "the at-rule %s is not supported", name)
 	switch stop {
 	case '{':
@@ -345,9 +368,14 @@ func (p *parser) body(r *Rule, open int) {
 			continue
 		}
 		line := p.line
+		at := p.peek(0) == '@'
 		text, stop := p.scanUntil(";{}")
 		if p.dead {
 			return
+		}
+		if at && stop != 0 {
+			p.unsupportedAtRule(atName(text), stop, line)
+			continue
 		}
 		switch stop {
 		case '{':
@@ -374,9 +402,14 @@ func (p *parser) decl(r *Rule, text, comment string, line int) {
 		p.report(RuleSyntax, line, "the declaration %s has no ':'", name)
 		return
 	}
+	value = strings.TrimSpace(value)
+	if isImportant(value) {
+		p.report(RuleUnsupportedValue, line, "!important is not supported: Airframe never emits it")
+		return
+	}
 	r.Decls = append(r.Decls, Decl{
 		Name:    name,
-		Value:   strings.TrimSpace(value),
+		Value:   value,
 		Comment: comment,
 		Line:    line,
 		Order:   p.order,
@@ -414,4 +447,14 @@ func splitTop(s string) []string {
 		}
 	}
 	return append(out, strings.TrimSpace(s[start:]))
+}
+
+// isImportant reports whether the trimmed value ends in "!important",
+// case-insensitively, with optional whitespace after the "!".
+func isImportant(v string) bool {
+	const kw = "important"
+	if len(v) < len(kw) || !strings.EqualFold(v[len(v)-len(kw):], kw) {
+		return false
+	}
+	return strings.HasSuffix(strings.TrimRight(v[:len(v)-len(kw)], " \t\n\r\f"), "!")
 }

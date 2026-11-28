@@ -262,3 +262,71 @@ func TestParseUnclosedBracketIgnoresStrings(t *testing.T) {
 		t.Fatalf("diagnostics = %+v", ds)
 	}
 }
+
+func TestParseStripsBOM(t *testing.T) {
+	s := mustParse(t, "\xEF\xBB\xBF:root { --a: 1 }")
+	if len(s.Rules) != 1 || !slices.Equal(s.Rules[0].Selectors, []string{":root"}) {
+		t.Errorf("rules = %+v", s.Rules)
+	}
+	s = mustParse(t, "\xEF\xBB\xBF@media (x: y) { :root { --a: 1 } }")
+	if len(s.Rules) != 1 || !slices.Equal(s.Rules[0].Media, []string{"(x: y)"}) {
+		t.Errorf("rules = %+v", s.Rules)
+	}
+}
+
+func TestParseAtRuleInBody(t *testing.T) {
+	s, ds := Parse("tokens.css", []byte(":root {\n @apply --x;\n --a: 1;\n @nest x { --b: 2 }\n --c: 3 }"))
+	if len(ds) != 2 || ds[0].Rule != "import-unsupported-at-rule" || ds[0].Line != 2 || !strings.Contains(ds[0].Message, "@apply") ||
+		ds[1].Rule != "import-unsupported-at-rule" || ds[1].Line != 4 {
+		t.Fatalf("diagnostics = %+v", ds)
+	}
+	if s.Ignored != 0 {
+		t.Errorf("Ignored = %d, want 0", s.Ignored)
+	}
+	var names []string
+	for _, d := range s.Rules[0].Decls {
+		names = append(names, d.Name)
+	}
+	if !slices.Equal(names, []string{"--a", "--c"}) {
+		t.Errorf("decls = %q", names)
+	}
+}
+
+func TestParseImportant(t *testing.T) {
+	s, ds := Parse("tokens.css", []byte(":root {\n --x: value !important;\n --y: 2 ! IMPORTANT;\n --z: important }"))
+	if len(ds) != 2 {
+		t.Fatalf("diagnostics = %+v", ds)
+	}
+	for i, d := range ds {
+		if d.Rule != "import-unsupported-value" || d.Line != i+2 || d.Message != "!important is not supported: Airframe never emits it" ||
+			d.Docs != diag.DocsURL("import-unsupported-value") {
+			t.Errorf("diagnostic %d = %+v", i, d)
+		}
+	}
+	if s.Ignored != 0 || len(s.Rules[0].Decls) != 1 || s.Rules[0].Decls[0].Name != "--z" || s.Rules[0].Decls[0].Order != 0 {
+		t.Errorf("sheet = %+v", s)
+	}
+}
+
+func TestParseMediaDepthCap(t *testing.T) {
+	const depth = 65
+	src := strings.Repeat("@media (x: y) {\n", depth) + ":root { --deep: 1 }" + strings.Repeat("}", depth) + "\n:root { --after: 2 }"
+	s, ds := Parse("tokens.css", []byte(src))
+	if len(ds) != 1 || ds[0].Rule != "import-css-syntax" || ds[0].Line != depth || !strings.Contains(ds[0].Message, "nesting too deep (more than 64 levels)") {
+		t.Fatalf("diagnostics = %+v", ds)
+	}
+	if len(s.Rules) != 1 || s.Rules[0].Decls[0].Name != "--after" {
+		t.Errorf("rules = %+v", s.Rules)
+	}
+	// Depth 64 is still allowed.
+	src = strings.Repeat("@media (x: y) {", 64) + ":root { --a: 1 }" + strings.Repeat("}", 64)
+	s = mustParse(t, src)
+	if len(s.Rules) != 1 || len(s.Rules[0].Media) != 64 {
+		t.Errorf("rules = %d", len(s.Rules))
+	}
+	// Very deep input finishes quickly.
+	src = strings.Repeat("@media (x: y) {", 1_000_000) + strings.Repeat("}", 1_000_000)
+	if _, ds := Parse("tokens.css", []byte(src)); len(ds) != 1 {
+		t.Errorf("diagnostics = %d, want 1", len(ds))
+	}
+}
