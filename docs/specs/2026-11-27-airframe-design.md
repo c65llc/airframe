@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); the next release adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); v0.7.0 adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -243,7 +243,7 @@ shared: false
 | Source | `schema-invalid`, `token-unclassified`, `tier-violation`, `literal-in-semantic`, `density-missing`, `accent-group-partial`, `prefix-multiple-hues`, `alias-cycle`, `alias-unresolved`, `alias-type-mismatch`, `mode-ambiguous`, `mode-override-conflict`, `mode-base-value`, `emitted-stale`, `not-formatted` | v0.1.2 |
 | Invariant | `contrast-below`, `hue-reserved`, `accent-flip`, `dimension-below` | v0.1.2 |
 | Consumer | `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal`, `wrapper-unmapped` | v0.6.0 (see `docs/guides/consumers.md`) |
-| Consumer | `retired-used`, `component-unruled`, `component-incomplete` | built for the next release (see `docs/guides/components.md`) |
+| Consumer | `retired-used`, `component-unruled`, `component-incomplete` | v0.7.0 (see `docs/guides/components.md`) |
 
 - **Tiers:** a primitive aliases nothing; a semantic token reads primitives (never literals); a component token reads semantics and is read only by its owner.
 - **Invariant findings** name the invariant ID, the token pair, the mode context and the measured value. Each is computed in every context it applies to, including the base context.
@@ -260,7 +260,7 @@ airframe init [--profile P]                       # v0.1.2
 airframe fmt [--check]                            # v0.1.2
 airframe lint [--json|--format text|json|github|gate] [--strict]   # v0.1.2
 airframe build [--check] [--platform <p>]...      # v0.1.2; --check = drift gate
-airframe show <token|component> [--json] [--component]   # v0.1.2 (token); next release (component): its inventory, ruling status and readers
+airframe show <token|component> [--json] [--component]   # v0.1.2 (token); v0.7.0 (component): its inventory, ruling status and readers
 airframe explain <rule|token>                     # v0.1.2
 airframe rules [--json] | schema <kind> | version # v0.1.2
 airframe import css <files…> [--dry-run] [--force] # v0.2.0; adopt existing custom properties, equivalence-checked
@@ -292,7 +292,7 @@ All surfaces share the Go core through its wasm build.
 2. **Importer** (v0.2.0): `airframe import css`, with a semantic-equivalence check: for every mode combination, each custom property resolves to the same value in the old and generated CSS.
 3. **Native emitters** (done: Apple, Android and Windows, each with its guide): Swift and asset-catalog colorsets (done: Apple, with per-app fan-out and gamut handling; see `docs/guides/apple.md`), Kotlin/Compose with an optional Material 3 scheme (done: Android, with per-app colour values; see `docs/guides/android.md`), and WinUI 3 XAML resource dictionaries with theme dictionaries and high-contrast system colours (done: Windows, with per-app dictionaries; see `docs/guides/windows.md`).
 4. **Consumer rules,** with the wrapper map (done, v0.6.0: `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal` and `wrapper-unmapped`, with the component loader; see `docs/guides/consumers.md`).
-5. **Components and retired treatments** (done, next release: the inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>`; see `docs/guides/components.md`).
+5. **Components and retired treatments** (done, v0.7.0: the inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>`; see `docs/guides/components.md`).
 6. **Reference commands:** `find`, `usages`, `diff`, `rename`, `retire`, `specimen`.
 7. **Skills and MCP.**
 8. **PWA**, then **VS Code**, then **Tauri.**

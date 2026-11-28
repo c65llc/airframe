@@ -6,28 +6,26 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.6.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, and the consumer rules. Nothing here is stable yet.
+v0.7.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, the consumer rules, and components and retired treatments. Nothing here is stable yet.
 
-**What v0.6.0 does**
+**What v0.7.0 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
 - **Emits Apple outputs** (since v0.3.0). The `apple` platform writes an asset catalog of Display P3 colorsets (light and dark, one catalog per app target) and a SwiftUI `DesignTokens` file naming every token as a typed member. See [Apple: Swift and asset catalogs](docs/guides/apple.md).
 - **Emits Kotlin/Compose** (since v0.4.0). The `android` platform writes a shared Jetpack Compose `DesignTokens` class naming every token as a typed member, and per app a `DesignColorValues` object of light and dark colours, with optional Material 3 colour schemes. See [Android: Kotlin and Jetpack Compose](docs/guides/android.md).
 - **Emits XAML/WinUI** (since v0.5.0). The `windows` platform writes a WinUI 3 `ResourceDictionary` per app: every colour a theme-aware `SolidColorBrush` (Light, Dark, and HighContrast mapped to system colours, or Default), every other token a typed resource. See [Windows: WinUI 3 XAML resource dictionaries](docs/guides/windows.md).
 - **Lints the token source.** Tiers (a primitive aliases nothing; a semantic token reads primitives; a component token reads semantics), literals in semantic tokens, density coverage, accent groups, hue families, alias cycles and type mismatches, ambiguous or conflicting mode values, stale generated files and unformatted sources. `airframe rules` lists every rule; each has a page at `https://airframe.c65llc.com/rules/<rule>/`.
-- **Lints consumers** (new in v0.6.0). Each platform's `consumers` globs name the app code that reads tokens (CSS and web components, Swift, Kotlin, XAML and C#), and lint checks every reference, direct or through a declared hand-written wrapper: `reference-undeclared` (a name that is no token, or a glob that matches no file), `primitive-read-by-consumer`, `token-owner-violation` (a component token read outside the owners its `components/<id>.yaml` declares), `fallback-literal` and `wrapper-unmapped`. Exemptions need a reason and are listed in the gate. See [Consumers: checking where tokens are read](docs/guides/consumers.md).
+- **Lints consumers** (since v0.6.0). Each platform's `consumers` globs name the app code that reads tokens (CSS and web components, Swift, Kotlin, XAML and C#), and lint checks every reference, direct or through a declared hand-written wrapper: `reference-undeclared` (a name that is no token, or a glob that matches no file), `primitive-read-by-consumer`, `token-owner-violation` (a component token read outside the owners its `components/<id>.yaml` declares), `fallback-literal` and `wrapper-unmapped`. Exemptions need a reason and are listed in the gate. See [Consumers: checking where tokens are read](docs/guides/consumers.md).
 - **Checks invariants.** `invariants.yaml` declares contrast floors, reserved hues, hue stability across appearances and minimum dimensions; lint computes each in every context it applies to.
 - **Formats.** `airframe fmt` rewrites config, token, invariants and component files in canonical form.
 - **Speaks a gate protocol.** `airframe lint --format gate` prints a JSON verdict for CI gates, and `--json` prints the findings.
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
 - **Imports existing CSS** (since v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
-**Built for the next release** (on `main`, not in v0.6.0)
+- **Inventories components** (new in v0.7.0). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
+- **Retires treatments** (new in v0.7.0). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md). A v0.6.0 project with components fails lint on upgrade until each component has a `ruling` and an `implementations` entry for every platform with consumers (`n/a: <reason>` is accepted); see [Upgrading from v0.6.0](docs/guides/components.md#upgrading-from-v060).
 
-- **Inventories components** (next release). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
-- **Retires treatments** (next release). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md). A v0.6.0 project with components fails lint on upgrade until each component has a `ruling` and an `implementations` entry for every platform with consumers (`n/a: <reason>` is accepted); see [Upgrading from v0.6.0](docs/guides/components.md#upgrading-from-v060).
-
-**Planned (not in v0.6.0)**
+**Planned (not in v0.7.0)**
 
 - The reference commands and surfaces (`find`, `usages`, `diff`, `rename`, `retire`, `specimen`, skills, MCP, the PWA and editor integrations) for asking which token to use and whether a file may read it.
 
@@ -70,7 +68,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.6.0
+    version: v0.7.0
     args: lint --format gate
 ```
 
