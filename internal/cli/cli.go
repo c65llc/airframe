@@ -846,13 +846,29 @@ func lookupToken(set *tokens.Set, name string) (*tokens.Token, string) {
 	if t := set.Tokens[strings.ReplaceAll(name, ".", "-")]; t != nil {
 		return t, ""
 	}
+	return nil, closest(name, slices.Collect(maps.Keys(set.Tokens)))
+}
+
+// closest is the name in names nearest to name, within two edits, the
+// first in sorted order on a tie; "" when none is that close.
+func closest(name string, names []string) string {
 	best, bestD := "", 3
-	for _, n := range slices.Sorted(maps.Keys(set.Tokens)) {
+	for _, n := range slices.Sorted(slices.Values(names)) {
 		if d := levenshtein(name, n); d < bestD {
 			best, bestD = n, d
 		}
 	}
-	return nil, best
+	return best
+}
+
+// unknownName is show's message for a name that is neither looked-up kind,
+// with the closest candidate when one is near.
+func unknownName(what, name string, candidates []string) string {
+	msg := "unknown " + what + " " + name
+	if s := closest(name, candidates); s != "" {
+		msg += "; did you mean " + s + "?"
+	}
+	return msg
 }
 
 // levenshtein is the edit distance between a and b, by rune.
@@ -920,21 +936,21 @@ func runShow(inv *invocation) int {
 	c := p.Components[name]
 	if forced {
 		if c == nil {
-			_, _ = fmt.Fprintf(inv.stderr, "airframe show: unknown component %s\n", name)
+			_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", unknownName("component", name, slices.Collect(maps.Keys(p.Components))))
 			return ExitFindings
 		}
 		return inv.runShowComponent(p, c)
 	}
-	t, suggestion := lookupToken(p.Tokens, name)
+	t, _ := lookupToken(p.Tokens, name)
 	if t == nil {
 		if c != nil {
 			return inv.runShowComponent(p, c)
 		}
-		msg := "unknown token " + name
-		if suggestion != "" {
-			msg += "; did you mean " + suggestion + "?"
+		names := slices.Collect(maps.Keys(p.Components))
+		if p.Tokens != nil {
+			names = append(names, slices.Collect(maps.Keys(p.Tokens.Tokens))...)
 		}
-		_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", msg)
+		_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", unknownName("token or component", name, names))
 		return ExitFindings
 	}
 	if c != nil {

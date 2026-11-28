@@ -169,7 +169,8 @@ func Validate(kind string, doc any) []diag.Diagnostic {
 }
 
 // checkKeys walks a YAML node tree and reports mapping keys that cannot be
-// represented in JSON (non-strings) and duplicate keys, each at its own line.
+// represented in JSON (non-strings), merge keys and duplicate keys, each at
+// its own line.
 func checkKeys(n *yaml.Node, path []string) []diag.Diagnostic {
 	if n == nil {
 		return nil
@@ -184,10 +185,13 @@ func checkKeys(n *yaml.Node, path []string) []diag.Diagnostic {
 		seen := map[string]bool{}
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			k, v := n.Content[i], n.Content[i+1]
+			here := strings.Join(append(append([]string{}, path...), k.Value), ".")
+			// A merge key splices keys past the schema (and past every
+			// loader that walks the node tree), so it is refused.
 			if k.Tag == "!!merge" {
+				out = append(out, invalid("YAML merge keys (<<) are not supported", strings.Join(append(append([]string{}, path...), "<<"), "."), k.Line))
 				continue
 			}
-			here := strings.Join(append(append([]string{}, path...), k.Value), ".")
 			if k.Kind != yaml.ScalarNode || k.Tag != "!!str" {
 				out = append(out, invalid("mapping keys must be strings", here, k.Line))
 				continue

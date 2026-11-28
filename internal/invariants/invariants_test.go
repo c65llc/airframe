@@ -98,3 +98,13 @@ func TestInvariantMultipleDocuments(t *testing.T) {
 	assert.Equal(t, 2, ds[0].Line)
 	assert.Equal(t, File, ds[0].File)
 }
+
+func TestMergeKeyRejected(t *testing.T) {
+	is, ds := Parse([]byte("- id: touch-floor\n  kind: min-dimension\n  <<: {match: \"*-target*\", min: 44}\n"))
+	assert.Nil(t, is)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "YAML merge keys (<<) are not supported", ds[0].Message)
+	assert.Equal(t, "0.<<", ds[0].Path)
+	assert.Equal(t, 3, ds[0].Line)
+}

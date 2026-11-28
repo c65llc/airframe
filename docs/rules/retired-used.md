@@ -13,6 +13,10 @@ Retiring something is only worth doing if it cannot quietly come back. A token m
 
 An audited use is escaped by the treatment's `marker` with a reason, inside a comment on the matched line or on the comment-only line above it, or by `airframe-exempt retired-used: <reason>`. A marker with no reason, or outside a comment, escapes nothing. Each escape is listed with its marker in the gate's exemptions. Only stylesheet comments are blanked: in a code file a marker comment that repeats the retired spelling is itself a match, so it does not exempt the line below it. Put the marker on the matched line instead.
 
+Spellings are RE2 regexes, not literals: escape `. ( ) [ ] { } * + ? | ^ $ \` with `\`, as in `\.frame\(width: 3\)`.
+Single-quoted YAML keeps `\` as typed: `swift: ['\.frame\(width: 3\)']`.
+Double quotes need `\\` for each `\`: `swift: ["\\.frame\\(width: 3\\)"]`.
+
 **Fix**
 
 Read, alias or write what replaced the retired token or treatment. If a use is deliberate, mark it with a reason.

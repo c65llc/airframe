@@ -122,11 +122,12 @@ func describeComponent(p *project.Project, c *component.Component) (shownCompone
 // resolveRuling sets the ruling's status from the Gantry project, when
 // there is one.
 func (s *shownComponent) resolveRuling(p *project.Project) {
-	id, ok := strings.CutPrefix(s.Ruling.Ref, "@ruling:")
-	if !ok || id == "" || strings.ContainsAny(id, " \t/@") {
+	m := rulingref.RefRE.FindStringSubmatch(s.Ruling.Ref)
+	if m == nil {
 		s.Ruling.Status = statusMalformed
 		return
 	}
+	id := m[1]
 	var ix *rulingref.Index
 	var ds []diag.Diagnostic
 	if p.FS != nil {

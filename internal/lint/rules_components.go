@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"maps"
 	"path"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -35,9 +34,6 @@ func (c *Context) rulingIndex(p *project.Project) (*rulingref.Index, []diag.Diag
 	return c.rulings, c.rulingDiags
 }
 
-// rulingRE is a well-formed ruling reference; group 1 is the ruling id.
-var rulingRE = regexp.MustCompile(`^@ruling:([a-z0-9][a-z0-9-]*)$`)
-
 // sortedComponents are p's loaded components in id order.
 func sortedComponents(p *project.Project) []*component.Component {
 	out := make([]*component.Component, 0, len(p.Components))
@@ -52,7 +48,7 @@ func sortedComponents(p *project.Project) []*component.Component {
 // It is "-" when the ruling's record did not read: Resolve already
 // reported that, at the record.
 func rulingProblem(ix *rulingref.Index, ref string) string {
-	m := rulingRE.FindStringSubmatch(ref)
+	m := rulingref.RefRE.FindStringSubmatch(ref)
 	if m == nil {
 		return fmt.Sprintf("ruling %q is not @ruling:<id> (the id is a-z, 0-9 and -, starting with a letter or digit)", ref)
 	}

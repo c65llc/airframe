@@ -157,10 +157,30 @@ func TestShowUnknown(t *testing.T) {
 	dir := showProject(t, nil)
 	code, _, stderr := run("--root", dir, "show", "zzzzzzzzzz")
 	assert.Equal(t, ExitFindings, code)
-	assert.Equal(t, "airframe show: unknown token zzzzzzzzzz\n", stderr)
+	assert.Equal(t, "airframe show: unknown token or component zzzzzzzzzz\n", stderr)
 	code, _, stderr = run("--root", dir, "show", "--component", "accent-ink")
 	assert.Equal(t, ExitFindings, code)
 	assert.Equal(t, "airframe show: unknown component accent-ink\n", stderr)
+}
+
+// TestShowUnknownSuggests: a near miss suggests a token or a component;
+// with --component, only a component.
+func TestShowUnknownSuggests(t *testing.T) {
+	dir := showProject(t, nil)
+	code, _, stderr := run("--root", dir, "show", "split-buton")
+	assert.Equal(t, ExitFindings, code)
+	assert.Equal(t, "airframe show: unknown token or component split-buton; did you mean split-button?\n", stderr)
+	code, _, stderr = run("--root", dir, "show", "accent-inc")
+	assert.Equal(t, ExitFindings, code)
+	assert.Equal(t, "airframe show: unknown token or component accent-inc; did you mean accent-ink?\n", stderr)
+	// button-bgg is one edit from token button-bg, but --component offers
+	// components only.
+	code, _, stderr = run("--root", dir, "show", "--component", "button-bgg")
+	assert.Equal(t, ExitFindings, code)
+	assert.Equal(t, "airframe show: unknown component button-bgg\n", stderr)
+	code, _, stderr = run("--root", dir, "show", "--component", "buton")
+	assert.Equal(t, ExitFindings, code)
+	assert.Equal(t, "airframe show: unknown component buton; did you mean button?\n", stderr)
 }
 
 func TestShowComponentScanFailureExits2(t *testing.T) {
@@ -176,4 +196,17 @@ func TestShowComponentScanFailureExits2(t *testing.T) {
 	assert.Equal(t, ExitUsage, code, stderr)
 	assert.Empty(t, stdout)
 	assert.Contains(t, stderr, "airframe show: scan consumers:")
+}
+
+// TestShowMalformedRuling: show judges a ruling reference with lint's own
+// pattern, so what lint calls malformed show calls malformed.
+func TestShowMalformedRuling(t *testing.T) {
+	for _, ref := range []string{"@ruling:Button", "@ruling:-button", "@ruling:but_ton", "ruling:button", "@ruling:"} {
+		dir := showProject(t, map[string]string{
+			"design-system/components/split-button.yaml": "id: split-button\nruling: \"" + ref + "\"\nhostedBy: button\nowners: [\"web/button/**\"]\n",
+		})
+		code, stdout, stderr := run("--root", dir, "show", "split-button", "--json")
+		require.Equal(t, ExitOK, code, stderr)
+		assert.Contains(t, stdout, `"status": "malformed"`, ref)
+	}
 }

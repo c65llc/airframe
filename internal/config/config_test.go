@@ -770,3 +770,12 @@ func TestGantryPathMustBeAFileUnderTheRoot(t *testing.T) {
 	require.Len(t, ds, 1)
 	assert.Equal(t, "schema-invalid", ds[0].Rule)
 }
+
+// TestMergeKeyRejected: a YAML merge key would splice keys past the
+// schema (a platform's consumers, say), so it is schema-invalid.
+func TestMergeKeyRejected(t *testing.T) {
+	d := loadErr(t, "version: 1\nplatforms:\n  web:\n    emit: css\n    <<: {consumers: [\"web/**/*.css\"]}\n")
+	assert.Equal(t, "YAML merge keys (<<) are not supported", d.Message)
+	assert.Equal(t, "platforms.web.<<", d.Path)
+	assert.Equal(t, 5, d.Line)
+}

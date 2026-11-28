@@ -383,6 +383,10 @@ is optional, a list of entries:
   non-empty list of RE2 patterns. Each pattern is matched against the
   consumer files that adapter reads, so a `css` spelling is looked for in
   stylesheets and in `.tsx`, `.html` and the other web files.
+  - Spellings are RE2 regexes, not literals: escape `. ( ) [ ] { } * + ? | ^ $ \`
+    with `\`, so the Swift `.frame(width: 3)` is the pattern `\.frame\(width: 3\)`.
+  - Single-quoted YAML keeps `\` as typed: `swift: ['\.frame\(width: 3\)']`.
+  - Double quotes need `\\` for each `\`: `swift: ["\\.frame\\(width: 3\\)"]`, as above.
 - **`marker`** (optional) is the treatment's own escape word (§9).
 
 `airframe schema retired` prints the file's JSON Schema, and `airframe
@@ -451,6 +455,24 @@ a clean one.
 - **Rulings are read, not judged.** Airframe checks that the ruling exists
   and is ruled, not that it says anything about the component.
 - **Implementations are checked to exist,** not to build the component.
+
+## Upgrading from v0.6.0
+
+v0.6.0 accepted `ruling` and `implementations` without checking them, so
+a v0.6.0 project with components fails lint after the upgrade until each
+component file has:
+
+- a **`ruling`**, `"@ruling:<id>"` (resolved against Gantry when a
+  `gantry.yaml` is present; syntax only otherwise), or it is
+  `component-unruled`;
+- an **`implementations`** entry for every platform that declares
+  `consumers`: the file that builds the component there, or
+  `"n/a: <reason>"`, or it is `component-incomplete`.
+
+A token already marked `retired: true` (v0.6.0 parsed the flag and did
+nothing with it) is now `retired-used` wherever consumer code reads it or
+a token aliases it directly. Nothing else changes: owners, `shared` and
+the consumer rules behave as in v0.6.0.
 
 ## In CI
 

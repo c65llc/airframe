@@ -176,6 +176,7 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	assert.Contains(t, built, "**Retires treatments** (next release)")
 	assert.Contains(t, built, "(docs/guides/components.md)")
 	assert.Contains(t, built, "airframe show <component>")
+	assert.Contains(t, built, "(docs/guides/components.md#upgrading-from-v060)", "the upgrade note is linked")
 	for _, rule := range []string{"component-unruled", "component-incomplete", "retired-used"} {
 		assert.Contains(t, built, rule, "a built component rule is described before the planned list")
 		assert.NotContains(t, planned, rule, "a built component rule is not planned")

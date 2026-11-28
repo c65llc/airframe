@@ -36,6 +36,10 @@ const defaultContent = "docs/design"
 // under: component-unruled is the rule that needs the record.
 const RulingRule = "component-unruled"
 
+// RefRE is a well-formed ruling reference, @ruling:<id>; group 1 is the
+// ruling id. Lint and show both judge references by it.
+var RefRE = regexp.MustCompile(`^@ruling:([a-z0-9][a-z0-9-]*)$`)
+
 // Statuses are a Gantry ruling's statuses, in Gantry's order.
 var Statuses = []string{"proposed", "ruled", "superseded", "retired"}
 

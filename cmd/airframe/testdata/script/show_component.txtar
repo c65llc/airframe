@@ -32,7 +32,7 @@ stdout '^noun: -$'
 
 # Unknown names exit 1.
 exits 1 airframe show nobody
-stderr '^airframe show: unknown token nobody$'
+stderr '^airframe show: unknown token or component nobody$'
 exits 1 airframe show --component nobody
 stderr '^airframe show: unknown component nobody$'
 

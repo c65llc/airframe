@@ -136,3 +136,15 @@ func TestRetiredSchemaAdapterKeys(t *testing.T) {
 	}
 	assert.ElementsMatch(t, config.AdapterNames, keys)
 }
+
+// TestMergeKeyRejected: a merge key must not silently drop or splice a
+// treatment's spellings.
+func TestMergeKeyRejected(t *testing.T) {
+	ts, ds := Parse("design-system/retired.yaml", []byte("- id: bar\n  <<: {spellings: {css: [\"inset 3px 0 0\"]}}\n"))
+	assert.Nil(t, ts)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "YAML merge keys (<<) are not supported", ds[0].Message)
+	assert.Equal(t, "0.<<", ds[0].Path)
+	assert.Equal(t, 2, ds[0].Line)
+}
