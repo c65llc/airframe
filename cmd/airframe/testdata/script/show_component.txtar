@@ -1,0 +1,63 @@
+# show prints a component's inventory, and who reads its tokens. A name
+# resolves to a token first, then a component; --component forces it.
+exec airframe init
+cp airframe.yaml.in airframe.yaml
+mkdir design-system/components
+cp button.yaml design-system/components/button.yaml
+cp accent-ink.yaml design-system/components/accent-ink.yaml
+exec airframe build
+
+exec airframe show button
+stdout '^button$'
+stdout '^ruling: @ruling:button \(not checked: no gantry.yaml\)$'
+stdout '^  button-bg: component$'
+stdout '^  web/button/\*\*$'
+stdout '^  web: web/button/Button.tsx$'
+stdout '^    web/button/Button.tsx: 1 reference$'
+
+exec airframe show button --json
+stdout '"id": "button"'
+stdout '"status": "unchecked"'
+stdout '"file": "web/button/Button.tsx"'
+
+# Both a token and a component: the token wins, and the hint says how to
+# get the component.
+exec airframe show accent-ink
+stdout '^tier: semantic$'
+stderr '^\(also a component: airframe show --component accent-ink\)$'
+exec airframe show --component accent-ink
+stdout '^accent-ink$'
+stdout '^noun: -$'
+! stderr .
+
+# Unknown names exit 1.
+exits 1 airframe show nobody
+stderr '^airframe show: unknown token nobody$'
+exits 1 airframe show --component nobody
+stderr '^airframe show: unknown component nobody$'
+
+-- airframe.yaml.in --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density, also: {relaxed: "@media (pointer: coarse)"}}}
+platforms:
+  web:
+    emit: css
+    consumers: ["web/**/*.tsx"]
+  json: {emit: [json]}
+-- button.yaml --
+id: button
+noun: Button
+ruling: "@ruling:button"
+tokens: [button-bg, button-ink, button-target, button-gap]
+owners: ["web/button/**"]
+implementations:
+  web: web/button/Button.tsx
+-- accent-ink.yaml --
+id: accent-ink
+ruling: "@ruling:accent-ink"
+owners: ["web/x/**"]
+-- web/button/Button.tsx --
+export const Button = () => <button style={{ background: "var(--button-bg)" }} />;

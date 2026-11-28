@@ -145,9 +145,12 @@ var Commands = []Command{
 	},
 	{
 		Name:    "show",
-		Args:    "<token>",
-		Summary: "Print a token's tier, component, type, description, value per mode key and alias chain.",
-		Flags:   []Flag{{Name: "json", Summary: "print the same as a JSON object"}},
+		Args:    "<token|component>",
+		Summary: "Print a token's tier, component, type, description, value per mode key and alias chain; or a component's ruling, tokens, owners, implementations and consumers.",
+		Flags: []Flag{
+			{Name: "component", Summary: "show the component of that name, even when a token has it too"},
+			{Name: "json", Summary: "print the same as a JSON object"},
+		},
 	},
 	{
 		Name:    "explain",
@@ -902,11 +905,41 @@ func (inv *invocation) loadToken(name string) (*project.Project, *tokens.Token, 
 
 func runShow(inv *invocation) int {
 	if len(inv.args) != 1 {
-		return inv.usageError("show takes one token name")
+		return inv.usageError("show takes one token or component name")
 	}
-	p, t, code := inv.loadToken(inv.args[0])
+	name := inv.args[0]
+	_, p, ds, err := inv.load()
+	if err != nil {
+		return inv.fail(err)
+	}
+	if p == nil {
+		diag.WriteText(inv.stderr, ds, nil)
+		return ExitFindings
+	}
+	forced := *inv.bools["component"]
+	c := p.Components[name]
+	if forced {
+		if c == nil {
+			_, _ = fmt.Fprintf(inv.stderr, "airframe show: unknown component %s\n", name)
+			return ExitFindings
+		}
+		return inv.runShowComponent(p, c)
+	}
+	t, suggestion := lookupToken(p.Tokens, name)
 	if t == nil {
-		return code
+		if c != nil {
+			return inv.runShowComponent(p, c)
+		}
+		msg := "unknown token " + name
+		if suggestion != "" {
+			msg += "; did you mean " + suggestion + "?"
+		}
+		_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", msg)
+		return ExitFindings
+	}
+	if c != nil {
+		// stderr, so --json stays one document.
+		_, _ = fmt.Fprintf(inv.stderr, "(also a component: airframe show --component %s)\n", name)
 	}
 	s := describe(p.Tokens, t)
 	if *inv.bools["json"] {
