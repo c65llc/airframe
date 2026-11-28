@@ -68,8 +68,10 @@ func init() {
 	}
 }
 
-// SwiftIdent makes s a valid Swift identifier: a reserved word is wrapped
-// in backticks and a leading digit gets a "_" prefix.
+// SwiftIdent escapes what Swift reserves in an identifier: a reserved word
+// is wrapped in backticks and a leading digit gets a "_" prefix. It does
+// not make any string an identifier ("accent-ink" stays as it is); the
+// Swift emitter rejects what is still not one.
 func SwiftIdent(s string) string {
 	switch {
 	case swiftKeywords[s]:

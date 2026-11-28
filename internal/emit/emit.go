@@ -2,7 +2,8 @@
 // Copyright 2026 C65 LLC
 
 // Package emit turns a loaded project into its generated outputs: CSS
-// custom properties with mode scopes, and a neutral JSON contract. Every
+// custom properties with mode scopes, a neutral JSON contract, and for
+// apple asset-catalog colorsets and a SwiftUI DesignTokens file. Every
 // output is deterministic and byte-stable (LF, final newline, sorted).
 package emit
 
@@ -26,13 +27,14 @@ import (
 type Emitter func(p *project.Project, pl config.Platform) (map[string][]byte, error)
 
 // Emitters maps each emit format to its emitter.
-var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON}
+var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON, "swift": Swift}
 
 // defaultOut is where a format is written, under the content directory,
 // when its platform sets no out.
 var defaultOut = map[string]string{
-	"css":  "generated/css/tokens.css",
-	"json": "generated/json/tokens.json",
+	"css":   "generated/css/tokens.css",
+	"json":  "generated/json/tokens.json",
+	"swift": "generated/apple/DesignTokens.swift",
 	// colorsets is a catalog folder, not a file.
 	"colorsets": "generated/apple/Assets.xcassets/Tokens",
 }

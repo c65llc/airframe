@@ -411,8 +411,8 @@ func underRoot(key, v, at string, line int) (string, *buildError) {
 	return clean, nil
 }
 
-// Formats are the emit formats airframe.yaml may name: css and json are
-// built now; swift, colorsets, kotlin and xaml are accepted so a config can
+// Formats are the emit formats airframe.yaml may name: css, json, swift
+// and colorsets are built now; kotlin and xaml are accepted so a config can
 // declare them, and are reported as not yet built until their emitters land.
 var Formats = []string{"css", "json", "swift", "colorsets", "kotlin", "xaml"}
 

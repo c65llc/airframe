@@ -198,18 +198,19 @@ func TestEmitListSkipsFormat(t *testing.T) {
 // the built formats still build.
 func TestBuildReportsUnsupported(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin]}", 1)
 	out, ds := Build(loadFS(t, fsys), nil)
-	require.Len(t, ds, 1)
-	for i, f := range []string{"swift"} {
+	require.Len(t, ds, 1, "%v", ds)
+	for i, f := range []string{"kotlin"} {
 		assert.Equal(t, "emit-unsupported", ds[i].Rule)
 		assert.Equal(t, diag.Warn, ds[i].Severity)
 		assert.Equal(t, "airframe.yaml", ds[i].File)
-		assert.Equal(t, "platforms.apple.emit", ds[i].Path)
-		assert.Equal(t, "platform apple: format "+f+" is not built until a later release", ds[i].Message)
+		assert.Equal(t, "platforms.android.emit", ds[i].Path)
+		assert.Equal(t, "platform android: format "+f+" is not built until a later release", ds[i].Message)
 	}
 	assert.Contains(t, out, minimalCSS)
 	assert.Contains(t, out, "design-system/generated/apple/Assets.xcassets/Tokens/Contents.json", "colorsets is built, at its default out")
+	assert.Contains(t, out, "design-system/generated/apple/DesignTokens.swift", "swift is built, at its default out")
 
 	_, ds = Build(loadFS(t, fsys), []string{"css"})
 	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")

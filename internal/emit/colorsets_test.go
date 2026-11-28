@@ -180,6 +180,10 @@ func TestFanOutThroughAlias(t *testing.T) {
 	assert.Equal(t, string(out[set(notesCatalog, "Accent")]), string(notes))
 	assert.Equal(t, string(out[set(tasksCatalog, "Accent")]), string(tasks))
 	assert.Equal(t, string(out[set(notesCatalog, "Ink")]), string(out[set(tasksCatalog, "Ink")]), "a colour that does not vary per app is the same in both")
+
+	// Swift half: the shared file reads the colorset each app's catalog
+	// holds, so one static let serves both.
+	assert.Contains(t, appleSwift(t), "    public static let buttonBg = Color(\"Tokens/ButtonBg\")\n")
 }
 
 func p3Components(c color.OKLCH, g color.Gamut) map[string]string {
