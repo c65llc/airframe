@@ -205,6 +205,24 @@ func (c OKLCH) ToP3(gamut Gamut) (r, g, b float64) {
 	return convert(c, xyzToP3, p3ToXYZ, gamut)
 }
 
+// FromSRGB converts gamma-encoded sRGB channels (0-1) to OKLCH. Hue is
+// normalised to [0,360) and is 0 when chroma is below 1e-9.
+func FromSRGB(r, g, b, alpha float64) OKLCH {
+	l, a, bb := rgbToOKLab(srgbToXYZ, r, g, b)
+	c := math.Hypot(a, bb)
+	h := 0.0
+	if c >= 1e-9 {
+		h = math.Atan2(bb, a) * 180 / math.Pi
+		if h < 0 {
+			h += 360
+		}
+		if h >= 360 {
+			h -= 360
+		}
+	}
+	return OKLCH{L: l, C: c, H: h, Alpha: alpha}
+}
+
 func luminance(r, g, b float64) float64 {
 	return 0.2126*decode(r) + 0.7152*decode(g) + 0.0722*decode(b)
 }
