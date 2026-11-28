@@ -34,7 +34,7 @@ var (
 		{"apple", appleDir, "apple", "swift", nil, []string{"ios/Shared/DesignTokens.swift"}, swiftNames},
 		{"apple-per-app", appleDir, "apple", "swift", func(t *testing.T) fs.FS { return perAppFS(t) },
 			[]string{"swift/notes/DesignTokens.swift", "swift/tasks/DesignTokens.swift"}, swiftNames},
-		{"android-shared", androidDir, "android", "kotlin", nil, []string{sharedKotlin}, func(s string) []string { return all(kotlinValRE, s) }},
+		{"android-shared", androidDir, "android", "kotlin", nil, []string{sharedKotlin}, kotlinTokenVals},
 		{"android-values", androidDir, "android", "kotlin", nil, []string{notesKotlin, tasksKotlin}, kotlinSlotNames},
 		{"windows", windowsDir, "windows", "xaml", nil,
 			[]string{"windows/notes/DesignTokens.xaml", "windows/tasks/DesignTokens.xaml"}, func(s string) []string { return all(xamlKeyAttrRE, s) }},
@@ -52,6 +52,16 @@ func all(re *regexp.Regexp, s string) []string {
 }
 
 func swiftNames(s string) []string { return all(swiftMemberRE, s) }
+
+// kotlinShadowBlockRE is the nested Shadow data class, whose fields are
+// no first segment after <Type>.
+var kotlinShadowBlockRE = regexp.MustCompile(`(?s)public data class Shadow\(\n.*?\n\s*\)\n`)
+
+// kotlinTokenVals are the vals of the shared file, the nested Shadow's
+// fields aside.
+func kotlinTokenVals(s string) []string {
+	return all(kotlinValRE, kotlinShadowBlockRE.ReplaceAllString(s, ""))
+}
 
 // kotlinSlotNames are the DesignColorValues vals and the slot arguments of
 // each <Type>Colors(…) in it (not a Material 3 scheme's role arguments).
@@ -128,18 +138,25 @@ func TestReferenceNamesTokens(t *testing.T) {
 	assert.Equal(t, "card-shadow", kt["cardShadowLayer1"], "a Kotlin shadow colour slot")
 	assert.Equal(t, "gap", kt["gap"])
 	assert.Equal(t, "blue-500", kt["blue500"])
-	for _, n := range []string{"colors", "Density", "Compact", "Appearance", "Shadow", "DesignColors", "DesignColorValues", "light", "dark", "lightScheme", "Companion"} {
+	for _, n := range []string{"colors", "Density", "density", "Appearance", "Shadow", "DesignColors", "DesignColorValues", "light", "dark", "lightScheme", "Companion"} {
 		v, ok := kt[n]
 		assert.True(t, ok && v == "", "kotlin %s is a generated non-token symbol (%q, %v)", n, v, ok)
+	}
+
+	for _, n := range []string{"Compact", "Light", "x", "blur", "inset"} {
+		assert.NotContains(t, kt, n, "kotlin %s is a nested enum constant or Shadow field, no first segment", n)
 	}
 
 	_, sw := refNames(t, appleDir, "apple", "swift")
 	assert.Equal(t, "default", sw["`default`"])
 	assert.Equal(t, "default", sw["default"], "a backticked member also matches unescaped")
 	assert.Equal(t, "gap", sw["gap"])
-	for _, n := range []string{"Density", "compact", "density", "Bezier", "Shadow", "init", "DesignTokens"} {
+	for _, n := range []string{"Density", "density", "Bezier", "Shadow", "init", "DesignTokens"} {
 		v, ok := sw[n]
 		assert.True(t, ok && v == "", "swift %s is a generated non-token symbol (%q, %v)", n, v, ok)
+	}
+	for _, n := range []string{"compact", "relaxed", "x", "x1", "blur", "spread"} {
+		assert.NotContains(t, sw, n, "swift %s is a nested enum case or field, no first segment", n)
 	}
 
 	_, css := refNames(t, minimalDir, "web", "css")

@@ -13,21 +13,23 @@ import (
 )
 
 // ReferenceNames maps every name format's emitter writes for platform pl
-// to the token it stands for, or to "" for a generated symbol that is no
-// token (a type, an enum or its cases, a parameter, a ColorValues val, a
-// theme dictionary key). It runs the emitter itself and reads the names it
+// that a consumer can write as the first segment after <Type>. (or after a
+// declared wrapper root) to the token it stands for, or to "" for a
+// generated symbol that is no token (a nested type, a parameter property,
+// a ColorValues val, a theme dictionary key). Nested members, such as
+// Shadow's fields or an enum's cases, are not first segments and are left
+// out, so DesignTokens.x with no token x stays unmatched. It runs the emitter itself and reads the names it
 // wrote, so the two cannot drift, and it fails with the emitter's own error
 // when the emitter would fail.
 //
 //   - css: each custom property, as --<name>.
 //   - swift: the <Type> struct's members, static and instance (a backticked
-//     member also unescaped); the type, Bezier and Shadow and their fields,
-//     each runtime parameter's enum, cases and property, and init map to "".
+//     member also unescaped); the type, Bezier, Shadow, each runtime
+//     parameter's enum and property, and init map to "".
 //   - kotlin: the <Type> class's members and the <Type>Colors slots (a
 //     member wins over a slot of the same name); <Type>, <Type>Colors,
-//     <Type>ColorValues, Companion, Shadow and its fields, each parameter's
-//     enum class, constants and property, colors, and the ColorValues and
-//     scheme vals map to "".
+//     <Type>ColorValues, Companion, Shadow, each parameter's enum class and
+//     property, colors, and the ColorValues and scheme vals map to "".
 //   - xaml: every resource key (base, runtime-suffixed, shadow brush and
 //     part keys); the theme dictionary keys map to "".
 //
@@ -105,26 +107,15 @@ func (r refs) symbolIdent(names ...string) {
 	}
 }
 
-// swiftSupportFields are the stored properties of swiftSupport's Bezier
-// and Shadow.
-var swiftSupportFields = []string{"x1", "y1", "x2", "y2", "color", "x", "y", "blur", "spread", "inset"}
-
 func (r refs) swift(sw *swifter) {
 	for _, m := range sw.members {
 		r.ident(m.name, m.t.Name)
 	}
 	r.symbol(sw.typ, "Bezier", "Shadow", "init")
-	r.symbol(swiftSupportFields...)
 	for _, a := range sw.params {
 		r.symbolIdent(swiftEnum(a), swiftProp(a))
-		for _, v := range a.Values {
-			r.symbolIdent(swiftCase(v))
-		}
 	}
 }
-
-// kotlinShadowFields are the properties of kotlinShadowDecl.
-var kotlinShadowFields = []string{"color", "x", "y", "blur", "spread", "inset"}
 
 func (r refs) kotlin(k *kotliner) {
 	for _, m := range k.members {
@@ -152,13 +143,9 @@ func (r refs) kotlin(k *kotliner) {
 	}
 	if slices.ContainsFunc(k.members, func(m kotlinMember) bool { return m.t.Type == "shadow" }) {
 		r.symbol("Shadow")
-		r.symbol(kotlinShadowFields...)
 	}
 	for _, a := range k.params {
 		r.symbolIdent(kotlinEnum(a), kotlinProp(a))
-		for _, v := range a.Values {
-			r.symbolIdent(kotlinConst(v))
-		}
 	}
 }
 
@@ -167,6 +154,11 @@ func (r refs) kotlin(k *kotliner) {
 // the member part after the last ".". Design{Pascal} gives ("Design", "");
 // DesignTokens.{camel} gives ("", ""). A template with no placeholder is
 // all prefix.
+//
+// The emitters append runtime suffixes (DesignGapCompact) and shadow
+// Layer<N> suffixes (DesignCardShadowLayer1OffsetX) after the template's
+// literal suffix, so a generated key matches prefix … suffix [tail], not
+// prefix … suffix alone; the scanner's "ours" test must allow the tail.
 func NamingAffixes(cfg *config.Config, format string) (prefix, suffix string) {
 	tmpl := cfg.NamingFor(format)
 	if i := strings.LastIndex(tmpl, "."); i >= 0 {
