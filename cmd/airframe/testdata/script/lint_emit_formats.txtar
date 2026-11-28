@@ -8,7 +8,7 @@ stdout 'airframe.yaml:7: error schema-invalid: .*csss'
 # lint passes unless --strict.
 cp future.yaml airframe.yaml
 exec airframe lint
-stdout 'warn emit-unsupported: platform android: format kotlin is not built until a later release'
+stdout 'warn emit-unsupported: platform windows: format xaml is not built until a later release'
 exits 1 airframe lint --strict
 exec airframe build
 stderr 'emit-unsupported'
@@ -36,7 +36,7 @@ modes:
 platforms:
   web: {emit: css}
   json: {emit: [json]}
-  android: {emit: [kotlin], options: {package: com.example.design}}
+  windows: {emit: [xaml]}
 -- outkey.yaml --
 version: 1
 content: design-system

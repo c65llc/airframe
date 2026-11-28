@@ -896,3 +896,42 @@ func TestMaterial3Appearance(t *testing.T) {
 	assert.NotContains(t, s, "darkColorScheme")
 	assert.Less(t, strings.Index(s, "public val colors: DesignColors"), strings.Index(s, "public val lightScheme:"))
 }
+
+// TestGuideKotlinCompiles: every ```kotlin block in docs/guides/android.md
+// is a complete file that compiles with kotlinc against the android
+// fixture's goldens (the shared file and one app's values, for each app)
+// and the Compose stubs, so the guide cannot drift from what is emitted.
+// Skipped without kotlinc on PATH.
+func TestGuideKotlinCompiles(t *testing.T) {
+	kotlinc, err := exec.LookPath("kotlinc")
+	if err != nil {
+		t.Skip("kotlinc is not on PATH")
+	}
+	guide, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "android.md"))
+	require.NoError(t, err)
+	blocks := regexp.MustCompile("(?s)```kotlin\n(.*?)```").FindAllStringSubmatch(string(guide), -1)
+	require.NotEmpty(t, blocks)
+	stubs, err := filepath.Glob(filepath.Join("testdata", "kotlin-stubs", "*.kt"))
+	require.NoError(t, err)
+	require.NotEmpty(t, stubs)
+	golden := kotlinGoldenFiles(t, androidDir)
+	for _, app := range []string{notesKotlin, tasksKotlin} {
+		t.Run(strings.Split(app, "/")[1], func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			files := []string{filepath.Join(dir, "DesignTokens.kt"), filepath.Join(dir, "DesignColorValues.kt")}
+			require.NoError(t, os.WriteFile(files[0], golden[sharedKotlin], 0o644))
+			require.NoError(t, os.WriteFile(files[1], golden[app], 0o644))
+			for i, m := range blocks {
+				f := filepath.Join(dir, fmt.Sprintf("Guide%d.kt", i))
+				require.NoError(t, os.WriteFile(f, []byte(m[1]), 0o644))
+				files = append(files, f)
+			}
+			args := append([]string{"-nowarn"}, files...)
+			args = append(args, stubs...)
+			b, err := exec.Command(kotlinc, append(args, "-d", filepath.Join(dir, "out"))...).CombinedOutput()
+			require.NoError(t, err, "kotlinc of the guide's %d kotlin blocks:\n%s", len(blocks), b)
+			t.Logf("kotlinc: %d guide blocks ok%s", len(blocks), strings.TrimRight("\n"+string(b), "\n"))
+		})
+	}
+}

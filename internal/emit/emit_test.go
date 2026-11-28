@@ -198,22 +198,55 @@ func TestEmitListSkipsFormat(t *testing.T) {
 // the built formats still build.
 func TestBuildReportsUnsupported(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin], options: {package: com.example.design}}", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin], options: {package: com.example.design}}\n  windows: {emit: [xaml]}", 1)
 	out, ds := Build(loadFS(t, fsys), nil)
 	require.Len(t, ds, 1, "%v", ds)
-	for i, f := range []string{"kotlin"} {
+	for i, f := range []string{"xaml"} {
 		assert.Equal(t, "emit-unsupported", ds[i].Rule)
 		assert.Equal(t, diag.Warn, ds[i].Severity)
 		assert.Equal(t, "airframe.yaml", ds[i].File)
-		assert.Equal(t, "platforms.android.emit", ds[i].Path)
-		assert.Equal(t, "platform android: format "+f+" is not built until a later release", ds[i].Message)
+		assert.Equal(t, "platforms.windows.emit", ds[i].Path)
+		assert.Equal(t, "platform windows: format "+f+" is not built until a later release", ds[i].Message)
 	}
 	assert.Contains(t, out, minimalCSS)
 	assert.Contains(t, out, "design-system/generated/apple/Assets.xcassets/Tokens/Contents.json", "colorsets is built, at its default out")
 	assert.Contains(t, out, "design-system/generated/apple/DesignTokens.swift", "swift is built, at its default out")
+	assert.Contains(t, out, "design-system/generated/android/DesignColorValues.kt", "kotlin is built, at its default out")
 
 	_, ds = Build(loadFS(t, fsys), []string{"css"})
 	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")
+}
+
+// TestAndroidDeterministic: the android fixture builds the same bytes
+// twice and with its token files read in reverse order, for every output
+// path: the shared DesignTokens.kt and each app's DesignColorValues.kt.
+func TestAndroidDeterministic(t *testing.T) {
+	p := loadFS(t, os.DirFS(androidDir))
+	first, ds := Build(p, nil)
+	for _, d := range ds {
+		require.NotEqual(t, diag.Error, d.Severity, "%v", d)
+	}
+	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(first)))
+	again, _ := Build(p, nil)
+	assert.Equal(t, first, again)
+
+	// Reverse, then rotate by one: two read orders unlike the first.
+	rotate := func(fs []string) { head := fs[0]; copy(fs, fs[1:]); fs[len(fs)-1] = head }
+	for _, shuffle := range []func([]string){slices.Reverse[[]string], rotate} {
+		shuffle(p.TokenFiles)
+		files := map[string][]byte{}
+		for _, f := range p.TokenFiles {
+			files[f] = p.Sources[f]
+		}
+		set, tds := tokens.Parse(p.Config, files)
+		require.Empty(t, tds)
+		p.Tokens = set
+		shuffled, _ := Build(p, nil)
+		require.Equal(t, slices.Sorted(maps.Keys(first)), slices.Sorted(maps.Keys(shuffled)), "%v", p.TokenFiles)
+		for path := range first {
+			assert.Equal(t, string(first[path]), string(shuffled[path]), "%s, read order %v", path, p.TokenFiles)
+		}
+	}
 }
 
 // TestAppleDeterministic: the apple fixture builds the same bytes twice
