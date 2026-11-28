@@ -10,6 +10,7 @@
   --gray-900: oklch(20% 0.01 250);
   --hairline: var(--line-1);
   --ink: var(--gray-900);
+  --legacy-ink: var(--gray-900);
   --line-1: 1px;
   --space-2: 8px;
   --space-4: 16px;

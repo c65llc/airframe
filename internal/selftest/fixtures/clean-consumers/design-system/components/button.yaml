@@ -1,7 +1,14 @@
 id: button
+noun: Button
+ruling: "@ruling:button"
 tokens: [button-bg, button-ink]
 owners:
   - web/src/button/**
   - apple/Sources/Button*.swift
   - android/src/button/**
   - windows/App/Button*.xaml
+implementations:
+  web: web/src/button/Button.tsx
+  apple: apple/Sources/ButtonStyle.swift
+  android: android/src/button/Button.kt
+  windows: "n/a: the WinUI Button, restyled through ButtonView.xaml's resources"

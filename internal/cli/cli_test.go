@@ -186,3 +186,15 @@ func TestLintConsumerReadErrorExits2(t *testing.T) {
 	assert.Contains(t, stderr, "web/a.css")
 	assert.Empty(t, stdout)
 }
+
+func TestSchemaRetired(t *testing.T) {
+	code, stdout, stderr := run("schema", "retired")
+	require.Equal(t, ExitOK, code, stderr)
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &doc))
+	assert.Equal(t, "retired.yaml", doc["title"])
+
+	code, _, stderr = run("schema", "nope")
+	assert.Equal(t, ExitUsage, code)
+	assert.Contains(t, stderr, "retired")
+}

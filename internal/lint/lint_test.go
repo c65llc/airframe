@@ -66,10 +66,11 @@ func TestRulesStableOrder(t *testing.T) {
 	ids := ruleIDs()
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
-		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
-		"emitted-stale", "exemption-without-reason", "fallback-literal", "hue-reserved", "literal-in-semantic",
-		"not-formatted", "prefix-multiple-hues", "primitive-read-by-consumer", "reference-undeclared",
-		"tier-violation", "token-owner-violation", "token-unclassified", "wrapper-unmapped",
+		"accent-flip", "accent-group-partial", "component-incomplete", "component-unruled", "contrast-below",
+		"density-missing", "dimension-below", "emitted-stale", "exemption-without-reason", "fallback-literal",
+		"hue-reserved", "literal-in-semantic", "not-formatted", "prefix-multiple-hues", "primitive-read-by-consumer",
+		"reference-undeclared", "retired-used", "tier-violation", "token-owner-violation", "token-unclassified",
+		"wrapper-unmapped",
 	}, ids)
 	for _, r := range Rules() {
 		want := diag.Error
@@ -87,8 +88,8 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	var named []string
 	for _, tl := range res.Tallies {
 		named = append(named, tl.Rule)
-		if slices.Contains(consumerRuleIDs, tl.Rule) {
-			continue // flagAll has no consumers; TestConsumerTallies covers them
+		if slices.Contains(consumerRuleIDs, tl.Rule) || slices.Contains(componentRuleIDs, tl.Rule) {
+			continue // flagAll has no consumers or components; TestConsumerTallies and rules_components_test cover them
 		}
 		assert.Positive(t, tl.Items, tl.Rule)
 		switch {
@@ -109,7 +110,7 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	}
 	assert.Equal(t, ruleIDs(), named)
 	for _, id := range ruleIDs() {
-		if slices.Contains(consumerRuleIDs, id) {
+		if slices.Contains(consumerRuleIDs, id) || slices.Contains(componentRuleIDs, id) {
 			continue
 		}
 		assert.NotEmpty(t, byRule(res.Diagnostics, id), "%s should fire on the flag fixture", id)

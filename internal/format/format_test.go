@@ -116,3 +116,18 @@ func TestPathsIncludeComponentFiles(t *testing.T) {
 	assert.Equal(t, "id: a\nowners: [x/**]\n", string(got["design-system/components/a.yaml"]))
 	assert.NotContains(t, got, "design-system/components/b.yaml")
 }
+
+func TestPathsIncludeRetired(t *testing.T) {
+	p, ds, err := project.Load(project.MemFS{
+		"airframe.yaml":               "version: 1\n",
+		"design-system/c.tokens.json": `{ "s": { "$type": "dimension", "$value": { "value": 4, "unit": "px" } } }`,
+		"design-system/retired.yaml":  "- id:   a\n  spellings:\n      css:   [x]\n",
+	})
+	require.NoError(t, err)
+	require.Empty(t, ds)
+	require.Len(t, p.Retired, 1)
+	assert.Equal(t, []string{"airframe.yaml", "design-system/c.tokens.json", "design-system/retired.yaml"}, Paths(p))
+	got := Project(p)
+	require.Contains(t, got, "design-system/retired.yaml")
+	assert.Equal(t, "- id: a\n  spellings:\n    css: [x]\n", string(got["design-system/retired.yaml"]))
+}

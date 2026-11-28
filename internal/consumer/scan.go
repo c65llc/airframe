@@ -42,7 +42,14 @@ const (
 	// NamesUnavailable is a platform whose emitter failed while rendering
 	// the names its scan needs: none of its references were read.
 	NamesUnavailable = "names-unavailable"
+	// RetiredSpelling is a match of a retired.yaml spelling: Raw is the
+	// matched text and Treatment the treatment's id.
+	RetiredSpelling = "retired-spelling"
 )
+
+// RetiredRule is the rule a retired treatment's own marker exempts from;
+// Scan records such a marker as an Exemption for it, with Marker set.
+const RetiredRule = "retired-used"
 
 // Direct is the Via of a reference an adapter found; a wrapper read's Via
 // is "wrapper:<root>".
@@ -61,6 +68,10 @@ type Result struct {
 	Paths    map[string][]string `json:"-"`
 	Problems []Problem
 	Exempt   []Exemption
+	// SpellingChecks counts the (file, treatment) pairs searched for
+	// retired spellings: each consumer file against every treatment with
+	// a spelling for its adapter.
+	SpellingChecks int `json:"-"`
 }
 
 // Reference is one token reference in a consumer file. Line and Col are
@@ -83,6 +94,8 @@ type Problem struct {
 	Line, Col            int
 	Raw                  string
 	Detail               string
+	// Treatment is the retired treatment a RetiredSpelling matched.
+	Treatment string `json:",omitempty"`
 }
 
 // Exemption is an airframe-exempt <rule>: <reason> marker on the line of a
@@ -92,10 +105,16 @@ type Problem struct {
 // suppresses its finding at (File, Line) when an Exemption for it there
 // has a Reason. One whose Reason is "" exempts nothing; the finding's
 // message then ends "(airframe-exempt on line N has no reason)".
+//
+// A retired treatment's own marker, <marker>: <reason>, is recorded the
+// same way for the lines of that treatment's RetiredSpelling problems,
+// with Rule RetiredRule and Marker the marker; Marker is "" for an
+// airframe-exempt marker. It exempts only that treatment's spellings.
 type Exemption struct {
 	Rule, Platform, File string
 	Line, MarkerLine     int
 	Reason               string
+	Marker               string `json:",omitempty"`
 }
 
 // Scan scans every platform's consumer files. A platform that declares no
@@ -169,16 +188,21 @@ func (f *file) pos(off int) (line, col int) {
 	return i + 1, off - f.starts[i] + 1
 }
 
-// line is the text of 1-based line n, without its newline.
-func (f *file) line(n int) string {
+// line is the text of 1-based line n as read, without its newline.
+func (f *file) line(n int) string { return f.lineOf(f.src, n) }
+
+// codeLine is line n of f's code: a stylesheet's with its comments blanked.
+func (f *file) codeLine(n int) string { return f.lineOf(f.code, n) }
+
+func (f *file) lineOf(s string, n int) string {
 	if n < 1 || n > len(f.starts) {
 		return ""
 	}
-	end := len(f.src)
+	end := len(s)
 	if n < len(f.starts) {
 		end = f.starts[n] - 1
 	}
-	return strings.TrimSuffix(f.src[f.starts[n-1]:end], "\r")
+	return strings.TrimSuffix(s[f.starts[n-1]:end], "\r")
 }
 
 // platformRun collects one platform's findings.
@@ -313,6 +337,11 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 			return err
 		}
 	}
+	for i, f := range loaded {
+		if a := adapted[i]; a != nil {
+			r.spellings(f, a.name)
+		}
+	}
 	r.exemptions(loaded)
 	return nil
 }
@@ -426,14 +455,7 @@ func markers(line string) []marker {
 		if i+1 < len(idx) {
 			end = idx[i+1][0]
 		}
-		reason := ""
-		if rest, ok := strings.CutPrefix(strings.TrimLeft(line[m[1]:end], " \t"), ":"); ok {
-			for _, closer := range []string{"*/", "-->"} {
-				rest, _, _ = strings.Cut(rest, closer)
-			}
-			reason = strings.TrimSpace(rest)
-		}
-		out = append(out, marker{rule: line[m[2]:m[3]], reason: reason})
+		out = append(out, marker{rule: line[m[2]:m[3]], reason: markerReason(line[m[1]:end])})
 	}
 	return out
 }
@@ -494,6 +516,21 @@ func (r *platformRun) exemptions(files []*file) {
 			lines[at{pr.File, pr.Line}] = true
 		}
 	}
+	// words are the treatment markers that may escape each line: those of
+	// the treatments whose spellings it matches.
+	words := map[at][]string{}
+	marker := map[string]string{}
+	for _, t := range r.s.p.Retired {
+		marker[t.ID] = t.Marker
+	}
+	for _, pr := range r.res.Problems {
+		if pr.Platform == r.pl.Name && pr.Kind == RetiredSpelling && marker[pr.Treatment] != "" {
+			k := at{pr.File, pr.Line}
+			if !slices.Contains(words[k], marker[pr.Treatment]) {
+				words[k] = append(words[k], marker[pr.Treatment])
+			}
+		}
+	}
 	for l := range lines {
 		f := byPath[l.file]
 		for _, ml := range []int{l.line - 1, l.line} {
@@ -504,6 +541,141 @@ func (r *platformRun) exemptions(files []*file) {
 				r.res.Exempt = append(r.res.Exempt, Exemption{
 					Rule: m.rule, Platform: r.pl.Name, File: l.file, Line: l.line, MarkerLine: ml, Reason: m.reason,
 				})
+			}
+			for _, w := range words[l] {
+				for _, reason := range wordMarkers(f.line(ml), r.regex(wordPat(w))) {
+					r.res.Exempt = append(r.res.Exempt, Exemption{
+						Rule: RetiredRule, Platform: r.pl.Name, File: l.file, Line: l.line, MarkerLine: ml, Reason: reason, Marker: w,
+					})
+				}
+			}
+		}
+	}
+}
+
+// wordPat matches marker word standing alone, as group 1: no identifier
+// character or "-" touches it.
+func wordPat(word string) string {
+	return `(?:^|[^A-Za-z0-9_-])(` + regexp.QuoteMeta(word) + `)(?:[^A-Za-z0-9_-]|$)`
+}
+
+// wordMarkers are the reasons of every marker re (a wordPat) matches
+// inside a comment on line: the word must follow a comment opener (//,
+// /*, <!-- or {/*) in the same comment, so the word in code or in a string
+// marks nothing. A reason is read as an airframe-exempt marker's is: after
+// a ":", up to the comment's closer or the next marker, trimmed; "" with
+// no ":".
+func wordMarkers(line string, re *regexp.Regexp) []string {
+	spans := commentSpans(line)
+	var starts, ends, stops []int
+	for i := 0; i < len(line); {
+		m := re.FindStringSubmatchIndex(line[i:])
+		if m == nil {
+			break
+		}
+		start, end := i+m[2], i+m[3]
+		i = end
+		for _, sp := range spans {
+			if start >= sp[0] && end <= sp[1] {
+				starts, ends, stops = append(starts, start), append(ends, end), append(stops, sp[1])
+				break
+			}
+		}
+	}
+	out := make([]string, 0, len(starts))
+	for i := range starts {
+		end := stops[i]
+		if i+1 < len(starts) {
+			end = min(end, starts[i+1])
+		}
+		if m := markerRE.FindStringIndex(line[ends[i]:end]); m != nil {
+			end = ends[i] + m[0]
+		}
+		out = append(out, markerReason(line[ends[i]:end]))
+	}
+	return out
+}
+
+// commentSpans are the comments on line, as [after its opener, its
+// closer's start) byte ranges: a // comment runs to the end of the line,
+// and so does a block comment left open.
+func commentSpans(line string) [][2]int {
+	var out [][2]int
+	for i := 0; i < len(line); {
+		at, which := -1, -1
+		for k, c := range commentOpeners {
+			if j := strings.Index(line[i:], c[0]); j >= 0 && (at < 0 || i+j < at) {
+				at, which = i+j, k
+			}
+		}
+		if at < 0 {
+			break
+		}
+		open, closer := commentOpeners[which][0], commentOpeners[which][1]
+		body := at + len(open)
+		stop := len(line)
+		if closer != "" {
+			if j := strings.Index(line[body:], closer); j >= 0 {
+				stop = body + j
+			}
+		}
+		out = append(out, [2]int{body, stop})
+		i = stop + len(closer)
+		if closer == "" || i > len(line) {
+			break
+		}
+	}
+	return out
+}
+
+// markerReason is the reason in rest, the text after a marker's word:
+// after a ":", up to the first comment closer, trimmed; "" with no ":".
+func markerReason(rest string) string {
+	rest, ok := strings.CutPrefix(strings.TrimLeft(rest, " \t"), ":")
+	if !ok {
+		return ""
+	}
+	for _, closer := range []string{"*/", "-->"} {
+		rest, _, _ = strings.Cut(rest, closer)
+	}
+	return strings.TrimSpace(rest)
+}
+
+// spellings reports every match of a retired treatment's spellings for
+// adapter in f, line by line over f's code, so a stylesheet comment never
+// matches. A pattern that matches the empty string matches nothing.
+func (r *platformRun) spellings(f *file, adapter string) {
+	for _, t := range r.s.p.Retired {
+		pats := t.Spellings[adapter]
+		if len(pats) == 0 {
+			continue
+		}
+		r.res.SpellingChecks++
+		ruling := ""
+		if t.Ruling != "" {
+			ruling = " (" + t.Ruling + ")"
+		}
+		escape := "airframe-exempt " + RetiredRule + ": <reason>"
+		if t.Marker != "" {
+			escape = t.Marker + ": <reason> (or " + escape + ")"
+		}
+		for n := 1; n <= len(f.starts); n++ {
+			code := f.codeLine(n)
+			seen := map[int]bool{}
+			for _, re := range pats {
+				for _, m := range re.FindAllStringIndex(code, -1) {
+					if m[0] == m[1] || seen[m[0]] {
+						continue
+					}
+					seen[m[0]] = true
+					raw := code[m[0]:m[1]]
+					line, col := n, m[0]+1
+					r.res.Problems = append(r.res.Problems, Problem{
+						Kind: RetiredSpelling, Platform: r.pl.Name, File: f.path, Line: line, Col: col, Raw: raw, Treatment: t.ID,
+						Detail: fmt.Sprintf("platform %s: %q is a spelling of retired treatment %s%s, matched by %s pattern %q; it must not come back: use what replaced it, or mark an audited use with %s",
+							r.pl.Name, raw, t.ID, ruling, adapter, re.String(), escape),
+					})
+				}
 			}
 		}
 	}
@@ -518,11 +690,11 @@ func sortResult(res *Result) {
 	slices.SortFunc(res.Problems, func(a, b Problem) int {
 		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.File, b.File),
 			cmp.Compare(a.Line, b.Line), cmp.Compare(a.Col, b.Col),
-			cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Raw, b.Raw), cmp.Compare(a.Detail, b.Detail))
+			cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Raw, b.Raw), cmp.Compare(a.Treatment, b.Treatment), cmp.Compare(a.Detail, b.Detail))
 	})
 	slices.SortFunc(res.Exempt, func(a, b Exemption) int {
 		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.File, b.File),
 			cmp.Compare(a.Line, b.Line), cmp.Compare(a.MarkerLine, b.MarkerLine),
-			cmp.Compare(a.Rule, b.Rule), cmp.Compare(a.Reason, b.Reason))
+			cmp.Compare(a.Rule, b.Rule), cmp.Compare(a.Marker, b.Marker), cmp.Compare(a.Reason, b.Reason))
 	})
 }

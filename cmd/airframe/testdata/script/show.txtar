@@ -25,9 +25,9 @@ stdout '"resolved": "oklch\(63% 0.13 75\)"'
 
 # A near miss suggests the name; anything else is just unknown.
 exits 1 airframe show accent-inc
-stderr 'unknown token accent-inc; did you mean accent-ink\?'
+stderr 'unknown token or component accent-inc; did you mean accent-ink\?'
 exits 1 airframe show zzzzzzzzzz
-stderr '^airframe show: unknown token zzzzzzzzzz$'
+stderr '^airframe show: unknown token or component zzzzzzzzzz$'
 
 # The project is found from a subdirectory, or named with --root; with
 # neither there is no project.

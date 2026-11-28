@@ -1,0 +1,22 @@
+button
+noun: Button
+ruling: @ruling:button (not checked: no gantry.yaml)
+shared: false
+hostedBy: -
+hosts: split-button
+tokens:
+  button-bg: component
+  button-gap: component
+  button-ink: component
+  button-target: component
+owners:
+  apple/Sources/Button/**
+  web/button/**
+implementations:
+  apple: apple/Sources/Button/PrimaryButton.swift
+  web: web/button/Button.tsx
+consumers:
+  apple:
+    apple/Sources/Button/PrimaryButton.swift: 1 reference
+  web:
+    web/button/Button.tsx: 3 references

@@ -32,6 +32,10 @@ type Config struct {
 	Platforms      []Platform // in file order
 	Naming         map[string]string
 	Lint           LintConfig
+	// Gantry is the repo-relative path of the Gantry project's gantry.yaml,
+	// "" when airframe.yaml does not set one (package rulingref then looks
+	// for a gantry.yaml at the root).
+	Gantry string
 }
 
 // Tier is one layer of the token hierarchy and who may read it.
@@ -269,6 +273,16 @@ func build(root *yaml.Node) (*Config, *buildError) {
 			return nil, err
 		}
 		c.Content = strings.TrimSuffix(clean, "/")
+	}
+	if n := field(root, "gantry"); n != nil {
+		clean, err := underRoot("gantry", n.Value, "gantry", n.Line)
+		if err != nil {
+			return nil, err
+		}
+		if clean == "." || strings.HasSuffix(clean, "/") {
+			return nil, &buildError{msg: fmt.Sprintf("gantry %q must name a gantry.yaml file, not a directory", n.Value), path: "gantry", line: n.Line}
+		}
+		c.Gantry = clean
 	}
 
 	if tn := field(root, "tiers"); tn != nil {
@@ -1037,3 +1051,8 @@ func checkNaming(format string, v *yaml.Node) *buildError {
 	}
 	return nil
 }
+
+// AdapterNames are the consumer adapters, the names a retired.yaml spelling
+// is keyed by: "cs" is the C# adapter. The consumer package pins its
+// adapters to this list.
+var AdapterNames = []string{"css", "swift", "kotlin", "xaml", "cs"}

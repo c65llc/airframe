@@ -72,6 +72,8 @@ public struct DesignTokens: Sendable {
     public var hairline: CGFloat { Self.hairline }
     public static let ink = Color("Tokens/Ink")
     public var ink: Color { Self.ink }
+    public static let legacyInk = Color("Tokens/LegacyInk")
+    public var legacyInk: Color { Self.legacyInk }
     public static let line1: CGFloat = 1.0
     public var line1: CGFloat { Self.line1 }
     public static let space2: CGFloat = 8.0

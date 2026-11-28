@@ -23,6 +23,16 @@
       }
     }
   },
+  "legacy-ink": {
+    "$type": "color",
+    "$value": "{gray.900}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "retired": true
+      }
+    }
+  },
   "accent": {
     "$type": "color",
     "$value": "{blue.500}",

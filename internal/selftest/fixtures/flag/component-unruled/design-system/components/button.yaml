@@ -1,0 +1,3 @@
+id: button
+tokens: [button-bg]
+owners: [web/src/button/**]

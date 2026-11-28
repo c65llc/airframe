@@ -7,6 +7,7 @@
   "properties": {
     "version": { "const": 1 },
     "content": { "type": "string", "minLength": 1 },
+    "gantry": { "type": "string", "minLength": 1 },
     "tiers": {
       "type": "object",
       "additionalProperties": {

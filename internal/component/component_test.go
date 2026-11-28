@@ -98,6 +98,16 @@ func TestComponentLoadLines(t *testing.T) {
 	assert.Equal(t, 4, ds[0].Line)
 }
 
+// LineOf locates the fields the component rules report on.
+func TestComponentLineOf(t *testing.T) {
+	c := mustParse(t, "id: tabstrip\nowners: [x/**]\nruling: \"@ruling:tabs\"\nhostedBy: shell\nimplementations:\n  web: a.tsx\n  apple: b.swift\n")
+	assert.Equal(t, 3, c.LineOf("ruling"))
+	assert.Equal(t, 4, c.LineOf("hostedBy"))
+	assert.Equal(t, 5, c.LineOf("implementations"))
+	assert.Equal(t, 7, c.LineOf("implementations.apple"))
+	assert.Equal(t, 1, c.LineOf("implementations.android"), "unset: the record's line")
+}
+
 func TestSpec63ComponentExampleLoads(t *testing.T) {
 	data, err := os.ReadFile("../../docs/specs/2026-11-27-airframe-design.md")
 	require.NoError(t, err)
@@ -115,4 +125,14 @@ func TestSpec63ComponentExampleLoads(t *testing.T) {
 	assert.Len(t, c.Owners, 2)
 	assert.Equal(t, "", c.HostedBy)
 	assert.Len(t, c.Implementations, 4)
+}
+
+func TestMergeKeyRejected(t *testing.T) {
+	c, ds := Parse("design-system/components/button.yaml", []byte("id: button\nruling: \"@ruling:button\"\nowners: [\"web/**\"]\nimplementations:\n  <<: {web: web/Button.tsx}\n"))
+	assert.Nil(t, c)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Equal(t, "YAML merge keys (<<) are not supported", ds[0].Message)
+	assert.Equal(t, "implementations.<<", ds[0].Path)
+	assert.Equal(t, 5, ds[0].Line)
 }

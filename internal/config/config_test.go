@@ -350,6 +350,7 @@ func TestSpec62ExampleLoads(t *testing.T) {
 		names = append(names, p.Name)
 	}
 	assert.Equal(t, []string{"web", "apple", "android", "windows", "json"}, names)
+	assert.Equal(t, "gantry.yaml", c.Gantry)
 	bases := map[string]string{}
 	for _, a := range c.Axes {
 		bases[a.Name] = a.Base
@@ -740,4 +741,41 @@ func TestExternalPropertiesConfig(t *testing.T) {
 	c := mustLoad(t, pre+"['--radix-*', '--font-*', '--exact']\n")
 	assert.Equal(t, []string{"--radix-*", "--font-*", "--exact"}, c.Platforms[0].ExternalProperties)
 	assert.Nil(t, mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n").Platforms[0].ExternalProperties)
+}
+
+func TestGantryPath(t *testing.T) {
+	c := mustLoad(t, "version: 1\n")
+	assert.Equal(t, "", c.Gantry, "unset")
+	for in, want := range map[string]string{
+		"gantry.yaml":         "gantry.yaml",
+		"./docs/gantry.yaml":  "docs/gantry.yaml",
+		"a//b/../gantry.yaml": "a/gantry.yaml",
+	} {
+		c := mustLoad(t, "version: 1\ngantry: "+in+"\n")
+		assert.Equal(t, want, c.Gantry, in)
+	}
+}
+
+func TestGantryPathMustBeAFileUnderTheRoot(t *testing.T) {
+	for _, in := range []string{"../gantry.yaml", "a/../../x", "..", "/abs/gantry.yaml", `a\\b`, "C:/x", ".", "docs/"} {
+		c, ds := Load([]byte("version: 1\ngantry: '" + in + "'\n"))
+		assert.Nil(t, c, in)
+		require.Len(t, ds, 1, in)
+		assert.Equal(t, "schema-invalid", ds[0].Rule, in)
+		assert.Equal(t, "gantry", ds[0].Path, in)
+		assert.Equal(t, 2, ds[0].Line, in)
+		assert.Equal(t, File, ds[0].File, in)
+	}
+	_, ds := Load([]byte("version: 1\ngantry: ''\n"))
+	require.Len(t, ds, 1)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+}
+
+// TestMergeKeyRejected: a YAML merge key would splice keys past the
+// schema (a platform's consumers, say), so it is schema-invalid.
+func TestMergeKeyRejected(t *testing.T) {
+	d := loadErr(t, "version: 1\nplatforms:\n  web:\n    emit: css\n    <<: {consumers: [\"web/**/*.css\"]}\n")
+	assert.Equal(t, "YAML merge keys (<<) are not supported", d.Message)
+	assert.Equal(t, "platforms.web.<<", d.Path)
+	assert.Equal(t, 5, d.Line)
 }

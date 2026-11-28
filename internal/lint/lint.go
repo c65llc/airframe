@@ -15,6 +15,7 @@ import (
 	"github.com/c65llc/airframe/internal/consumer"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/rulingref"
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
@@ -36,6 +37,10 @@ type Context struct {
 	scan    *consumer.Result
 	scanNA  string
 	scanned bool
+	// rulings is the run's one ruling resolution; see rulingIndex.
+	rulings     *rulingref.Index
+	rulingDiags []diag.Diagnostic
+	rulingsDone bool
 	// err is the first I/O failure a rule hit; Run returns it.
 	err error
 }
@@ -124,6 +129,12 @@ var allRules = []Rule{
 		Summary: "A consumer var() has a literal fallback, which hides a missing token."},
 	{ID: "wrapper-unmapped", Default: diag.Error, Run: ruleWrapperUnmapped,
 		Summary: "A read through a declared wrapper root maps to no token."},
+	{ID: "component-unruled", Default: diag.Error, Run: ruleComponentUnruled,
+		Summary: "A component, or a retired treatment's ruling, does not answer to a ruled Gantry ruling: it is missing, malformed, unknown or not ruled."},
+	{ID: "component-incomplete", Default: diag.Error, Run: ruleComponentIncomplete,
+		Summary: "A component's implementations or hostedBy is not complete and true: an unknown or missing platform, a file that does not exist, an n/a with no reason, an unknown host or a host cycle."},
+	{ID: "retired-used", Default: diag.Error, Run: ruleRetiredUsed,
+		Summary: "Consumer code reads a retired token or spells a retired treatment, or a token aliases a retired token."},
 }
 
 // loadIDs are the rule IDs reported while loading, parsing, resolving or

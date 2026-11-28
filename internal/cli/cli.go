@@ -145,9 +145,12 @@ var Commands = []Command{
 	},
 	{
 		Name:    "show",
-		Args:    "<token>",
-		Summary: "Print a token's tier, component, type, description, value per mode key and alias chain.",
-		Flags:   []Flag{{Name: "json", Summary: "print the same as a JSON object"}},
+		Args:    "<token|component>",
+		Summary: "Print a token's tier, component, type, description, value per mode key and alias chain; or a component's ruling, tokens, owners, implementations and consumers.",
+		Flags: []Flag{
+			{Name: "component", Summary: "show the component of that name, even when a token has it too"},
+			{Name: "json", Summary: "print the same as a JSON object"},
+		},
 	},
 	{
 		Name:    "explain",
@@ -161,8 +164,8 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants|component>",
-		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml or component files.",
+		Args:    "<config|tokens|invariants|component|retired>",
+		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files or retired.yaml.",
 	},
 	{
 		Name:    "version",
@@ -843,13 +846,29 @@ func lookupToken(set *tokens.Set, name string) (*tokens.Token, string) {
 	if t := set.Tokens[strings.ReplaceAll(name, ".", "-")]; t != nil {
 		return t, ""
 	}
+	return nil, closest(name, slices.Collect(maps.Keys(set.Tokens)))
+}
+
+// closest is the name in names nearest to name, within two edits, the
+// first in sorted order on a tie; "" when none is that close.
+func closest(name string, names []string) string {
 	best, bestD := "", 3
-	for _, n := range slices.Sorted(maps.Keys(set.Tokens)) {
+	for _, n := range slices.Sorted(slices.Values(names)) {
 		if d := levenshtein(name, n); d < bestD {
 			best, bestD = n, d
 		}
 	}
-	return nil, best
+	return best
+}
+
+// unknownName is show's message for a name that is neither looked-up kind,
+// with the closest candidate when one is near.
+func unknownName(what, name string, candidates []string) string {
+	msg := "unknown " + what + " " + name
+	if s := closest(name, candidates); s != "" {
+		msg += "; did you mean " + s + "?"
+	}
+	return msg
 }
 
 // levenshtein is the edit distance between a and b, by rune.
@@ -902,11 +921,41 @@ func (inv *invocation) loadToken(name string) (*project.Project, *tokens.Token, 
 
 func runShow(inv *invocation) int {
 	if len(inv.args) != 1 {
-		return inv.usageError("show takes one token name")
+		return inv.usageError("show takes one token or component name")
 	}
-	p, t, code := inv.loadToken(inv.args[0])
+	name := inv.args[0]
+	_, p, ds, err := inv.load()
+	if err != nil {
+		return inv.fail(err)
+	}
+	if p == nil {
+		diag.WriteText(inv.stderr, ds, nil)
+		return ExitFindings
+	}
+	forced := *inv.bools["component"]
+	c := p.Components[name]
+	if forced {
+		if c == nil {
+			_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", unknownName("component", name, slices.Collect(maps.Keys(p.Components))))
+			return ExitFindings
+		}
+		return inv.runShowComponent(p, c)
+	}
+	t, _ := lookupToken(p.Tokens, name)
 	if t == nil {
-		return code
+		if c != nil {
+			return inv.runShowComponent(p, c)
+		}
+		names := slices.Collect(maps.Keys(p.Components))
+		if p.Tokens != nil {
+			names = append(names, slices.Collect(maps.Keys(p.Tokens.Tokens))...)
+		}
+		_, _ = fmt.Fprintf(inv.stderr, "airframe show: %s\n", unknownName("token or component", name, names))
+		return ExitFindings
+	}
+	if c != nil {
+		// stderr, so --json stays one document.
+		_, _ = fmt.Fprintf(inv.stderr, "(also a component: airframe show --component %s)\n", name)
 	}
 	s := describe(p.Tokens, t)
 	if *inv.bools["json"] {

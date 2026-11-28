@@ -1,0 +1,8 @@
+- id: flush-left-selection-bar
+  ruling: "@ruling:selection-treatment"
+  spellings:
+    css: ["inset 3px 0 0"]
+    swift: ["\\.frame\\(width: 3\\)"]
+    kotlin: ["width\\(3\\.dp\\)"]
+    xaml: ["BorderThickness=\"3,0,0,0\""]
+  marker: audited-selection-bar

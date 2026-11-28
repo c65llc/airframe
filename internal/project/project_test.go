@@ -245,3 +245,26 @@ func TestLoadComponentDirOtherFilesReported(t *testing.T) {
 	assert.Equal(t, "design-system/components/sidebar.yml", ds[1].File)
 	assert.Equal(t, "components/sidebar.yml: component files end in .yaml", ds[1].Message)
 }
+
+func TestLoadRetired(t *testing.T) {
+	p, ds, err := Load(MemFS{"airframe.yaml": cfg, "design-system/c.tokens.json": tokA,
+		"design-system/retired.yaml": "- id: a\n  spellings: {css: [x]}\n"})
+	require.NoError(t, err)
+	require.Empty(t, ds)
+	require.Len(t, p.Retired, 1)
+	assert.Equal(t, "a", p.Retired[0].ID)
+	assert.Contains(t, p.Sources, "design-system/retired.yaml")
+
+	p, ds, err = Load(MemFS{"airframe.yaml": cfg, "design-system/c.tokens.json": tokA})
+	require.NoError(t, err)
+	require.Empty(t, ds)
+	assert.Empty(t, p.Retired)
+
+	p, ds, err = Load(MemFS{"airframe.yaml": cfg, "design-system/c.tokens.json": tokA,
+		"design-system/retired.yaml": "- id: a\n  spellings: {scss: [x]}\n"})
+	require.NoError(t, err)
+	require.Len(t, ds, 1)
+	assert.Equal(t, "design-system/retired.yaml", ds[0].File)
+	assert.Equal(t, "schema-invalid", ds[0].Rule)
+	assert.Empty(t, p.Retired)
+}

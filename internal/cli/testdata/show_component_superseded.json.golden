@@ -1,0 +1,54 @@
+{
+  "id": "button",
+  "noun": "Button",
+  "ruling": {
+    "ref": "@ruling:button",
+    "status": "superseded",
+    "supersededBy": "new-button"
+  },
+  "shared": false,
+  "hostedBy": "",
+  "hosts": [
+    "split-button"
+  ],
+  "tokens": [
+    {
+      "name": "button-bg",
+      "tier": "component"
+    },
+    {
+      "name": "button-gap",
+      "tier": "component"
+    },
+    {
+      "name": "button-ink",
+      "tier": "component"
+    },
+    {
+      "name": "button-target",
+      "tier": "component"
+    }
+  ],
+  "owners": [
+    "apple/Sources/Button/**",
+    "web/button/**"
+  ],
+  "implementations": {
+    "apple": "apple/Sources/Button/PrimaryButton.swift",
+    "web": "web/button/Button.tsx"
+  },
+  "consumers": {
+    "apple": [
+      {
+        "file": "apple/Sources/Button/PrimaryButton.swift",
+        "references": 1
+      }
+    ],
+    "web": [
+      {
+        "file": "web/button/Button.tsx",
+        "references": 3
+      }
+    ]
+  }
+}

@@ -151,7 +151,8 @@ func TestCleanConsumersExercisesConsumerRules(t *testing.T) {
 	assert.Empty(t, res.Diagnostics)
 	for _, tl := range res.Tallies {
 		switch tl.Rule {
-		case "reference-undeclared", "primitive-read-by-consumer", "token-owner-violation", "fallback-literal", "wrapper-unmapped":
+		case "reference-undeclared", "primitive-read-by-consumer", "token-owner-violation", "fallback-literal", "wrapper-unmapped",
+			"component-unruled", "component-incomplete", "retired-used":
 			assert.Empty(t, tl.NotApplicable, tl.Rule)
 			assert.Positive(t, tl.Items, tl.Rule)
 		}

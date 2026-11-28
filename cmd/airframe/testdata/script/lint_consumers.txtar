@@ -121,8 +121,12 @@ lint:
   rules: {fallback-literal: error}
 -- button.yaml --
 id: button
+ruling: "@ruling:button"
 tokens: [button-bg, button-ink, button-target, button-gap]
 owners: ["web/button/**", "apple/Sources/Button/**"]
+implementations:
+  web: web/button/Button.tsx
+  apple: apple/Sources/Button/PrimaryButton.swift
 -- web/app.css --
 :root {
   --sidebar-w: 240px;
