@@ -10,8 +10,8 @@
 #   - the run step, against a snapshot binary built by GoReleaser and put on
 #     PATH, over testdata/minimal (`lint --format github` must exit 0).
 # Then a token in a temp copy is mutated and `build --check` must exit 1.
-# The full download-and-verify path is exercised after v0.1.0 (see
-# docs/releasing.md).
+# The full download-and-verify path against a real release is covered by
+# action-release-test.yml.
 name: Action test
 
 on:
