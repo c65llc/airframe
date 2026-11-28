@@ -10,6 +10,8 @@
 - `internal/importer` maps each CSS block back to a mode key by inverting emit's own scope expansion, writes token files, and runs the equivalence check.
 - The project's `airframe.yaml` defines every axis and its web spelling. The importer never invents an axis.
 
+**Model:** Starboard (https://github.com/c65llc/starboard) is the reference for conventions: command wiring and flags (`internal/cli`), testscripts (`cmd/starboard/testdata/script/*.txtar`), the adoption guide (`docs/guides/adopting.md`) and the CLI reference (`docs/reference/cli.md`). Where this plan leaves a convention open, do what Starboard does.
+
 **Tech Stack:** Go 1.27 (`toolchain go1.27.4`), the module's pinned dependencies only (no CSS library). testify, testscript.
 
 **Spec:** `docs/specs/2026-11-27-airframe-design.md` §6.7 item 2 (and §6.2 for the config the importer reads, §6.5 for the command).
@@ -248,6 +250,7 @@ Check builds an in-memory project (the config plus the imported files), generate
 
 **Interfaces:**
 - Consumes `importer.Import`, `importer.Check`, `css.Parse`, the CLI's `writeFile` and root discovery.
+- Also creates `docs/guides/importing.md`, modeled on Starboard's `docs/guides/adopting.md`: who it is for, prerequisites (an `airframe.yaml` whose web spellings match your CSS), a walkthrough on the `testdata/import` fixture, what each `import-*` finding means and how to fix it, and what to do after (assign tiers, run lint).
 - Produces the command `airframe import css <files…> [--dry-run] [--force]`:
   1. load the config;
   2. parse every file (read through the os.Root);
