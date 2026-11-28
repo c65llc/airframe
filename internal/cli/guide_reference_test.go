@@ -70,7 +70,8 @@ func readReferenceGuide(t *testing.T) referenceGuide {
 
 // TestGuideReference: the reference guide's project, written to a git
 // repository as origin/main, prints exactly what the guide quotes for
-// every "$ airframe find|usages|schema …" block; its pull request, committed
+// every "$ airframe find|usages|schema …" block (TestGuideReferenceWriters
+// runs the rename, retire and specimen blocks); its pull request, committed
 // on a branch, prints exactly what it quotes for every "$ airframe diff …"
 // block; and the messages it quotes from stderr are the real ones.
 func TestGuideReference(t *testing.T) {
@@ -83,9 +84,11 @@ func TestGuideReference(t *testing.T) {
 
 	var diffs, others []guideCommand
 	for _, c := range g.commands {
-		if strings.HasPrefix(c.args, "diff ") {
+		switch {
+		case isWriter(c.args):
+		case strings.HasPrefix(c.args, "diff "):
 			diffs = append(diffs, c)
-		} else {
+		default:
 			others = append(others, c)
 		}
 	}

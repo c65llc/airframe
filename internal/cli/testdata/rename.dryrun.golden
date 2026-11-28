@@ -1,0 +1,7 @@
+would rename gap to spacing (path gap → spacing)
+airframe.yaml:13:65  gap → spacing
+android/src/main/Screen.kt:11:31  gap → spacing
+apple/Sources/ContentView.swift:8:35  gap → spacing
+web/src/app.css:12:15  --gap → --spacing
+windows/App/MainPage.xaml:2:77  DesignGapCompact → DesignSpacingCompact
+design-system/tokens/semantic.tokens.json:17  move gap → spacing

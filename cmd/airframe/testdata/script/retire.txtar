@@ -1,0 +1,35 @@
+# retire marks a token retired and lists what lint then reports; with
+# --treatment it records a retired treatment. --dry-run writes nothing.
+fixture consumers
+mkdir web/src
+cp app.css web/src/app.css
+
+exec airframe retire gap --dry-run
+stdout '^would retire gap in design-system/tokens/semantic.tokens.json$'
+! grep retired design-system/tokens/semantic.tokens.json
+exec airframe retire gap
+stdout '^retired gap in design-system/tokens/semantic.tokens.json$'
+stdout '^retired-used will report:$'
+stdout '^  web  web/src/app.css:1:18  --gap$'
+grep '"retired": true' design-system/tokens/semantic.tokens.json
+exits 1 airframe lint
+stdout 'error retired-used: platform web: --gap is token gap, which is retired'
+
+exits 1 airframe retire gap
+stderr 'gap is already retired'
+
+exec airframe retire --treatment gray-ink --spelling 'css=var\(--ink' --dry-run
+stdout '^would retire treatment gray-ink in design-system/retired.yaml$'
+stdout '^  web  web/src/app.css:1:33  var\(--ink$'
+! exists design-system/retired.yaml
+exec airframe retire --treatment gray-ink --spelling 'css=var\(--ink' --ruling @ruling:x
+stdout '^retired treatment gray-ink in design-system/retired.yaml$'
+grep 'id: gray-ink' design-system/retired.yaml
+exits 1 airframe retire --treatment gray-ink --spelling css=x
+stderr 'already retired'
+exits 1 airframe retire --treatment other --spelling go=x
+stderr 'unknown adapter'
+exits 2 airframe retire --treatment other
+
+-- app.css --
+.a { margin: var(--gap); color: var(--ink); }

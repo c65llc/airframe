@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="952" height="216" viewBox="0 0 952 216">
+<title>design-system · app=tasks · type</title>
+<rect width="952" height="216" fill="#ffffff"/>
+<text x="24" y="52" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="20" font-weight="700" fill="#1a1a1a">design-system · app=tasks · type</text>
+<line x1="24" y1="80" x2="928" y2="80" stroke="#d9d9d9"/>
+<text x="24" y="102" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">font-body</text>
+<text x="24" y="120" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">Inter, system-ui</text>
+<text x="288" y="108" font-family="&apos;Inter&apos;, system-ui, sans-serif" font-size="16" font-weight="400" fill="#1a1a1a">The quick brown fox jumps over the lazy dog</text>
+<line x1="24" y1="136" x2="928" y2="136" stroke="#d9d9d9"/>
+<text x="24" y="158" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">weight-strong</text>
+<text x="24" y="176" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">650</text>
+<text x="288" y="164" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="16" font-weight="650" fill="#1a1a1a">The quick brown fox jumps over the lazy dog</text>
+</svg>

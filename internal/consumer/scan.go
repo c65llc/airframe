@@ -68,6 +68,9 @@ type Result struct {
 	Paths    map[string][]string `json:"-"`
 	Problems []Problem
 	Exempt   []Exemption
+	// Locals are the custom properties the consumer files define, which
+	// makes each app-local on its platform, sorted like Refs.
+	Locals []Local `json:"-"`
 	// SpellingChecks counts the (file, treatment) pairs searched for
 	// retired spellings: each consumer file against every treatment with
 	// a spelling for its adapter.
@@ -85,6 +88,14 @@ type Reference struct {
 	Raw            string
 	Token          string
 	Via            string
+}
+
+// Local is a custom property Name (--name) that a consumer file defines,
+// at Line and Col: a stylesheet or script-object definition, or a
+// script's setProperty or computed key.
+type Local struct {
+	Platform, File, Name string
+	Line, Col            int
 }
 
 // Problem is a reference, or a platform's consumers list, that is wrong.
@@ -284,8 +295,11 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		f := newFile(fp, string(b))
 		loaded = append(loaded, f)
 		for _, re := range []*regexp.Regexp{localPropRE, scriptPropRE} {
-			for _, m := range re.FindAllStringSubmatch(f.code, -1) {
-				r.local[m[1]] = true
+			for _, m := range re.FindAllStringSubmatchIndex(f.code, -1) {
+				name := f.code[m[2]:m[3]]
+				r.local[name] = true
+				line, col := f.pos(m[2])
+				res.Locals = append(res.Locals, Local{Platform: pl.Name, File: f.path, Name: name, Line: line, Col: col})
 			}
 		}
 	}
@@ -691,6 +705,10 @@ func sortResult(res *Result) {
 		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.File, b.File),
 			cmp.Compare(a.Line, b.Line), cmp.Compare(a.Col, b.Col),
 			cmp.Compare(a.Kind, b.Kind), cmp.Compare(a.Raw, b.Raw), cmp.Compare(a.Treatment, b.Treatment), cmp.Compare(a.Detail, b.Detail))
+	})
+	slices.SortFunc(res.Locals, func(a, b Local) int {
+		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.File, b.File),
+			cmp.Compare(a.Line, b.Line), cmp.Compare(a.Col, b.Col), cmp.Compare(a.Name, b.Name))
 	})
 	slices.SortFunc(res.Exempt, func(a, b Exemption) int {
 		return cmp.Or(cmp.Compare(a.Platform, b.Platform), cmp.Compare(a.File, b.File),

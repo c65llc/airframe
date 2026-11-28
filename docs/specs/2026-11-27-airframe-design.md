@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); v0.7.0 adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); v0.8.0 adds the reference commands `find`, `usages` and `diff` (§6.5, §6.7 item 6, partly done); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); v0.7.0 adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); v0.8.0 adds the reference commands `find`, `usages` and `diff`; v0.9.0 adds `rename`, `retire` and `specimen` (§6.5, §6.7 item 6, done); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -46,7 +46,7 @@ The failures it exists to prevent are generic:
 **Anti-goals**
 
 - **A clean gate that scanned nothing.** Every rule self-tests, fails closed on an empty scan and reports what it examined, by name.
-- **An alias layer that grows a generation per release.** Renames ship with a codemod, never with compatibility aliases.
+- **An alias layer that grows a generation per release.** Renames ship with a codemod (`airframe rename`), never with compatibility aliases.
 - **Pixel parity across platforms.** Colour resolves by *role*; each platform maps roles onto its own conventions.
 
 ## 3 · Boundaries
@@ -267,9 +267,9 @@ airframe import css <files…> [--dry-run] [--force] # v0.2.0; adopt existing cu
 airframe find <words>… [--file F] [--type T] [--retired] [--limit N] [--json]   # v0.8.0: ranks tokens by name, description and noun, with synonyms; --file keeps what F may read
 airframe usages <token> [--platform P] [--json]   # v0.8.0: every consumer reference across platforms, owners marked, and direct aliases
 airframe diff <ref-a> [<ref-b>] [--format text|md|json] [--exit-code]   # v0.8.0: token changes between git refs, or a ref and the working tree; read-only
-airframe rename <old> <new>                       # planned: codemod across all consumer platforms
-airframe retire <token|treatment>                 # planned
-airframe specimen [--out dir]                     # planned: swatch, type and spacing sheets as SVG
+airframe rename <old> <new> [--path a.b.c] [--dry-run] [--allow-manual]   # v0.9.0: codemod across token files, config, components, invariants and every consumer platform, then rebuild
+airframe retire <token> | --treatment ID --spelling A=RE… [--ruling R] [--marker M] [--dry-run]   # v0.9.0: mark a token retired, or record a treatment in retired.yaml; lists what retired-used will report
+airframe specimen [--out dir]                     # v0.9.0: swatch, type and spacing sheets as SVG, one set per fan-out value; not part of build
 airframe skills … | mcp | migrate                 # planned
 ```
 
@@ -293,7 +293,7 @@ All surfaces share the Go core through its wasm build.
 3. **Native emitters** (done: Apple, Android and Windows, each with its guide): Swift and asset-catalog colorsets (done: Apple, with per-app fan-out and gamut handling; see `docs/guides/apple.md`), Kotlin/Compose with an optional Material 3 scheme (done: Android, with per-app colour values; see `docs/guides/android.md`), and WinUI 3 XAML resource dictionaries with theme dictionaries and high-contrast system colours (done: Windows, with per-app dictionaries; see `docs/guides/windows.md`).
 4. **Consumer rules,** with the wrapper map (done, v0.6.0: `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal` and `wrapper-unmapped`, with the component loader; see `docs/guides/consumers.md`).
 5. **Components and retired treatments** (done, v0.7.0: the inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>`; see `docs/guides/components.md`).
-6. **Reference commands** (partly done, v0.8.0: `find`, `usages` and `diff`, with `airframe schema find|usages|diff`; see `docs/guides/reference.md`. Planned: `rename`, `retire`, `specimen`).
+6. **Reference commands** (done: `find`, `usages` and `diff` in v0.8.0, with `airframe schema find|usages|diff`; `rename`, `retire` and `specimen` in v0.9.0; see `docs/guides/reference.md`).
 7. **Skills and MCP.**
 8. **PWA**, then **VS Code**, then **Tauri.**
 

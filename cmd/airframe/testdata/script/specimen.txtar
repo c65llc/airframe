@@ -1,0 +1,23 @@
+# specimen writes the colour, type and spacing sheets, one set per fan-out
+# value, to <content>/generated/specimen/ or --out; build does not write or
+# check them, and a drive-letter --out is a usage error.
+fixture apple
+exec airframe build
+
+exec airframe specimen
+stdout '^wrote design-system/generated/specimen/colors-notes.svg$'
+stdout '^wrote design-system/generated/specimen/spacing-tasks.svg$'
+stdout '^wrote design-system/generated/specimen/type-notes.svg$'
+exists design-system/generated/specimen/colors-tasks.svg
+grep '<title>' design-system/generated/specimen/colors-notes.svg
+
+exec airframe specimen --out sheets
+stdout '^wrote sheets/colors-tasks.svg$'
+exists sheets/type-tasks.svg
+
+exec airframe build --check
+! stdout specimen
+
+exits 2 airframe specimen --out C:/x
+stderr 'drive letter'
+! exists C:

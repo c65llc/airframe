@@ -208,8 +208,12 @@ var scriptPropRE = regexp.MustCompile(`(?:setProperty\(\s*|\[\s*)["'](--(?:[A-Za
 // external reports whether custom property name matches one of the
 // platform's externalProperties globs: a property a library or script
 // defines, which is foreign.
-func (r *platformRun) external(name string) bool {
-	return slices.ContainsFunc(r.pl.ExternalProperties, func(g string) bool {
+func (r *platformRun) external(name string) bool { return External(r.pl, name) >= 0 }
+
+// External is the index of the first of pl's externalProperties globs
+// that custom property name matches, or -1.
+func External(pl config.Platform, name string) int {
+	return slices.IndexFunc(pl.ExternalProperties, func(g string) bool {
 		ok, _ := path.Match(g, name)
 		return ok
 	})
