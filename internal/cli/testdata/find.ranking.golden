@@ -1,0 +1,38 @@
+== muted text
+text-muted  semantic  color  var(--gray-500)  — Secondary text on surfaces.
+text-primary  semantic  color  var(--gray-500)  — Default body text.
+accent-ink  semantic  color  var(--blue-600)  — Text on accent fills.
+danger-ink  semantic  color  var(--red-600)  — Text on danger fills.
+gray-500  primitive  color  oklch(60% 0.01 250)  — A muted mid gray.
+
+== card background
+surface-card  semantic  color  var(--gray-500)  — Background of cards.
+card-bg  component  color  var(--surface-card)
+card-gap  component  dimension  var(--gap-large)
+accent-bg  semantic  color  var(--blue-600)  — Accent fill.
+danger-bg  semantic  color  var(--red-600)  — Fill of destructive actions.
+surface-page  semantic  color  var(--gray-500)  — Background of the page.
+button-bg  component  color  var(--accent-bg)
+
+== accent ink
+accent-ink  semantic  color  var(--blue-600)  — Text on accent fills.
+accent-bg  semantic  color  var(--blue-600)  — Accent fill.
+text-primary  semantic  color  var(--gray-500)  — Default body text.
+danger-ink  semantic  color  var(--red-600)  — Text on danger fills.
+text-muted  semantic  color  var(--gray-500)  — Secondary text on surfaces.
+
+== gap
+gap  semantic  dimension  var(--space-2)  — Standard spacing between related items.
+button-gap  component  dimension  var(--gap)
+card-gap  component  dimension  var(--gap-large)
+space-2  primitive  dimension  8px
+space-4  primitive  dimension  16px
+
+== danger
+danger-ink  semantic  color  var(--red-600)  — Text on danger fills.
+danger-bg  semantic  color  var(--red-600)  — Fill of destructive actions.
+
+== the radius of a corner
+corner  semantic  dimension  var(--radius-2)  — Rounding of containers.
+radius-2  primitive  dimension  4px
+

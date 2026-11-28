@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "from": {
+    "ref": "v1",
+    "commit": "<v1>"
+  },
+  "to": {
+    "ref": "main",
+    "commit": "<v2>"
+  },
+  "added": [
+    {
+      "name": "gap",
+      "type": "dimension",
+      "tier": "semantic",
+      "value": {
+        "value": "8px"
+      }
+    },
+    {
+      "name": "gray-700",
+      "type": "color",
+      "tier": "primitive",
+      "value": {
+        "value": "oklch(38% 0.01 250 / 0.5)",
+        "hex": "#3e434880"
+      }
+    }
+  ],
+  "removed": [
+    {
+      "name": "gone",
+      "type": "dimension",
+      "tier": "semantic",
+      "value": {
+        "value": "3px"
+      }
+    },
+    {
+      "name": "old-gap",
+      "type": "dimension",
+      "tier": "semantic",
+      "value": {
+        "value": "8px"
+      }
+    }
+  ],
+  "renamed": [
+    {
+      "from": "old-gap",
+      "to": "gap"
+    }
+  ],
+  "changed": [
+    {
+      "name": "ink",
+      "changes": [
+        {
+          "kind": "tier",
+          "before": "semantic",
+          "after": "primitive"
+        },
+        {
+          "kind": "description",
+          "before": "Body text.",
+          "after": "Body text | prose."
+        }
+      ]
+    },
+    {
+      "name": "legacy",
+      "changes": [
+        {
+          "kind": "retired",
+          "before": false,
+          "after": true
+        }
+      ]
+    },
+    {
+      "name": "surface",
+      "changes": [
+        {
+          "kind": "value",
+          "context": "appearance:dark",
+          "before": {
+            "value": "oklch(20% 0.012 250)",
+            "hex": "#12171b"
+          },
+          "after": {
+            "value": "oklch(38% 0.01 250 / 0.5)",
+            "hex": "#3e434880"
+          }
+        }
+      ]
+    }
+  ]
+}

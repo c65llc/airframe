@@ -198,3 +198,16 @@ func TestSchemaRetired(t *testing.T) {
 	assert.Equal(t, ExitUsage, code)
 	assert.Contains(t, stderr, "retired")
 }
+
+// The reference commands are listed in the order a reader reaches for
+// them: find a token, see its usages, diff the set.
+func TestCommandsReferenceOrder(t *testing.T) {
+	index := map[string]int{}
+	for i, c := range Commands {
+		index[c.Name] = i
+	}
+	assert.Less(t, index["find"], index["usages"])
+	assert.Equal(t, index["find"]+1, index["usages"])
+	assert.Equal(t, index["usages"]+1, index["diff"])
+	assert.Contains(t, Commands[index["schema"]].Summary, "diff --format json")
+}

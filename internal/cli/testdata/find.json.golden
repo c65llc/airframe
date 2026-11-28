@@ -1,0 +1,56 @@
+[
+  {
+    "name": "accent-bg",
+    "tier": "semantic",
+    "type": "color",
+    "value": "var(--blue-600)",
+    "description": "Accent fill.",
+    "score": 5,
+    "why": "semantic: consumers may read"
+  },
+  {
+    "name": "accent-ink",
+    "tier": "semantic",
+    "type": "color",
+    "value": "var(--blue-600)",
+    "description": "Text on accent fills.",
+    "score": 5,
+    "why": "semantic: consumers may read"
+  },
+  {
+    "name": "gap",
+    "tier": "semantic",
+    "type": "dimension",
+    "value": "var(--space-2)",
+    "description": "Standard spacing between related items.",
+    "score": 3,
+    "why": "semantic: consumers may read"
+  },
+  {
+    "name": "text-muted",
+    "tier": "semantic",
+    "type": "color",
+    "value": "var(--gray-500)",
+    "description": "Secondary text on surfaces.",
+    "score": 3,
+    "why": "semantic: consumers may read"
+  },
+  {
+    "name": "button-gap",
+    "tier": "component",
+    "type": "dimension",
+    "value": "var(--gap)",
+    "description": "",
+    "score": 3,
+    "why": "component button: owners include web/button/**"
+  },
+  {
+    "name": "text-primary",
+    "tier": "semantic",
+    "type": "color",
+    "value": "var(--gray-500)",
+    "description": "Default body text.",
+    "score": 2,
+    "why": "semantic: consumers may read"
+  }
+]

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "airframe diff --format json",
+  "description": "How the tokens at one git ref differ from those at another ref or in the working tree. Every list is sorted: tokens by name, renames by from.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "from", "to", "added", "removed", "renamed", "changed"],
+  "properties": {
+    "version": { "const": 1 },
+    "from": { "$ref": "#/$defs/side" },
+    "to": { "$ref": "#/$defs/side" },
+    "added": { "type": "array", "items": { "$ref": "#/$defs/token" } },
+    "removed": { "type": "array", "items": { "$ref": "#/$defs/token" } },
+    "renamed": {
+      "type": "array",
+      "description": "A guess: a removed and an added token with the same type, tier and component and the same value in every context; among several, the pair sharing the most name segments. Each token pairs at most once, and both also stay in removed and added.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to"],
+        "properties": { "from": { "type": "string" }, "to": { "type": "string" } }
+      }
+    },
+    "changed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "changes"],
+        "properties": {
+          "name": { "type": "string" },
+          "changes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/change" } }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "side": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "commit"],
+          "properties": {
+            "ref": { "type": "string", "description": "the ref as given" },
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$", "description": "the commit it resolved to" },
+            "missing": { "const": true, "description": "present when the ref has no airframe.yaml at the project's directory: the side is an empty token set, so every token of the other side is added or removed" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workingTree"],
+          "properties": { "workingTree": { "const": true } }
+        }
+      ]
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A resolved value: value in CSS spelling (a colour as oklch(...)) and, for a colour, its sRGB hex; or error when the token has no value in that context.",
+      "properties": {
+        "value": { "type": "string" },
+        "hex": { "type": "string", "pattern": "^#[0-9a-f]{6}([0-9a-f]{2})?$" },
+        "error": { "type": "string" }
+      },
+      "oneOf": [{ "required": ["value"] }, { "required": ["error"] }]
+    },
+    "token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "tier": { "type": "string" },
+        "component": { "type": "string" },
+        "value": { "$ref": "#/$defs/value", "description": "the base value" }
+      }
+    },
+    "change": {
+      "type": "object",
+      "required": ["kind", "before", "after"],
+      "properties": {
+        "kind": { "enum": ["value", "type", "tier", "component", "retired", "description"] }
+      },
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "required": ["context"],
+          "properties": {
+            "kind": { "const": "value" },
+            "context": { "type": "string", "description": "base, or a mode key such as appearance:dark" },
+            "before": { "$ref": "#/$defs/value" },
+            "after": { "$ref": "#/$defs/value" }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "retired" },
+            "before": { "type": "boolean" },
+            "after": { "type": "boolean" }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "enum": ["type", "tier", "component", "description"] },
+            "before": { "type": "string" },
+            "after": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

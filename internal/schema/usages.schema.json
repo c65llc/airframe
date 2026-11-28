@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "airframe usages --json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "tier", "component", "references", "aliasedBy"],
+  "properties": {
+    "name": { "type": "string" },
+    "tier": { "type": "string" },
+    "component": { "type": "string" },
+    "references": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "file", "line", "col", "raw", "via"],
+        "properties": {
+          "platform": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "col": { "type": "integer", "minimum": 1 },
+          "raw": { "type": "string" },
+          "via": { "type": "string", "description": "direct, or wrapper:<root>" },
+          "owner": { "type": "boolean", "description": "present only for a token of a component that is not shared: whether the file is one of the component's owners" },
+          "shared": { "const": true, "description": "present only for a token of a shared component, in place of owner: any file may read it" }
+        },
+        "not": { "required": ["owner", "shared"] }
+      }
+    },
+    "aliasedBy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "key", "file", "line"],
+        "properties": {
+          "name": { "type": "string" },
+          "key": { "type": "string", "description": "default, or the mode key whose value aliases the token" },
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

@@ -79,6 +79,10 @@ type Set struct {
 // different file than its token's base declaration.
 func (s *Set) FileOf(v *Value) string { return s.origin[v] }
 
+// Values lists t's values with their keys: the default first (key ""),
+// then the modes in key order. Callers walk it to find aliases.
+func (t *Token) Values() ([]config.ModeKey, []*Value) { return t.values() }
+
 // values lists t's values with their keys: the default first (key ""),
 // then the modes in key order.
 func (t *Token) values() ([]config.ModeKey, []*Value) {

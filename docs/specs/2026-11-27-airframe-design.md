@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); v0.7.0 adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); v0.6.0 adds the consumer rules with the wrapper map (§6.4, §6.7 item 4, done); v0.7.0 adds components and retired treatments: the component inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>` (§6.3, §6.4, §6.7 item 5, done); v0.8.0 adds the reference commands `find`, `usages` and `diff` (§6.5, §6.7 item 6, partly done); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -264,9 +264,9 @@ airframe show <token|component> [--json] [--component]   # v0.1.2 (token); v0.7.
 airframe explain <rule|token>                     # v0.1.2
 airframe rules [--json] | schema <kind> | version # v0.1.2
 airframe import css <files…> [--dry-run] [--force] # v0.2.0; adopt existing custom properties, equivalence-checked
-airframe find <role words>                        # planned: "which token for muted text on a sheet"
-airframe usages <token>                           # planned: every consumer reference across platforms
-airframe diff <ref-a> <ref-b> [--format md|json]  # planned: token changes between git refs, with swatches
+airframe find <words>… [--file F] [--type T] [--retired] [--limit N] [--json]   # v0.8.0: ranks tokens by name, description and noun, with synonyms; --file keeps what F may read
+airframe usages <token> [--platform P] [--json]   # v0.8.0: every consumer reference across platforms, owners marked, and direct aliases
+airframe diff <ref-a> [<ref-b>] [--format text|md|json] [--exit-code]   # v0.8.0: token changes between git refs, or a ref and the working tree; read-only
 airframe rename <old> <new>                       # planned: codemod across all consumer platforms
 airframe retire <token|treatment>                 # planned
 airframe specimen [--out dir]                     # planned: swatch, type and spacing sheets as SVG
@@ -282,7 +282,7 @@ All surfaces share the Go core through its wasm build.
 - **PWA:** a tier browser with appearances side by side, density columns and an accent-group switcher; a contrast matrix of declared pairs with measured ratios; the component inventory with platform coverage and ruling links; usages per platform; a diff between two refs with swatches.
 - **Tauri desktop app:** the same bundle with native filesystem access, plus a colour picker that writes OKLCH and warns about gamut per platform.
 - **VS Code:** hover on any token reference (`var(--x)`, `DesignTokens.x`, a XAML key) showing value per appearance and density with a swatch, tier, owner and ruling; colour decorators; **tier-aware completion** that offers only tokens this file may read, so ownership is taught at the keystroke rather than in CI; diagnostics; a quick fix replacing a literal with the token whose value it matches.
-- **CI:** the `c65llc/airframe@v0` Action runs `lint --format gate` and `build --check` (v0.1.2). Planned: `diff --format md` written to the job summary on PRs that touch tokens, so reviewers see swatches, not hex.
+- **CI:** the `c65llc/airframe@v0` Action runs `lint --format gate` and `build --check` (v0.1.2). `diff --format md` is available (v0.8.0): `docs/guides/reference.md` gives the job-summary step (`run: airframe diff "origin/$GITHUB_BASE_REF" --format md >> "$GITHUB_STEP_SUMMARY"` with `if: github.event_name == 'pull_request'`, and `fetch-depth: 0` or a fetch of the base ref), so reviewers see each colour's hex and oklch side by side. Planned: an Action input that writes it for you.
 - **AI skills:** `airframe` (before styling anything: find the role token, check this file may read it), `airframe-add-token` (tier, density values, emit targets), `airframe-component` (inventory entry and ruling reference), `airframe-adopt`.
 - **MCP (`airframe mcp`):** reads `airframe_find`, `airframe_show`, `airframe_usages`, `airframe_can_read` (file and token: allowed, and why), `airframe_lint`, `airframe_diff`, `airframe_specimen` (SVG/PNG so a model can see the palette); writes `airframe_token_set` and `airframe_component_set`, each going through edit, `fmt`, `build --check`.
 
@@ -293,7 +293,7 @@ All surfaces share the Go core through its wasm build.
 3. **Native emitters** (done: Apple, Android and Windows, each with its guide): Swift and asset-catalog colorsets (done: Apple, with per-app fan-out and gamut handling; see `docs/guides/apple.md`), Kotlin/Compose with an optional Material 3 scheme (done: Android, with per-app colour values; see `docs/guides/android.md`), and WinUI 3 XAML resource dictionaries with theme dictionaries and high-contrast system colours (done: Windows, with per-app dictionaries; see `docs/guides/windows.md`).
 4. **Consumer rules,** with the wrapper map (done, v0.6.0: `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal` and `wrapper-unmapped`, with the component loader; see `docs/guides/consumers.md`).
 5. **Components and retired treatments** (done, v0.7.0: the inventory, `component-unruled`, `component-incomplete`, `retired-used` and `show <component>`; see `docs/guides/components.md`).
-6. **Reference commands:** `find`, `usages`, `diff`, `rename`, `retire`, `specimen`.
+6. **Reference commands** (partly done, v0.8.0: `find`, `usages` and `diff`, with `airframe schema find|usages|diff`; see `docs/guides/reference.md`. Planned: `rename`, `retire`, `specimen`).
 7. **Skills and MCP.**
 8. **PWA**, then **VS Code**, then **Tauri.**
 

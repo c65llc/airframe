@@ -78,9 +78,19 @@ func showProject(t *testing.T, extra map[string]string) string {
 }
 
 // golden compares got with testdata/<name>, rewriting it under -update.
+// testdata is the absolute testdata directory, fixed before any test
+// changes the working directory.
+var testdata = func() string {
+	d, err := filepath.Abs("testdata")
+	if err != nil {
+		panic(err)
+	}
+	return d
+}()
+
 func golden(t *testing.T, name, got string) {
 	t.Helper()
-	path := filepath.Join("testdata", name)
+	path := filepath.Join(testdata, name)
 	if *update {
 		require.NoError(t, os.WriteFile(path, []byte(got), 0o644))
 	}

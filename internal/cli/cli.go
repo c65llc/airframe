@@ -153,6 +153,28 @@ var Commands = []Command{
 		},
 	},
 	{
+		Name:    "find",
+		Args:    "<query>...",
+		Summary: "Rank the tokens that match a free-text query by their names, descriptions and components; exit 1 when none do.",
+		Flags: []Flag{
+			{Name: "limit", Arg: "N", Summary: "print at most N hits (default: 10)"},
+			{Name: "type", Arg: "T", Summary: "keep only tokens of DTCG type T"},
+			{Name: "file", Arg: "F", Summary: "keep only tokens the consumer file F (a path from here, inside the project) may read, saying why"},
+			{Name: "retired", Summary: "include retired tokens"},
+			{Name: "json", Summary: "print the hits as a JSON array"},
+		},
+	},
+	{
+		Name:    "usages",
+		Args:    "<token>",
+		Summary: "List every consumer read of a token, direct or through a wrapper, and the tokens that alias it.",
+		Flags: []Flag{
+			{Name: "json", Summary: "print the same as a JSON object"},
+			{Name: "platform", Arg: "P", Summary: "list only the reads in platform P"},
+		},
+	},
+	diffCommand,
+	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",
 		Summary: "Print a rule's documentation, or show a token and which tiers may read it.",
@@ -164,8 +186,8 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants|component|retired>",
-		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files or retired.yaml.",
+		Args:    "<config|tokens|invariants|component|retired|find|usages|diff>",
+		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files, retired.yaml, or the output of find --json, usages --json or diff --format json.",
 	},
 	{
 		Name:    "version",
@@ -181,6 +203,9 @@ var handlers = map[string]func(*invocation) int{
 	"build":   runBuild,
 	"import":  runImport,
 	"show":    runShow,
+	"usages":  runUsages,
+	"find":    runFind,
+	"diff":    runDiff,
 	"explain": runExplain,
 	"rules":   runRules,
 	"schema":  runSchema,

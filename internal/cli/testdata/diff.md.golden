@@ -1,0 +1,42 @@
+## Token changes: `v1` → `main`
+
+2 added, 2 removed, 1 possibly renamed, 3 changed.
+
+### Added (2)
+
+| token | type | tier | value |
+| --- | --- | --- | --- |
+| `gap` | dimension | semantic | `8px` |
+| `gray-700` | color | primitive | ■ `#3e434880` `oklch(38% 0.01 250 / 0.5)` |
+
+### Removed (2)
+
+| token | type | tier | value |
+| --- | --- | --- | --- |
+| `gone` | dimension | semantic | `3px` |
+| `old-gap` | dimension | semantic | `8px` |
+
+### Possibly renamed (1)
+
+- `old-gap` → `gap`
+
+### Changed (3)
+
+#### `ink`
+
+| context | before | after |
+| --- | --- | --- |
+| *tier* | semantic | primitive |
+| *description* | Body text. | Body text \| prose. |
+
+#### `legacy`
+
+| context | before | after |
+| --- | --- | --- |
+| *retired* | false | true |
+
+#### `surface`
+
+| context | before | after |
+| --- | --- | --- |
+| appearance:dark | ■ `#12171b` `oklch(20% 0.012 250)` | ■ `#3e434880` `oklch(38% 0.01 250 / 0.5)` |

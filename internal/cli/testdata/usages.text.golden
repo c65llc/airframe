@@ -1,0 +1,11 @@
+button-bg
+tier: component
+component: button
+references:
+  android  android/src/button/Button.kt:5:10  DesignTokens.buttonBg  [owner]
+  android  android/src/main/Screen.kt:13:16  DesignTokens.buttonBg  [not owner]
+  apple  apple/Sources/ButtonStyle.swift:6:25  DesignTokens.buttonBg  [owner]
+  apple  apple/Sources/ContentView.swift:17:21  DesignTokens.buttonBg  [not owner]
+  web  web/src/button/Button.tsx:6:24  --button-bg  [owner]
+  windows  windows/App/ButtonView.xaml:2:23  {StaticResource DesignButtonBg}  [owner]
+  windows  windows/App/MainPage.xaml:6:25  {StaticResource DesignButtonBg}  [not owner]

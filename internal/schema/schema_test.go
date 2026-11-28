@@ -18,6 +18,8 @@ func TestSourceEveryKind(t *testing.T) {
 		var doc map[string]any
 		require.NoError(t, json.Unmarshal(b, &doc), kind)
 		assert.Contains(t, doc, "$schema", kind)
+		// Validate names each schema by kind; none names itself.
+		assert.NotContains(t, doc, "$id", kind)
 	}
 	assert.Len(t, sources, len(Kinds))
 	_, ok := Source("widgets")

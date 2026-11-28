@@ -355,12 +355,10 @@ type keyedValue struct {
 // tokenValues are t's values: its base value (key "") first, then its mode
 // values in key order.
 func tokenValues(t *tokens.Token) []keyedValue {
-	var out []keyedValue
-	if t.Default != nil {
-		out = append(out, keyedValue{"", t.Default})
-	}
-	for _, k := range slices.Sorted(maps.Keys(t.Modes)) {
-		out = append(out, keyedValue{k, t.Modes[k]})
+	keys, vals := t.Values()
+	out := make([]keyedValue, len(keys))
+	for i := range keys {
+		out[i] = keyedValue{keys[i], vals[i]}
 	}
 	return out
 }

@@ -11,8 +11,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/bmatcuk/doublestar/v4"
-
 	"github.com/c65llc/airframe/internal/component"
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/consumer"
@@ -371,10 +369,8 @@ func ruleOwnerViolation(p *project.Project, c *Context) ([]diag.Diagnostic, diag
 		if comp.Shared {
 			return nil
 		}
-		for _, g := range comp.Owners {
-			if ok, _ := doublestar.Match(g, r.File); ok {
-				return nil
-			}
+		if _, ok := ownerGlob(comp, r.File); ok {
+			return nil
 		}
 		return find(fmt.Sprintf("%s matches none of its owners (%s)", r.File, strings.Join(comp.Owners, ", ")))
 	})
