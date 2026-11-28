@@ -691,7 +691,7 @@ func (inv *invocation) build(dir string, p *project.Project, ds []diag.Diagnosti
 	if len(bds) > 0 {
 		diag.WriteText(inv.stderr, bds, nil)
 	}
-	// A warning (a format not built yet) is reported but does not fail
+	// A warning (an emit-axis-fixed axis) is reported but does not fail
 	// the build.
 	if slices.ContainsFunc(bds, func(d diag.Diagnostic) bool { return d.Severity == diag.Error }) {
 		code = ExitFindings

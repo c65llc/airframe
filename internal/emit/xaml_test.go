@@ -22,13 +22,14 @@ import (
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
+	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
 )
 
-// windowsDir is the windows fixture: the apple token set (hairline no
-// longer varies on appearance) with appearance, density, app (fanned out
-// over notes and tasks) and channel (fixed), gamut clip-srgb and a
-// highContrast mapping for every colour and shadow token.
+// windowsDir is the windows fixture: the apple token set (hairline varies
+// on appearance and density, so it is themed) with appearance, density,
+// app (fanned out over notes and tasks) and channel (fixed), gamut
+// clip-srgb and a highContrast mapping for every colour and shadow token.
 var windowsDir = filepath.Join("..", "..", "testdata", "windows")
 
 // xamlDefaultDir is a smaller project with no highContrast and no fan-out,
@@ -554,4 +555,66 @@ func TestXAMLThirdAppearance(t *testing.T) {
 	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "appearance: {values: [light, dark],", "appearance: {values: [light, dark, dim],", 1)
 	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], `dark: ["@media`, `dim: "[data-theme='dim']", dark: ["@media`, 1)
 	assert.Equal(t, `platform windows: xaml: appearance value "dim" has no WinUI theme dictionary; XAML themes are Light and Dark`, xamlErr(t, fsys))
+}
+
+// TestGuideWindowsConfig: the guide's §1 airframe.yaml, over the windows
+// fixture's tokens, builds exactly the fixture's XAML goldens and every
+// warning the guide quotes, so its emit-axis-fixed section names an axis
+// §1 declares.
+func TestGuideWindowsConfig(t *testing.T) {
+	guide, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "windows.md"))
+	require.NoError(t, err)
+	yamls := regexp.MustCompile("(?s)```yaml\n(.*?)```").FindAllStringSubmatch(string(guide), -1)
+	require.NotEmpty(t, yamls)
+	fsys := memFS(t, windowsDir)
+	fsys["airframe.yaml"] = "version: 1\ncontent: design-system\n" + yamls[0][1]
+	out, ds := Build(loadFS(t, fsys), nil)
+	var warns []string
+	for _, d := range ds {
+		require.NotEqual(t, diag.Error, d.Severity, "%v", d)
+		warns = append(warns, d.File+": "+string(d.Severity)+" "+d.Rule+": "+d.Message)
+	}
+	assert.Equal(t, xamlGoldenFiles(t, windowsDir), out)
+	quoted := regexp.MustCompile(`(?m)^airframe\.yaml: warn .*$`).FindAllString(string(guide), -1)
+	require.NotEmpty(t, quoted)
+	for _, q := range quoted {
+		assert.Contains(t, warns, q)
+	}
+}
+
+// TestGuideWindowsKeys: every ```xml block in the guide is well-formed
+// XML, every resource key the guide names is one the notes golden
+// defines, and each themed key it reads with {StaticResource} is not
+// themed (and the reverse), so the guide's markup resolves against the
+// fixture's dictionary.
+func TestGuideWindowsKeys(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "guides", "windows.md"))
+	require.NoError(t, err)
+	guide := string(b)
+	blocks := regexp.MustCompile("(?s)```xml\n(.*?)```").FindAllStringSubmatch(guide, -1)
+	require.NotEmpty(t, blocks)
+	for i, m := range blocks {
+		d := xml.NewDecoder(strings.NewReader(m[1]))
+		for {
+			_, err := d.Token()
+			if err == io.EOF {
+				break
+			}
+			require.NoError(t, err, "xml block %d", i)
+		}
+	}
+	notes := string(xamlGoldenFiles(t, windowsDir)[notesXAML])
+	light := themeDict(t, notes, "Light")
+	keys := regexp.MustCompile(`\bDesign[A-Z][A-Za-z0-9]*`).FindAllString(guide, -1)
+	require.NotEmpty(t, keys)
+	for _, k := range slices.Compact(slices.Sorted(slices.Values(keys))) {
+		if k == "DesignTokens" {
+			continue
+		}
+		assert.Contains(t, notes, `x:Key="`+k+`"`, "the guide names %s", k)
+	}
+	for _, m := range regexp.MustCompile(`\{(ThemeResource|StaticResource) (Design[A-Za-z0-9]*)\}`).FindAllStringSubmatch(guide, -1) {
+		themed := strings.Contains(light, `x:Key="`+m[2]+`"`)
+		assert.Equal(t, m[1] == "ThemeResource", themed, "%s %s", m[1], m[2])
+	}
 }

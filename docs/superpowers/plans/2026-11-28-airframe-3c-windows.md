@@ -70,7 +70,7 @@ Every emitted colour token, and each shadow layer's colour (`<Key>Layer<N>`), is
 
 ### Non-colours
 
-These sit outside the theme dictionaries. A non-colour token that varies on appearance is `emit-failed` with `token "x" varies on appearance; XAML theme dictionaries hold only brushes here`.
+These sit at the dictionary's root, after the theme dictionaries. A non-colour token that varies on appearance (a shadow's geometry included) is the exception: it is written into every theme dictionary beside the brushes, Light and Dark at their values and HighContrast or Default at the base appearance's, and consumers read it with `{ThemeResource}`. WinUI theme dictionaries hold any resource. *(Ruling at Task 2 review, amending this plan: emit-failing every design system with an appearance-varying dimension was too blunt.)*
 
 | Token type | XAML resource |
 |---|---|
@@ -87,7 +87,7 @@ These sit outside the theme dictionaries. A non-colour token that varies on appe
 ### Verification
 
 - **Goldens.**
-- **`TestXAMLWellFormed`** checks each golden with `encoding/xml`. The root and namespaces must be correct, and no dictionary may hold two equal `x:Key`s. Every brush key in Light must also appear in Dark and in HighContrast or Default, and nowhere else. Non-colour elements must be one of `x:Double`, `KeySpline` or `FontFamily`.
+- **`TestXAMLWellFormed`** checks each golden with `encoding/xml`. The root and namespaces must be correct, and no dictionary may hold two equal `x:Key`s. Every brush key in Light, and every themed non-colour key, must also appear in Dark and in HighContrast or Default, and nowhere else. Non-colour elements must be one of `x:Double`, `KeySpline` or `FontFamily`.
 - **No WinUI compile.** That would need a Windows host with the Windows App SDK. Final review attempts one only if a Windows machine is reachable; otherwise the guide and the PR say the output is structurally checked, not compiled.
 
 ### Registration (Task 3)
@@ -150,7 +150,7 @@ These sit outside the theme dictionaries. A non-colour token that varies on appe
   - `TestXAMLKeys`;
   - `TestXAMLGamut`;
   - `TestXAMLFanOut`: a token varying per app, with a non-fanned path, is `emit-failed`;
-  - `TestXAMLAppearanceNonColour`;
+  - `TestXAMLAppearanceNonColour` (positive since the ruling: the token is themed);
   - `TestXAMLInsetShadow`;
   - `TestXAMLThirdAppearance`.
 - [ ] Step 2: run them and see them FAIL.
@@ -180,7 +180,8 @@ These sit outside the theme dictionaries. A non-colour token that varies on appe
   - the suffixed density keys;
   - milliseconds and font-weight conversion;
   - high contrast;
-  - limits: no inset shadows, non-colours can't vary on appearance, structurally checked but not compiled;
+  - appearance-varying non-colours live in every theme dictionary and are read with `{ThemeResource}`;
+  - limits: no inset shadows, shadow layer count matches across apps, CSS generic font families pass through (WinUI falls back silently), commas in family names are rejected, structurally checked but not compiled (KeySpline unverified on WinUI);
 - `README.md` (XAML joins the built list as "(next release)", and the Planned list no longer names an emitter; `docs_test` asserts XAML is built);
 - the spec (the §6.2 note says all formats are built, and §6.7 item 3 is done, pointing at the guide).
 

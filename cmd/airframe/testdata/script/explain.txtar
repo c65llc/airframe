@@ -4,6 +4,14 @@ stdout '^# tier-violation$'
 stdout 'https://airframe.c65llc.com/rules/tier-violation/'
 ! stdout '^since:'
 
+# A retired ID keeps its page, which says it is retired; rules no longer
+# lists it.
+exec airframe explain emit-unsupported
+stdout '^# emit-unsupported$'
+stdout 'Retired in v0\.5\.0'
+exec airframe rules
+! stdout 'emit-unsupported'
+
 # explain <token> shows the token and which tiers may read it.
 exec airframe init
 exec airframe explain accent-ink

@@ -431,7 +431,6 @@ func TestSwiftRegistered(t *testing.T) {
 	assert.Contains(t, Emitters, "swift")
 	out, ds := Build(loadFS(t, os.DirFS(appleDir)), nil)
 	for _, d := range ds {
-		assert.NotEqual(t, "emit-unsupported", d.Rule, d.Message)
 		assert.NotEqual(t, "emit-failed", d.Rule, d.Message)
 	}
 	assert.Contains(t, out, sharedSwift)
