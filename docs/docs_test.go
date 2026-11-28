@@ -104,14 +104,14 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, want := range []string{
 		"go install github.com/c65llc/airframe/cmd/airframe@latest",
 		"airframe init", "airframe lint", "airframe build", "airframe fmt",
-		"uses: c65llc/airframe@v0", "version: v0.2.0",
-		"**Planned (not in v0.2.0)**",
+		"uses: c65llc/airframe@v0", "version: v0.3.0",
+		"**Planned (not in v0.3.0)**",
 	} {
 		assert.Contains(t, readme, want)
 	}
-	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.2.0)**")
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.3.0)**")
 	require.True(t, ok)
-	built, _, _ := strings.Cut(readme, "**Planned (not in v0.2.0)**")
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.3.0)**")
 	for _, unbuilt := range []string{"Kotlin", "XAML"} {
 		assert.NotContains(t, built, unbuilt, "an unbuilt emitter is described before the planned list")
 		assert.Contains(t, planned, unbuilt)

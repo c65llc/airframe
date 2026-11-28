@@ -218,5 +218,5 @@ build` never deletes anything, so after a rename the old
 catalog folder airframe wrote (its `Contents.json` says
 `"author": "airframe"`), a `.colorset` that no token makes any more is
 reported: `build` warns, and `build --check` and `emitted-stale` fail
-naming it. Delete it by hand. A folder airframe did not write is never
+naming it. Delete it by hand, then rebuild. A folder airframe did not write is never
 scanned, so your own colorsets are safe there.
