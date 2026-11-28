@@ -195,6 +195,7 @@ var Commands = []Command{
 		Args:    "<config|tokens|invariants|component|retired|find|usages|diff>",
 		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files, retired.yaml, or the output of find --json, usages --json or diff --format json.",
 	},
+	mcpCommand,
 	{
 		Name:    "version",
 		Summary: "Print airframe's version.",
@@ -229,6 +230,7 @@ type invocation struct {
 	args           []string
 	bools          map[string]*bool
 	lists          map[string]*[]string
+	stdin          io.Reader // read only by mcp
 	stdout, stderr io.Writer
 }
 
@@ -264,12 +266,12 @@ func (s *stickyWriter) Write(p []byte) (int, error) {
 }
 
 // Main runs the command line args, which exclude the program name, and
-// returns the exit status. No command reads stdin. If writing to stdout
+// returns the exit status. Only mcp reads stdin. If writing to stdout
 // fails, the command's output is incomplete, so Main reports the error and
 // returns 2.
-func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
+func Main(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	out := &stickyWriter{w: stdout}
-	code := dispatch(args, out, stderr)
+	code := dispatch(args, stdin, out, stderr)
 	if out.err != nil {
 		_, _ = fmt.Fprintf(stderr, "airframe: writing output: %v\n", out.err)
 		return ExitUsage
@@ -277,7 +279,7 @@ func Main(args []string, _ io.Reader, stdout, stderr io.Writer) int {
 	return code
 }
 
-func dispatch(args []string, stdout, stderr io.Writer) int {
+func dispatch(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	global := flag.NewFlagSet("airframe", flag.ContinueOnError)
 	global.SetOutput(io.Discard)
 	root := global.String("root", "", "")
@@ -306,7 +308,7 @@ func dispatch(args []string, stdout, stderr io.Writer) int {
 		return ExitUsage
 	}
 	inv := &invocation{
-		cmd: Commands[i], root: *root, stdout: stdout, stderr: stderr,
+		cmd: Commands[i], root: *root, stdin: stdin, stdout: stdout, stderr: stderr,
 		bools: map[string]*bool{}, lists: map[string]*[]string{},
 	}
 	flags := flag.NewFlagSet(inv.cmd.Name, flag.ContinueOnError)
