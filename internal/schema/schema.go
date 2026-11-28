@@ -46,6 +46,7 @@ var retiredSchema []byte
 
 //go:embed usages.schema.json
 var usagesSchema []byte
+
 //go:embed find.schema.json
 var findSchema []byte
 
@@ -61,7 +62,7 @@ var sources = map[string][]byte{
 }
 
 // Kinds are the document kinds with a schema, in the order usage lists them.
-var Kinds = []string{"config", "tokens", "invariants", "component", "retired", "find", "usages"}
+var Kinds = []string{"config", "tokens", "invariants", "component", "retired", "find", "usages", "diff"}
 
 // Source returns the JSON Schema of a document kind as embedded.
 func Source(kind string) ([]byte, bool) {

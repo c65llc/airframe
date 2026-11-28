@@ -152,6 +152,7 @@ var Commands = []Command{
 			{Name: "json", Summary: "print the same as a JSON object"},
 		},
 	},
+	diffCommand,
 	{
 		Name:    "usages",
 		Args:    "<token>",
@@ -185,8 +186,8 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants|component|retired|usages|find>",
-		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files, retired.yaml, or the find or usages --json output.",
+		Args:    "<config|tokens|invariants|component|retired|find|usages|diff>",
+		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files, retired.yaml, or the find, usages or diff --json output.",
 	},
 	{
 		Name:    "version",
@@ -204,6 +205,7 @@ var handlers = map[string]func(*invocation) int{
 	"show":    runShow,
 	"usages":  runUsages,
 	"find":    runFind,
+	"diff":    runDiff,
 	"explain": runExplain,
 	"rules":   runRules,
 	"schema":  runSchema,
