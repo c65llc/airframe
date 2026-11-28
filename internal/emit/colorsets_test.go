@@ -21,6 +21,7 @@ import (
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/tokens"
 )
 
 // appleDir is the apple fixture: appearance, density, app (fanned out over
@@ -210,6 +211,10 @@ func TestColorsetGamut(t *testing.T) {
 	within(clipped)
 	assert.Equal(t, p3Components(vivid, color.Clip), clipped.Colors[0].Color.Components)
 	assert.NotEqual(t, mapped.Colors[0].Color.Components, clipped.Colors[0].Color.Components)
+
+	// Independent of ToP3: the values the gamut mapping must produce.
+	assert.Equal(t, map[string]string{"red": "0.0000", "green": "0.7804", "blue": "0.0000", "alpha": "1.0000"}, mapped.Colors[0].Color.Components)
+	assert.Equal(t, map[string]string{"red": "0.0000", "green": "0.8064", "blue": "0.0000", "alpha": "1.0000"}, clipped.Colors[0].Color.Components)
 }
 
 // TestColorsetUnsupportedAppearance (Review Focus 1): an appearance value
@@ -305,4 +310,66 @@ func TestColorsetSharedPathMustNotVary(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "{app}")
 	assert.Contains(t, err.Error(), "Accent")
+}
+
+// appearanceProject is a one-token project whose appearance axis is
+// values, with base given, and whose colour bg is dark by default and
+// light in mode appearance:<other>.
+func appearanceProject(t *testing.T, values, base, other string) *project.Project {
+	t.Helper()
+	cfg, ds := config.Load([]byte(`version: 1
+content: design-system
+modes:
+  appearance: {values: ` + values + `, base: ` + base + `, binding: runtime, web: {attr: data-theme}}
+platforms:
+  apple: {emit: [colorsets], out: {colorsets: "ios/Assets.xcassets/Tokens/"}}
+`))
+	require.Empty(t, ds)
+	set, ds := tokens.Parse(cfg, map[string][]byte{"design-system/a.tokens.json": []byte(`{ "bg": { "$type": "color",
+  "$value": { "colorSpace": "oklch", "components": [0.2, 0, 0] },
+  "$extensions": { "com.c65llc.airframe": { "tier": "primitive",
+    "modes": { "appearance:` + other + `": { "colorSpace": "oklch", "components": [0.95, 0, 0] } } } } } }`)})
+	require.Empty(t, ds)
+	return &project.Project{Config: cfg, Tokens: set}
+}
+
+// TestColorsetBaseDarkAppearance: the base appearance is the universal
+// entry, and the other value labels its luminosity entry by its own name.
+func TestColorsetBaseDarkAppearance(t *testing.T) {
+	p := appearanceProject(t, "[light, dark]", "dark", "light")
+	out := colorsetsOf(t, p)
+	d := colorsetAt(t, out, "ios/Assets.xcassets/Tokens/Bg.colorset/Contents.json")
+	require.Len(t, d.Colors, 2)
+	assert.Empty(t, d.Colors[0].Appearances)
+	assert.Equal(t, p3Components(color.OKLCH{L: 0.2, Alpha: 1}, color.CSSColor4), d.Colors[0].Color.Components, "universal = the dark base")
+	require.Len(t, d.Colors[1].Appearances, 1)
+	assert.Equal(t, "luminosity", d.Colors[1].Appearances[0].Appearance)
+	assert.Equal(t, "light", d.Colors[1].Appearances[0].Value)
+	assert.Equal(t, p3Components(color.OKLCH{L: 0.95, Alpha: 1}, color.CSSColor4), d.Colors[1].Color.Components)
+}
+
+// TestColorsetAppearanceNotLuminosity: a non-base appearance value that is
+// neither light nor dark labels no luminosity entry and is emit-failed.
+func TestColorsetAppearanceNotLuminosity(t *testing.T) {
+	p := appearanceProject(t, "[light, dim]", "light", "dim")
+	out, ds := Build(p, nil)
+	require.Len(t, ds, 1, "%v", ds)
+	assert.Equal(t, "emit-failed", ds[0].Rule)
+	assert.Contains(t, ds[0].Message, "dim")
+	assert.Empty(t, out)
+}
+
+// TestColorsetNamespaceAfterFanOut: an out path whose last element is the
+// fan-out placeholder namespaces each app's colours by the app.
+func TestColorsetNamespaceAfterFanOut(t *testing.T) {
+	fsys := memFS(t, appleDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "ios/{app}/Assets.xcassets/Tokens/", "ios/Assets.xcassets/{app}/", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "    options: {accentColor: accent}\n", "", 1)
+	p := loadFS(t, fsys)
+	out := colorsetsOf(t, p)
+	assert.Contains(t, out, "ios/Assets.xcassets/tasks/Ink.colorset/Contents.json")
+	assert.Contains(t, out, "ios/Assets.xcassets/notes/Contents.json")
+	np := PlanNative(p.Config, applePlatform(t, p))
+	assert.Equal(t, "tasks/Ink", ColorsetName(np, p.Tokens.Tokens["ink"], config.Context{"app": "tasks"}))
+	assert.Equal(t, "notes/Ink", ColorsetName(np, p.Tokens.Tokens["ink"], config.Context{}), "the fan-out's base when ctx leaves it unset")
 }

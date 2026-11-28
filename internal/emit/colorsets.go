@@ -26,8 +26,9 @@ import (
 // varies on a runtime axis other than appearance gets one colorset per
 // combination of those axes' values, named by ColorsetName. Each colorset
 // has a universal entry for the appearance axis's base value and, when the
-// colour varies on appearance, a luminosity-dark entry for its other
-// value. Colours are Display P3, mapped into gamut by CSS Color 4 or, with
+// colour varies on appearance, an entry for its other value labelled by
+// that value's name, which must be light or dark (Xcode's luminosity
+// appearances). Colours are Display P3, mapped into gamut by CSS Color 4 or, with
 // option gamut: clip-p3, clipped. Option accentColor also writes
 // AccentColor.colorset at the catalog root, the out folder's parent.
 func Colorsets(p *project.Project, pl config.Platform) (map[string][]byte, error) {
@@ -73,7 +74,7 @@ func Colorsets(p *project.Project, pl config.Platform) (map[string][]byte, error
 // Colorsets names them; the fan-out, appearance and fixed axes never
 // name a colorset and are ignored.
 func ColorsetName(np NativePlan, t *tokens.Token, ctx config.Context) string {
-	return namespace(np) + "/" + colorsetName(np, Pascal(t.Name), ctx)
+	return namespace(np, ctx) + "/" + colorsetName(np, Pascal(t.Name), ctx)
 }
 
 func colorsetName(np NativePlan, base string, ctx config.Context) string {
@@ -88,11 +89,19 @@ func colorsetName(np NativePlan, base string, ctx config.Context) string {
 }
 
 // namespace is the catalog folder's name, the last element of the out
-// path.
-func namespace(np NativePlan) string {
+// path once the fan-out axis is replaced by its value in ctx (its base
+// when ctx leaves it unset).
+func namespace(np NativePlan, ctx config.Context) string {
 	o := np.Platform.Out["colorsets"]
 	if o == "" {
 		o = defaultOut["colorsets"]
+	}
+	if np.FanOut != nil {
+		v, ok := ctx[np.FanOut.Name]
+		if !ok {
+			v = base(*np.FanOut)
+		}
+		o = strings.ReplaceAll(o, "{"+np.FanOut.Name+"}", v)
 	}
 	return path.Base(strings.TrimSuffix(o, "/"))
 }
@@ -101,7 +110,7 @@ type colorsetter struct {
 	p     *project.Project
 	np    NativePlan
 	gamut color.Gamut
-	dark  string // the appearance axis's non-base value; "" with no such axis
+	dark  string // the appearance axis's non-base value (light or dark); "" with none
 
 	entries []colorEntry
 }
@@ -114,8 +123,9 @@ type colorEntry struct {
 	onAppearance bool
 }
 
-// appearance finds the dark value: the appearance axis may have its base
-// and one other value, the two a colorset can express.
+// appearance finds the non-base value: the appearance axis may have its
+// base, the universal entry, and one other value, named light or dark so
+// it labels a luminosity entry.
 func (cs *colorsetter) appearance() error {
 	a := cs.np.Appearance
 	if a == nil {
@@ -131,13 +141,19 @@ func (cs *colorsetter) appearance() error {
 		return nil
 	}
 	dark := others[0]
-	if slices.Contains(others, "dark") {
-		dark = "dark"
+	for _, v := range []string{"light", "dark"} {
+		if slices.Contains(others, v) {
+			dark = v
+		}
 	}
-	if len(others) > 1 {
-		extra := slices.DeleteFunc(slices.Clone(others), func(v string) bool { return v == dark })
-		msg := fmt.Sprintf("appearance value %s cannot be expressed in a colorset, which has a base (%s) and a dark (%s) appearance only",
-			strings.Join(extra, ", "), base(*a), dark)
+	if len(others) > 1 || (dark != "light" && dark != "dark") {
+		var msg string
+		if extra := slices.DeleteFunc(slices.Clone(others), func(v string) bool { return v == dark }); len(extra) > 0 {
+			msg = fmt.Sprintf("appearance value %s cannot be expressed in a colorset, which has a base (%s) and one other appearance (%s) only",
+				strings.Join(extra, ", "), base(*a), dark)
+		} else {
+			msg = fmt.Sprintf("appearance value %s cannot be expressed in a colorset: Xcode's luminosity appearances are light and dark", dark)
+		}
 		for _, t := range emitted(cs.p, "colorsets") {
 			if isColorish(t) && slices.Contains(cs.np.Varies(cs.p.Tokens, t), a.Name) {
 				msg += fmt.Sprintf("; token %q varies on appearance", t.Name)
@@ -334,8 +350,9 @@ func fanName(np NativePlan) string {
 	return "the fan-out axis " + np.FanOut.Name
 }
 
-// colorset is a colorset's Contents.json: a universal entry for light and,
-// when dark holds a colour, a luminosity-dark entry for it.
+// colorset is a colorset's Contents.json: a universal entry for the base
+// appearance's colour and, when dark holds a colour, an entry for it
+// labelled luminosity <the non-base appearance value>.
 func (cs *colorsetter) colorset(light color.OKLCH, dark []color.OKLCH) ([]byte, error) {
 	colors := []any{cs.entry(light, false)}
 	if len(dark) > 0 {
@@ -361,7 +378,7 @@ func (cs *colorsetter) entry(c color.OKLCH, dark bool) *object {
 	if dark {
 		ap := &object{}
 		ap.set("appearance", "luminosity")
-		ap.set("value", "dark")
+		ap.set("value", cs.dark)
 		e.set("appearances", []any{ap})
 	}
 	e.set("color", col)
