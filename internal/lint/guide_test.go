@@ -79,9 +79,9 @@ func TestGuideConsumers(t *testing.T) {
 
 	var kept []diag.Diagnostic
 	for _, d := range res.Diagnostics {
-		// The guide builds nothing, and its component file shows owners
-		// only: its ruling and inventory are the components guide's.
-		if d.Rule != "emitted-stale" && d.Rule != "component-unruled" && d.Rule != "component-incomplete" {
+		// The guide builds nothing. Its component file is complete, so the
+		// component rules are held to its quoted findings like the rest.
+		if d.Rule != "emitted-stale" {
 			kept = append(kept, d)
 		}
 	}

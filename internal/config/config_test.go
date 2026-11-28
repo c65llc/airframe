@@ -350,6 +350,7 @@ func TestSpec62ExampleLoads(t *testing.T) {
 		names = append(names, p.Name)
 	}
 	assert.Equal(t, []string{"web", "apple", "android", "windows", "json"}, names)
+	assert.Equal(t, "gantry.yaml", c.Gantry)
 	bases := map[string]string{}
 	for _, a := range c.Axes {
 		bases[a.Name] = a.Base

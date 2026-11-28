@@ -294,10 +294,16 @@ read only by that component's files. Declare the component in
 ```yaml
 # design-system/components/button.yaml
 id: button
+ruling: "@ruling:button"
 tokens: [button-bg, button-ink]
 owners:
   - web/src/button/**
   - apple/Sources/Button*.swift
+implementations:
+  web: web/src/button/Button.tsx
+  apple: "n/a: the apps use the system button, tinted"
+  android: "n/a: the app uses Material 3's Button"
+  windows: "n/a: the app uses WinUI's Button"
 ```
 
 - **`id`** equals the file's basename.
@@ -307,8 +313,10 @@ owners:
 - **`owners`** are repo-relative globs: the files allowed to read the
   tokens. They are required unless **`shared: true`**, which lets any
   consumer read them. Owners are declared, never inferred.
-- `noun`, `ruling`, `hostedBy` and `implementations` are accepted and
-  type-checked; their rules land with the component inventory.
+- **`ruling`** and **`implementations`** make the component part of the
+  inventory: the ruling it answers to, and the file that builds it on each
+  platform (or `n/a: <reason>`). `noun` and `hostedBy` complete it. See
+  [Components and retired treatments](components.md).
 
 The owner reads it freely:
 
@@ -409,8 +417,9 @@ clean one.
   at run time (`setProperty(name, …)`).
 - **Owners are declared, never inferred.** Airframe does not guess a
   component's files from its name or folder.
-- `component-unruled` and `retired-used` are planned, with the component
-  inventory and retired treatments; they are not built yet.
+- The component inventory's rules (`component-unruled`,
+  `component-incomplete`) and retired treatments (`retired-used`) are in
+  [Components and retired treatments](components.md).
 
 ## In CI
 

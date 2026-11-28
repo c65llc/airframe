@@ -29,6 +29,8 @@ const (
 type shownRuling struct {
 	Ref    string `json:"ref"`
 	Status string `json:"status"`
+	// SupersededBy is a superseded ruling's replacement, omitted when empty.
+	SupersededBy string `json:"supersededBy,omitempty"`
 }
 
 // shownComponentToken is one token a component owns.
@@ -57,8 +59,6 @@ type shownComponent struct {
 	Implementations map[string]string              `json:"implementations"`
 	Consumers       map[string][]shownConsumerFile `json:"consumers"`
 
-	// supersededBy is the replacement of a superseded ruling; text only.
-	supersededBy string
 	// unchecked says why the ruling was not resolved; text only.
 	unchecked string
 }
@@ -143,7 +143,7 @@ func (s *shownComponent) resolveRuling(p *project.Project) {
 	status, by, found := ix.Lookup(id)
 	switch {
 	case found:
-		s.Ruling.Status, s.supersededBy = status, by
+		s.Ruling.Status, s.Ruling.SupersededBy = status, by
 	case ix.Unreadable(id):
 		s.Ruling.Status = statusUnreadable
 	default:
@@ -166,8 +166,8 @@ func writeShownComponent(w interface{ Write([]byte) (int, error) }, s shownCompo
 	switch {
 	case s.Ruling.Status == statusUnchecked:
 		ruling = s.Ruling.Ref + " (not checked: " + s.unchecked + ")"
-	case s.supersededBy != "":
-		ruling = s.Ruling.Ref + " (superseded by " + s.supersededBy + ")"
+	case s.Ruling.SupersededBy != "":
+		ruling = s.Ruling.Ref + " (superseded by " + s.Ruling.SupersededBy + ")"
 	}
 	fmt.Fprintf(&b, "%s\nnoun: %s\nruling: %s\nshared: %t\nhostedBy: %s\nhosts: %s\n",
 		s.ID, orNone(s.Noun), ruling, s.Shared, orNone(s.HostedBy), orList(s.Hosts))

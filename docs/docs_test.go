@@ -130,9 +130,9 @@ func TestRuleUnknown(t *testing.T) {
 
 // TestReadmeMatchesRelease guards the README against drifting from what
 // the release does: it carries the install line, the quick start and the
-// Action usage, describes every emitter as built (XAML since v0.5.0)
-// and the consumer rules as new in v0.6.0, and plans no
-// emitter.
+// Action usage, describes every emitter as built (XAML since v0.5.0),
+// the consumer rules as new in v0.6.0 and components and retired
+// treatments as built for the next release, and plans no emitter.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
 	require.NoError(t, err)
@@ -169,7 +169,19 @@ func TestReadmeMatchesRelease(t *testing.T) {
 		assert.NotContains(t, planned, rule, "a built consumer rule is not planned")
 	}
 	assert.NotContains(t, planned, "Consumer rules", "the consumer rules are built")
-	for _, want := range []string{"Components", "component-unruled", "retired-used", "reference"} {
-		assert.Contains(t, planned, want)
+	// Components and retired treatments are built for the next release,
+	// with their guide and show's component mode; the reference commands
+	// and the surfaces stay planned.
+	assert.Contains(t, built, "**Inventories components** (next release)")
+	assert.Contains(t, built, "**Retires treatments** (next release)")
+	assert.Contains(t, built, "(docs/guides/components.md)")
+	assert.Contains(t, built, "airframe show <component>")
+	for _, rule := range []string{"component-unruled", "component-incomplete", "retired-used"} {
+		assert.Contains(t, built, rule, "a built component rule is described before the planned list")
+		assert.NotContains(t, planned, rule, "a built component rule is not planned")
+	}
+	assert.NotContains(t, planned, "Components and retired treatments", "components and retired treatments are built")
+	for _, want := range []string{"`find`", "`usages`", "`diff`", "`rename`", "`retire`", "`specimen`", "skills", "MCP", "PWA", "editor"} {
+		assert.Contains(t, planned, want, "the reference commands and surfaces stay planned")
 	}
 }

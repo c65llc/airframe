@@ -118,9 +118,19 @@ func TestShowComponentGantryStatus(t *testing.T) {
 	code, stdout, stderr := run("--root", dir, "show", "button")
 	require.Equal(t, ExitOK, code, stderr)
 	assert.Contains(t, stdout, "ruling: @ruling:button (superseded by new-button)\n")
+	// JSON names the replacement too, so text and JSON carry the same facts.
+	code, stdout, stderr = run("--root", dir, "show", "button", "--json")
+	require.Equal(t, ExitOK, code, stderr)
+	golden(t, "show_component_superseded.json.golden", stdout)
+	var doc struct {
+		Ruling map[string]string `json:"ruling"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(stdout), &doc))
+	assert.Equal(t, map[string]string{"ref": "@ruling:button", "status": "superseded", "supersededBy": "new-button"}, doc.Ruling)
 	code, stdout, _ = run("--root", dir, "show", "split-button", "--json")
 	require.Equal(t, ExitOK, code)
 	assert.Contains(t, stdout, `"status": "missing"`)
+	assert.NotContains(t, stdout, "supersededBy", "omitted when empty")
 }
 
 func TestShowAmbiguous(t *testing.T) {

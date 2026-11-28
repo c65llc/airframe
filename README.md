@@ -22,12 +22,16 @@ v0.6.0 is the current release: the core, the CSS importer, the Apple, Android an
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
 - **Imports existing CSS** (since v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
+**Built for the next release** (on `main`, not in v0.6.0)
+
+- **Inventories components** (next release). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
+- **Retires treatments** (next release). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md).
+
 **Planned (not in v0.6.0)**
 
-- Components and retired treatments: the component inventory with its rulings and implementations (`component-unruled`), and retired treatments held by their spellings on every platform (`retired-used`).
 - The reference commands and surfaces (`find`, `usages`, `diff`, `rename`, `retire`, `specimen`, skills, MCP, the PWA and editor integrations) for asking which token to use and whether a file may read it.
 
-These land in later plans (5 to 8); until then, no part of this README describes them as working.
+These land in later plans (6 to 8); until then, no part of this README describes them as working.
 
 ## Install
 
