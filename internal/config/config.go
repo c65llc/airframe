@@ -30,6 +30,7 @@ type Config struct {
 	Axes           []Axis // in file order
 	AccentRequired []string
 	Platforms      []Platform // in file order
+	Naming         map[string]string
 	Lint           LintConfig
 }
 
@@ -71,6 +72,33 @@ type Platform struct {
 	Emit      []string
 	Out       map[string]string
 	Consumers []string
+	FanOut    string         // name of the build-bound axis the emitters fan out over
+	Options   map[string]any // scalars as string, bool or float64; mappings as map[string]any
+}
+
+// Option returns the scalar option key as a string; ok is false when it is
+// unset or not a scalar.
+func (p Platform) Option(key string) (string, bool) {
+	switch v := p.Options[key].(type) {
+	case string:
+		return v, true
+	case bool, float64:
+		return fmt.Sprint(v), true
+	}
+	return "", false
+}
+
+// defaultNaming is the spelling per emit format when naming does not set one.
+var defaultNaming = map[string]string{
+	"css": "--{name}", "swift": "DesignTokens.{camel}", "kotlin": "DesignTokens.{camel}", "xaml": "Design{Pascal}",
+}
+
+// NamingFor returns the naming template for an emit format.
+func (c *Config) NamingFor(format string) string {
+	if t, ok := c.Naming[format]; ok {
+		return t
+	}
+	return defaultNaming[format]
 }
 
 // LintConfig holds per-rule severity overrides.
@@ -193,11 +221,22 @@ func build(root *yaml.Node) (*Config, *buildError) {
 	if pn := field(root, "platforms"); pn != nil {
 		ks, vs := mapping(pn)
 		for i, k := range ks {
-			p, err := buildPlatform(k, vs[i])
+			p, err := buildPlatform(k, vs[i], c.Axes)
 			if err != nil {
 				return nil, err
 			}
 			c.Platforms = append(c.Platforms, p)
+		}
+	}
+
+	if nn := field(root, "naming"); nn != nil {
+		c.Naming = map[string]string{}
+		ks, vs := mapping(nn)
+		for i, k := range ks {
+			if err := checkNaming(k.Value, vs[i]); err != nil {
+				return nil, err
+			}
+			c.Naming[k.Value] = vs[i].Value
 		}
 	}
 
@@ -377,7 +416,7 @@ func underRoot(key, v, at string, line int) (string, *buildError) {
 // declare them, and are reported as not yet built until their emitters land.
 var Formats = []string{"css", "json", "swift", "colorsets", "kotlin", "xaml"}
 
-func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
+func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 	p := Platform{Name: key.Value, Emit: stringList(field(n, "emit")), Consumers: stringList(field(n, "consumers"))}
 	if e := field(n, "emit"); e != nil {
 		items := []*yaml.Node{e}
@@ -391,6 +430,29 @@ func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 						p.Name, it.Value, strings.Join(Formats, ", ")),
 					path: "platforms." + p.Name + ".emit", line: it.Line,
 				}
+			}
+		}
+	}
+	if f := field(n, "fanOut"); f != nil {
+		at := "platforms." + p.Name + ".fanOut"
+		i := slices.IndexFunc(axes, func(a Axis) bool { return a.Name == f.Value })
+		switch {
+		case i < 0 || axes[i].Deferred():
+			why := "is not a loaded axis"
+			if i >= 0 {
+				why = "is a deferred axis, whose values are not loaded"
+			}
+			return p, &buildError{msg: fmt.Sprintf("platform %s: fanOut %s %s; it must name a build-bound axis", p.Name, f.Value, why), path: at, line: f.Line}
+		case axes[i].Binding != "build":
+			return p, &buildError{msg: fmt.Sprintf("platform %s: fanOut %s is %s-bound; it must name a build-bound axis", p.Name, f.Value, axes[i].Binding), path: at, line: f.Line}
+		}
+		p.FanOut = f.Value
+	}
+	if o := field(n, "options"); o != nil {
+		p.Options = decodeMap(o)
+		if p.Name == "apple" {
+			if err := checkAppleOptions(o); err != nil {
+				return p, err
 			}
 		}
 	}
@@ -427,4 +489,85 @@ func buildPlatform(key, n *yaml.Node) (Platform, *buildError) {
 		}
 	}
 	return p, nil
+}
+
+// decodeMap decodes a mapping node: scalars as string, bool or float64,
+// nested mappings as map[string]any, sequences as []any.
+func decodeMap(n *yaml.Node) map[string]any {
+	out := map[string]any{}
+	ks, vs := mapping(n)
+	for i, k := range ks {
+		out[k.Value] = decodeValue(vs[i])
+	}
+	return out
+}
+
+func decodeValue(n *yaml.Node) any {
+	switch n.Kind {
+	case yaml.MappingNode:
+		return decodeMap(n)
+	case yaml.SequenceNode:
+		out := make([]any, 0, len(n.Content))
+		for _, c := range n.Content {
+			out = append(out, decodeValue(c))
+		}
+		return out
+	}
+	var v any
+	if n.Tag == "!!bool" || n.Tag == "!!float" || n.Tag == "!!int" {
+		if n.Decode(&v) == nil {
+			switch x := v.(type) {
+			case bool:
+				return x
+			case int:
+				return float64(x)
+			case float64:
+				return x
+			}
+		}
+	}
+	return n.Value
+}
+
+var appleGamuts = []string{"css-color-4", "clip-p3"}
+
+// checkAppleOptions validates the apple platform's options mapping.
+func checkAppleOptions(o *yaml.Node) *buildError {
+	ks, vs := mapping(o)
+	for i, k := range ks {
+		at := "platforms.apple.options." + k.Value
+		switch k.Value {
+		case "gamut":
+			if !slices.Contains(appleGamuts, vs[i].Value) {
+				return &buildError{msg: fmt.Sprintf("platform apple: gamut %s is not one of %s", vs[i].Value, strings.Join(appleGamuts, ", ")), path: at, line: vs[i].Line}
+			}
+		case "accentColor":
+			if vs[i].Kind != yaml.ScalarNode || vs[i].Value == "" {
+				return &buildError{msg: "platform apple: accentColor must be a non-empty string", path: at, line: vs[i].Line}
+			}
+		default:
+			return &buildError{msg: fmt.Sprintf("platform apple: unknown option %s; known: gamut, accentColor", k.Value), path: at, line: k.Line}
+		}
+	}
+	return nil
+}
+
+var placeholder = regexp.MustCompile(`\{[^{}]*\}`)
+
+// checkNaming requires exactly one of {name}, {camel}, {Pascal} and no other
+// placeholder.
+func checkNaming(format string, v *yaml.Node) *buildError {
+	n := 0
+	for _, m := range placeholder.FindAllString(v.Value, -1) {
+		switch m {
+		case "{name}", "{camel}", "{Pascal}":
+			n++
+		default:
+			return &buildError{msg: fmt.Sprintf("naming %s: unknown placeholder %s; use {name}, {camel} or {Pascal}", format, m), path: "naming." + format, line: v.Line}
+		}
+	}
+	if n != 1 {
+		return &buildError{msg: fmt.Sprintf("naming %s: %q must contain exactly one of {name}, {camel}, {Pascal}", format, v.Value), path: "naming." + format, line: v.Line}
+	}
+	return nil
 }

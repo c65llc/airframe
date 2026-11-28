@@ -97,7 +97,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestPlatformOutMapAndEmitList(t *testing.T) {
-	c := mustLoad(t, "version: 1\nplatforms:\n  apple:\n    emit: [swift, colorsets]\n    out: { swift: a.swift, colorsets: dir/ }\n    fanOut: app\n")
+	c := mustLoad(t, "version: 1\nmodes:\n  app: { values: [a], base: a, binding: build }\nplatforms:\n  apple:\n    emit: [swift, colorsets]\n    out: { swift: a.swift, colorsets: dir/ }\n    fanOut: app\n")
 	p := c.Platforms[0]
 	assert.Equal(t, []string{"swift", "colorsets"}, p.Emit)
 	assert.Equal(t, map[string]string{"swift": "a.swift", "colorsets": "dir/"}, p.Out)
@@ -420,5 +420,72 @@ func TestOutMustNameAPath(t *testing.T) {
 			assert.Contains(t, d.Path, "platforms.web.out", src)
 			assert.Contains(t, d.Message, "out must name a file or directory under the root", src)
 		}
+	}
+}
+
+const fanOutBase = `version: 1
+modes:
+  density: { values: [compact, standard], base: standard, binding: runtime }
+  app: { values: [a, b], base: a, binding: build }
+`
+
+func TestPlatformFanOutParsed(t *testing.T) {
+	data, err := os.ReadFile("../../docs/specs/2026-11-27-airframe-design.md")
+	require.NoError(t, err)
+	_, after, _ := strings.Cut(string(data), "### 6.2 ")
+	_, after, _ = strings.Cut(after, "```yaml\n")
+	block, _, _ := strings.Cut(after, "```")
+	c := mustLoad(t, block)
+	got := map[string]string{}
+	for _, p := range c.Platforms {
+		got[p.Name] = p.FanOut
+	}
+	assert.Equal(t, "app", got["apple"])
+	assert.Equal(t, "", got["web"])
+	for _, p := range c.Platforms {
+		if p.Name == "android" {
+			assert.Equal(t, true, p.Options["material3Scheme"])
+			v, ok := p.Option("sharedOut")
+			assert.True(t, ok)
+			assert.Equal(t, "android/shared/src/main/kotlin/DesignTokens.kt", v)
+		}
+	}
+}
+
+func TestFanOutMustBeBuildAxis(t *testing.T) {
+	d := loadErr(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: density\n")
+	assert.Equal(t, "platforms.apple.fanOut", d.Path)
+	assert.Contains(t, d.Message, "density")
+	assert.Contains(t, d.Message, "build")
+	d = loadErr(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: nope\n")
+	assert.Contains(t, d.Message, "nope")
+	mustLoad(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: app\n")
+}
+
+func TestAppleOptions(t *testing.T) {
+	pre := "version: 1\nplatforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    options: "
+	c := mustLoad(t, pre+"{ gamut: clip-p3, accentColor: AccentColor }\n")
+	v, ok := c.Platforms[0].Option("gamut")
+	assert.True(t, ok)
+	assert.Equal(t, "clip-p3", v)
+	_, ok = c.Platforms[0].Option("missing")
+	assert.False(t, ok)
+	d := loadErr(t, pre+"{ gamut: wide }\n")
+	assert.Equal(t, "platforms.apple.options.gamut", d.Path)
+	assert.Equal(t, 6, d.Line)
+	d = loadErr(t, pre+"{ bogus: 1 }\n")
+	assert.Equal(t, "platforms.apple.options.bogus", d.Path)
+	loadErr(t, pre+"{ accentColor: \"\" }\n")
+}
+
+func TestNamingTemplates(t *testing.T) {
+	c := mustLoad(t, "version: 1\nnaming: { swift: \"Tokens.{camel}\" }\n")
+	assert.Equal(t, "Tokens.{camel}", c.NamingFor("swift"))
+	assert.Equal(t, "DesignTokens.{camel}", mustLoad(t, "version: 1\n").NamingFor("swift"))
+	assert.Equal(t, "DesignTokens.{camel}", mustLoad(t, "version: 1\n").NamingFor("kotlin"))
+	assert.Equal(t, "--{name}", mustLoad(t, "version: 1\n").NamingFor("css"))
+	for _, bad := range []string{"{weird}", "plain", "{name}{camel}", "{name}-{Pascal}", "{camel}{x}"} {
+		d := loadErr(t, "version: 1\nnaming: { swift: \""+bad+"\" }\n")
+		assert.Equal(t, "naming.swift", d.Path, bad)
 	}
 }
