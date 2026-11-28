@@ -6,9 +6,9 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.7.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, the consumer rules, and components and retired treatments. Nothing here is stable yet.
+v0.8.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, the consumer rules, components and retired treatments, and the find, usages and diff reference commands. Nothing here is stable yet.
 
-**What v0.7.0 does**
+**What v0.8.0 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
 - **Emits Apple outputs** (since v0.3.0). The `apple` platform writes an asset catalog of Display P3 colorsets (light and dark, one catalog per app target) and a SwiftUI `DesignTokens` file naming every token as a typed member. See [Apple: Swift and asset catalogs](docs/guides/apple.md).
@@ -22,11 +22,11 @@ v0.7.0 is the current release: the core, the CSS importer, the Apple, Android an
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
 - **Imports existing CSS** (since v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
-- **Inventories components** (new in v0.7.0). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
-- **Retires treatments** (new in v0.7.0). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md). A v0.6.0 project with components fails lint on upgrade until each component has a `ruling` and an `implementations` entry for every platform with consumers (`n/a: <reason>` is accepted); see [Upgrading from v0.6.0](docs/guides/components.md#upgrading-from-v060).
-- **Finds, lists usages of and diffs tokens** (next release). `airframe find <words>` ranks the tokens by the words of their names, descriptions and components, with role synonyms (`muted` finds `subtle`), and `--file` keeps only the ones that file may read, saying why. `airframe usages <token>` lists every consumer read of a token on every platform, marking owners, and every token that aliases it. `airframe diff <ref-a> [<ref-b>]` shows the tokens added, removed, possibly renamed and changed between two git refs, or a ref and the working tree, as text, JSON or Markdown for a pull request's job summary; it reads git and writes nothing. See [Reference: find, usages and diff](docs/guides/reference.md).
+- **Inventories components** (since v0.7.0). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
+- **Retires treatments** (since v0.7.0). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md). A v0.6.0 project with components fails lint on upgrade until each component has a `ruling` and an `implementations` entry for every platform with consumers (`n/a: <reason>` is accepted); see [Upgrading from v0.6.0](docs/guides/components.md#upgrading-from-v060).
+- **Finds, lists usages of and diffs tokens** (new in v0.8.0). `airframe find <words>` ranks the tokens by the words of their names, descriptions and components, with role synonyms (`muted` finds `subtle`), and `--file` keeps only the ones that file may read, saying why. `airframe usages <token>` lists every consumer read of a token on every platform, marking owners, and every token that aliases it. `airframe diff <ref-a> [<ref-b>]` shows the tokens added, removed, possibly renamed and changed between two git refs, or a ref and the working tree, as text, JSON or Markdown for a pull request's job summary; it reads git and writes nothing. See [Reference: find, usages and diff](docs/guides/reference.md).
 
-**Planned (not in v0.7.0)**
+**Planned (not in v0.8.0)**
 
 - The editing reference commands (`rename`, a codemod across every consumer platform; `retire`; `specimen`, swatch, type and spacing sheets) and the surfaces (skills, MCP, the PWA and editor integrations) for asking which token to use and whether a file may read it where you work.
 
@@ -69,7 +69,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.7.0
+    version: v0.8.0
     args: lint --format gate
 ```
 
