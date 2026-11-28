@@ -157,6 +157,7 @@ func TestFindLimit(t *testing.T) {
 
 func TestFindFileFilter(t *testing.T) {
 	dir := findProject(t)
+	t.Chdir(dir) // --file is relative to the working directory
 	var got strings.Builder
 	for _, f := range []string{"web/button/Button.tsx", "web/card/Card.tsx", "web/other/Page.tsx"} {
 		code, stdout, stderr := run("--root", dir, "find", "--file", f, "--limit", "50", "gap background accent muted gray")
@@ -184,9 +185,58 @@ func TestFindFileFilter(t *testing.T) {
 	assert.Equal(t, a, b)
 
 	// gray names only a primitive, which no file may read.
-	code, stdout, _ := run("--root", dir, "find", "--file", "web/other/Page.tsx", "gray")
+	code, stdout, stderr := run("--root", dir, "find", "--file", "web/other/Page.tsx", "gray")
 	assert.Equal(t, ExitFindings, code)
 	assert.Empty(t, stdout)
+	assert.Equal(t, "airframe find: 1 token matches \"gray\" but web/other/Page.tsx may not read it (gray-500: primitive: consumers may not read)\n", stderr)
+}
+
+func TestFindFileFilteredOutCount(t *testing.T) {
+	dir := findProject(t)
+	t.Chdir(dir)
+	// Only button's two tokens match, and a card file may read neither.
+	code, stdout, stderr := run("find", "--file", "web/card/Card.tsx", "button")
+	assert.Equal(t, ExitFindings, code)
+	assert.Empty(t, stdout)
+	assert.Equal(t, "airframe find: 2 tokens match \"button\" but web/card/Card.tsx may read none of them (button-bg: component button: owners (web/button/**) do not match web/card/Card.tsx)\n", stderr)
+}
+
+func TestFindFileResolvedAgainstCwd(t *testing.T) {
+	dir := findProject(t)
+	want := func() string {
+		t.Chdir(dir)
+		code, stdout, stderr := run("find", "--file", "web/card/Card.tsx", "gap")
+		require.Equal(t, ExitOK, code, stderr)
+		require.Contains(t, stdout, "card-gap")
+		return stdout
+	}()
+
+	// From a subdirectory, a relative path names the file from there.
+	sub := filepath.Join(dir, "web", "card")
+	require.NoError(t, os.MkdirAll(sub, 0o755))
+	t.Chdir(sub)
+	code, stdout, stderr := run("find", "--file", "Card.tsx", "gap")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Equal(t, want, stdout)
+	code, stdout, stderr = run("--root", dir, "find", "--file", "./Card.tsx", "gap")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Equal(t, want, stdout)
+
+	// An absolute path works from anywhere.
+	t.Chdir(t.TempDir())
+	code, stdout, stderr = run("--root", dir, "find", "--file", filepath.Join(dir, "web", "card", "Card.tsx"), "gap")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Equal(t, want, stdout)
+
+	// A path outside the project root is a usage error.
+	code, stdout, stderr = run("--root", dir, "find", "--file", "elsewhere/Card.tsx", "gap")
+	assert.Equal(t, ExitUsage, code)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "is outside the project root")
+	t.Chdir(dir)
+	code, _, stderr = run("find", "--file", "../Card.tsx", "gap")
+	assert.Equal(t, ExitUsage, code)
+	assert.Contains(t, stderr, "is outside the project root")
 }
 
 func TestFindTypeFilter(t *testing.T) {
@@ -234,6 +284,7 @@ func TestFindNoHits(t *testing.T) {
 
 func TestFindJSONSchema(t *testing.T) {
 	dir := findProject(t)
+	t.Chdir(dir)
 	code, stdout, stderr := run("--root", dir, "find", "--json", "--file", "web/button/Button.tsx", "gap accent muted")
 	require.Equal(t, ExitOK, code, stderr)
 	golden(t, "find.json.golden", stdout)
