@@ -13,7 +13,7 @@ Airframe's modes are conditions on the root element. A class (`.dark`), an eleme
 
 **Fix**
 
-Write the rule on `:root`, with the mode as attribute conditions: `[attr]`, `[attr='v']`, `:not([attr])` or `:not([attr='v'])`. Spell `html` as `:root`. Rules that theme components belong in your component CSS, not in the token import.
+Write the rule on `:root`, with the mode as attribute conditions: `[attr]`, `[attr='v']`, `:not([attr])` or `:not([attr='v'])`. Spell `html` as `:root`. An unquoted value, like an attribute name, must be a CSS identifier: a browser drops `[data-layout=2up]`, so quote it, `[data-layout='2up']`. Rules that theme components belong in your component CSS, not in the token import.
 
 **Example**
 

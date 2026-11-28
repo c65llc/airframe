@@ -10,6 +10,9 @@ can tell apart. If either step finds an error, nothing is written.
 
 This guide is for teams with a CSS theme (`:root { --surface: …; }` plus
 dark-mode and density overrides) who want Airframe to own it from now on.
+Pass token-only CSS files: a rule with a selector other than `:root` (plus
+attribute conditions), or an at-rule such as `@font-face`, fails the import
+by design, so strip those rules or split them into another file first.
 
 ## 1. Describe your modes
 
@@ -39,7 +42,14 @@ Every axis needs a `web:` spelling, and a platform must emit `css`.
 ## 2. Import
 
 The repository's `testdata/import` directory holds this config and a
-`theme.css` to try it on. Check the import first, writing nothing:
+`theme.css` to try it on. Copy it somewhere outside the checkout first:
+run in place, the import writes token files into the repository.
+
+```bash
+cp -R testdata/import /tmp/airframe-import && cd /tmp/airframe-import
+```
+
+Check the import first, writing nothing:
 
 ```bash
 airframe import css --dry-run theme.css
@@ -70,12 +80,18 @@ wrote design-system/tokens/semantic.tokens.json
 Each block became a mode key: `:root[data-density='compact']` is
 `density:compact`, and both `:root[data-theme='dark']` and the
 `prefers-color-scheme` block are `appearance:dark`. A comment right before
-a `:root` declaration becomes its `$description`. Pass several files to
+a `:root` declaration becomes its `$description`, as does one after its `;`
+on the same line (`--gap: 4px; /* row gap */`) when none comes before it; a
+trailing comment never describes the next declaration. Pass several files to
 import them together; later files win the cascade, as in the browser.
 
 The import refuses to overwrite either token file (exit 2) unless you pass
-`--force`. Exit status is 0 when it wrote the files (warnings allowed), 1
-when it found an error, and 2 for a usage or I/O error.
+`--force`, and `--dry-run` refuses the same way, so a dry run predicts the
+real one. With `--force`, a token file this import does not produce (the
+semantic file, when the CSS has no `var()`) is removed and listed as
+`removed <path>`, so the project holds exactly what was checked. Exit
+status is 0 when it wrote the files (warnings allowed), 1 when it found an
+error, and 2 for a usage or I/O error.
 
 ## 3. Fix what it reports
 
@@ -106,6 +122,11 @@ prints it.
   `fontFamily` only when the property name ends in `-font`, `-family` or
   `font-family`; `400` is a `fontWeight` only when the name contains
   `weight`. Otherwise `400` is a number and `bold` is an unsupported value.
+- **A unitless `0` is a number.** `--x: 0` on `:root` with `--x: 4px` in a
+  mode is a type conflict; write `0px`.
+- **A quoted generic is a font name.** `"sans-serif"` (quoted) names a
+  font called sans-serif, not the generic family, as in the browser; it
+  stays quoted in the token file and the generated CSS.
 - **`html` is rejected.** It matches the root element but with lower
   specificity than `:root`; spell it `:root`.
 - **Only discrete media features**, joined by `and`: `prefers-color-scheme`,

@@ -9,7 +9,7 @@ The import found nothing to import, or nothing it could check.
 
 **Why**
 
-A clean import that read no custom properties would look like success. So would one whose equivalence check compared nothing. The importer says so instead: the files held no custom-property declarations, no platform in `airframe.yaml` emits CSS to compare against, or the generated project could not be loaded.
+A clean import that read no custom properties would look like success. So would one whose equivalence check compared nothing. The importer says so instead: the files held no custom-property declarations (and no error while parsing them already says why), no platform in `airframe.yaml` emits CSS to compare against, or the generated project could not be loaded.
 
 **Fix**
 
