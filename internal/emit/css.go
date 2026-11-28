@@ -263,6 +263,19 @@ var genericFamilies = map[string]bool{
 	"ui-rounded": true, "math": true, "emoji": true, "fangsong": true,
 }
 
+// GenericFamily reports whether name is a CSS generic font family keyword.
+func GenericFamily(name string) bool { return genericFamilies[name] }
+
+// QuotedGeneric is the fontFamily name for the font literally named
+// generic, a generic keyword: the keyword in double quotes, which the CSS
+// emitter writes as it is, so it stays distinct from the generic.
+func QuotedGeneric(generic string) string { return `"` + generic + `"` }
+
+// isQuotedGeneric reports whether name is QuotedGeneric of a generic.
+func isQuotedGeneric(name string) bool {
+	return len(name) > 2 && name[0] == '"' && name[len(name)-1] == '"' && genericFamilies[name[1:len(name)-1]]
+}
+
 // CSSValue is v as a CSS value: var(--target) for an alias, else the
 // literal. It is "" when the value cannot be written (CSS reports that).
 func CSSValue(v *tokens.Value) string {
@@ -281,7 +294,7 @@ func CSSValue(v *tokens.Value) string {
 	case []string:
 		names := make([]string, len(l))
 		for i, n := range l {
-			if genericFamilies[n] {
+			if genericFamilies[n] || isQuotedGeneric(n) {
 				names[i] = n
 			} else {
 				names[i] = `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(n) + `"`

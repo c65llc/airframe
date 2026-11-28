@@ -43,6 +43,7 @@ func TestCSSValueFormats(t *testing.T) {
 		{0.4, "0.4"},
 		{[]string{"IBM Plex Sans", "system-ui"}, `"IBM Plex Sans", system-ui`},
 		{[]string{`Odd "Name"`, "monospace"}, `"Odd \"Name\"", monospace`},
+		{[]string{`"sans-serif"`, "serif"}, `"sans-serif", serif`},
 		{[4]float64{0.2, 0, 0, 1}, "cubic-bezier(0.2, 0, 0, 1)"},
 		{[]tokens.Shadow{{Color: grey, OffsetY: tokens.Dim{V: 1, Unit: "px"}, Blur: tokens.Dim{V: 2, Unit: "px"},
 			OffsetX: tokens.Dim{Unit: "px"}, Spread: tokens.Dim{Unit: "px"}}}, "0 1px 2px 0 oklch(20% 0.012 250 / 0.2)"},

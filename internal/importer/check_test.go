@@ -56,6 +56,17 @@ func editEmitted(t *testing.T, edit func(string) string) {
 	t.Cleanup(func() { emitCSS = old })
 }
 
+// A quoted generic keyword imports, emits and checks as a quoted name,
+// distinct from the generic.
+func TestCheckQuotedGenericFamily(t *testing.T) {
+	src := ":root { --body-font: \"sans-serif\", serif; }\n"
+	res := checkCSS(t, smallConfig, src)
+	assert.Empty(t, errorsIn(res.Diagnostics), "%v", res.Diagnostics)
+	r := run(t, smallConfig, src)
+	got := tokenFile(t, r, "ds/tokens/primitive.tokens.json")["body-font"]["$value"]
+	assert.Equal(t, []any{`"sans-serif"`, "serif"}, got)
+}
+
 func TestCheckFixtureEquivalent(t *testing.T) {
 	cfgData, r := fixture(t)
 	require.Empty(t, r.Diagnostics)

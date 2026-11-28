@@ -5,6 +5,7 @@ package cssvalue
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -76,6 +77,19 @@ func TestParseUnits(t *testing.T) {
 		if err != nil || typ != tc.typ || v.Lit != tc.lit {
 			t.Errorf("%s: %q %v %v", tc.in, typ, v, err)
 		}
+	}
+}
+
+// A quoted family name that spells a generic keyword names a font, not the
+// generic: it keeps its quotes, so it stays distinct from the generic.
+func TestParseFontQuotedGeneric(t *testing.T) {
+	_, v, _, err := Parse("--body-font", `"sans-serif", 'serif', monospace, "Sans-Serif", "system-ui"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{`"sans-serif"`, `"serif"`, "monospace", "Sans-Serif", `"system-ui"`}
+	if got, _ := v.Lit.([]string); !slices.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 

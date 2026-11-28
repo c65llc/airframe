@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/c65llc/airframe/internal/color"
+	"github.com/c65llc/airframe/internal/emit"
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
@@ -230,7 +231,12 @@ func parseFamilies(s string) ([]string, bool) {
 			if len(p) < 2 || p[len(p)-1] != p[0] {
 				return nil, false
 			}
-			out = append(out, strings.NewReplacer(`\"`, `"`, `\'`, `'`, `\\`, `\`).Replace(p[1:len(p)-1]))
+			name := strings.NewReplacer(`\"`, `"`, `\'`, `'`, `\\`, `\`).Replace(p[1 : len(p)-1])
+			if emit.GenericFamily(name) {
+				// A quoted generic keyword names a font, not the generic.
+				name = emit.QuotedGeneric(name)
+			}
+			out = append(out, name)
 		default:
 			for _, id := range strings.Fields(p) {
 				if !isIdent(id) {
