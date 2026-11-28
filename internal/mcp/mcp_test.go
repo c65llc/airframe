@@ -324,7 +324,7 @@ func listed(t *testing.T, opts Options) []string {
 		assert.NotEmpty(t, tl.Title, tl.Name)
 		assert.Equal(t, false, tl.Annotations["openWorldHint"], tl.Name)
 		assert.Regexp(t, `^airframe_[a-z_]+$`, tl.Name, "plan 7: every tool name")
-		assert.Regexp(t, `^[a-z][a-z0-9_]{0,63}$`, tl.Name, "arch-10 §1 wire name")
+		assert.Regexp(t, `^[a-z][a-z0-9_]{0,63}$`, tl.Name, "an MCP wire name, as Starboard's MCP server design limits it")
 		out = append(out, tl.Name)
 	}
 	return out

@@ -174,24 +174,20 @@ func TestTokenSet(t *testing.T) {
 	assert.Equal(t, []string{}, r.Generated)
 
 	for msg, args := range map[string]map[string]any{
-		"name is required":                   {"set": map[string]any{"$value": "{gray.50}"}},
-		"set is empty":                       {"name": "surface"},
-		`unknown key "colour"`:               {"name": "surface", "set": map[string]any{"colour": "red"}},
-		`unknown token "nope"`:               {"name": "nope", "set": map[string]any{"$value": "{gray.50}"}},
-		"$value cannot be removed":           {"name": "surface", "set": map[string]any{"$value": nil}},
-		"$description must be a string":      {"name": "surface", "set": map[string]any{"$description": 5}},
-		"retired must be true or false":      {"name": "surface", "set": map[string]any{"retired": "yes"}},
-		"emit must be an array of strings":   {"name": "surface", "set": map[string]any{"emit": "css"}},
-		`"density." needs a density value`:   {"name": "surface", "set": map[string]any{"density.": "{gray.50}"}},
-		"path and file go with create":       {"name": "surface", "path": "surface", "set": map[string]any{"$value": "{gray.50}"}},
-		"not a mode key of this project":     {"name": "surface", "set": map[string]any{"modes.appearance:sepia": "{gray.50}"}},
-		"modes.appearance:dark has no value": {"name": "border", "set": map[string]any{"modes.density:compact": nil}},
+		"name is required":                 {"set": map[string]any{"$value": "{gray.50}"}},
+		"set is empty":                     {"name": "surface"},
+		`unknown key "colour"`:             {"name": "surface", "set": map[string]any{"colour": "red"}},
+		`unknown token "nope"`:             {"name": "nope", "set": map[string]any{"$value": "{gray.50}"}},
+		"$value cannot be removed":         {"name": "surface", "set": map[string]any{"$value": nil}},
+		"$description must be a string":    {"name": "surface", "set": map[string]any{"$description": 5}},
+		"retired must be true or false":    {"name": "surface", "set": map[string]any{"retired": "yes"}},
+		"emit must be an array of strings": {"name": "surface", "set": map[string]any{"emit": "css"}},
+		`"density." needs a density value`: {"name": "surface", "set": map[string]any{"density.": "{gray.50}"}},
+		"path and file go with create":     {"name": "surface", "path": "surface", "set": map[string]any{"$value": "{gray.50}"}},
+		"not a mode key of this project":   {"name": "surface", "set": map[string]any{"modes.appearance:sepia": "{gray.50}"}},
 	} {
 		before := snapshot(t, root)
 		got := fails(t, root, "airframe_token_set", args)
-		if msg == "modes.appearance:dark has no value" {
-			msg = "has no density:compact value to remove"
-		}
 		assert.Contains(t, got, msg)
 		assert.Equal(t, before, snapshot(t, root), "a refused edit writes nothing: %s", msg)
 	}
@@ -237,8 +233,8 @@ func TestTokenSetCreate(t *testing.T) {
 }
 
 // A mode value goes where lint loads it: beside the token's other value
-// for that key, into the project's mode file for the key, or into a new
-// one only where the layout says where; else the edit is refused.
+// for that key, into the project's mode file for the key, into a new one
+// where the layout says where, or else inline in the token's own modes.
 func TestTokenSetModeFile(t *testing.T) {
 	root := fixture(t, "minimal")
 	var r writeResult
@@ -269,12 +265,14 @@ func TestTokenSetModeFile(t *testing.T) {
 	assert.Equal(t, tokens.Dim{V: 40, Unit: "px"}, p.Tokens.Tokens["button-target"].Modes["density:compact"].Lit)
 
 	// No file holds the key, and no sibling mode file shows the layout:
-	// refused, nothing written.
-	before := snapshot(t, root)
-	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"modes.density:compact": "{gray.200}"}})
-	assert.Contains(t, msg, "no token file holds mode density:compact yet, and the project's mode files do not show where one goes")
-	assert.Contains(t, msg, `"mode": "density:compact"`)
-	assert.Equal(t, before, snapshot(t, root))
+	// the value goes inline, in the token's own modes.
+	ok(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"modes.density:compact": "{gray.200}"}}, &r)
+	assert.Equal(t, []string{semanticFile}, r.Written)
+	p = clean(t, root)
+	assert.Equal(t, "gray-200", p.Tokens.Tokens["surface"].Modes["density:compact"].Alias)
+	assert.Equal(t, semanticFile, p.Tokens.FileOf(p.Tokens.Tokens["surface"].Modes["density:compact"]))
+	ok(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"modes.density:compact": nil}}, &r)
+	clean(t, root)
 
 	// A sibling value's file shows the layout (<dir>/<value>.tokens.json):
 	// the new mode file is made beside it, where lint loads it.
@@ -292,8 +290,8 @@ func TestTokenSetModeFile(t *testing.T) {
 
 	// Two files that hold the key leave no one place for a new value.
 	write(t, root, "design-system/themes/dim-extra.tokens.json", `{"$extensions": {"com.c65llc.airframe": {"mode": "appearance:dim"}}, "border": {"$value": "{gray.700}"}}`+"\n")
-	before = snapshot(t, root)
-	msg = fails(t, root, "airframe_token_set", map[string]any{"name": "ink", "set": map[string]any{"modes.appearance:dim": "{gray.700}"}})
+	before := snapshot(t, root)
+	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "ink", "set": map[string]any{"modes.appearance:dim": "{gray.700}"}})
 	assert.Contains(t, msg, "more than one token file holds mode appearance:dim")
 	assert.Equal(t, before, snapshot(t, root))
 }
@@ -320,8 +318,8 @@ func TestTokenSetConflict(t *testing.T) {
 	before := snapshot(t, root)
 	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"$description": "Stale."}, "baseVersion": shown.RecordVersion})
 	assert.Contains(t, msg, "conflict: token surface changed since you read it")
-	msg = fails(t, root, "airframe_token_set", map[string]any{"name": "gone", "create": true, "file": semanticFile,
-		"set": map[string]any{"$type": "color", "$value": "{gray.50}"}, "baseVersion": shown.RecordVersion})
+	msg = fails(t, root, "airframe_token_set", map[string]any{"name": "gone",
+		"set": map[string]any{"$value": "{gray.50}"}, "baseVersion": shown.RecordVersion})
 	assert.Contains(t, msg, "conflict: token gone no longer exists")
 	assert.Equal(t, before, snapshot(t, root))
 
@@ -560,4 +558,104 @@ func TestWriteRefusesSymlink(t *testing.T) {
 	fi, err := os.Lstat(link)
 	require.NoError(t, err)
 	assert.NotZero(t, fi.Mode()&os.ModeSymlink)
+}
+
+// I-1: a replaced value keeps the comments on the old one, and a flow
+// list stays a flow list.
+func TestComponentSetKeepsComments(t *testing.T) {
+	root := fixture(t, "consumers")
+	write(t, root, buttonYAML, "id: button\nnoun: Button # display noun\n# The tokens the button owns.\ntokens: [button-bg, button-ink] # owned\n"+
+		"owners:\n  - web/src/button/**\n  - apple/Sources/Button*.swift\n  - android/src/button/**\n  - windows/App/Button*.xaml\n")
+	ok(t, root, "airframe_component_set", map[string]any{"id": "button", "set": map[string]any{
+		"noun": "Primary button", "tokens": []any{"button-bg", "button-ink"},
+	}}, nil)
+	src := read(t, root, buttonYAML)
+	assert.Contains(t, src, "noun: Primary button # display noun\n")
+	assert.Contains(t, src, "# The tokens the button owns.\ntokens: [button-bg, button-ink] # owned\n")
+}
+
+// I-2: with no mode file for the key and no layout for a new one, the
+// value goes inline in the token's own modes, where lint loads it.
+func TestTokenSetModeInline(t *testing.T) {
+	root := fixture(t, "consumers")
+	var r writeResult
+	ok(t, root, "airframe_token_set", map[string]any{"name": "accent", "set": map[string]any{"modes.appearance:dark": "{gray.50}"}}, &r)
+	assert.Equal(t, []string{"design-system/tokens/semantic.tokens.json"}, r.Written)
+	p, ds := loaded(t, root)
+	require.Empty(t, ds)
+	assert.Equal(t, "gray-50", p.Tokens.Tokens["accent"].Modes["appearance:dark"].Alias)
+	modes, _ := extOf(tokenNodeJSON(t, root, "design-system/tokens/semantic.tokens.json", "accent"))["modes"].(map[string]any)
+	assert.Equal(t, "{gray.50}", modes["appearance:dark"])
+}
+
+// m-2, m-3: only the files an edit changes are written, however their
+// formatting differs from fmt's; removing a mode value that is not there
+// is a no-op.
+func TestWriteOnlyChangedFiles(t *testing.T) {
+	root := fixture(t, "minimal")
+	// The dark file, unformatted: it holds the key the removal looks in.
+	write(t, root, darkFile, strings.Join(strings.Fields(read(t, root, darkFile)), " ")+"\n")
+	dark := read(t, root, darkFile)
+	var r writeResult
+	ok(t, root, "airframe_token_set", map[string]any{"name": "gap-sm", "set": map[string]any{
+		"$description": "A small gap.", "modes.appearance:dark": nil,
+	}}, &r)
+	assert.NotContains(t, r.Written, darkFile)
+	assert.Equal(t, dark, read(t, root, darkFile), "a file the edit did not change is not reformatted")
+
+	// An edit that changes nothing writes nothing, in an unformatted file.
+	// (The fixture's generated outputs are not current, so a write still
+	// regenerates them, as airframe build would.)
+	root = fixture(t, "consumers")
+	semantic, button := read(t, root, "design-system/tokens/semantic.tokens.json"), read(t, root, buttonYAML)
+	ok(t, root, "airframe_token_set", map[string]any{"name": "accent", "set": map[string]any{"$value": "{blue.500}"}}, &r)
+	assert.Empty(t, r.Written)
+	assert.NotEmpty(t, r.Generated)
+	ok(t, root, "airframe_component_set", map[string]any{"id": "button", "set": map[string]any{"tokens": []any{"button-bg", "button-ink"}}}, &r)
+	assert.Empty(t, r.Written)
+	assert.Equal(t, semantic, read(t, root, "design-system/tokens/semantic.tokens.json"))
+	assert.Equal(t, button, read(t, root, buttonYAML))
+}
+
+// m-4: a modes key that is not a mode key says what one looks like.
+func TestTokenSetModeKeyMessages(t *testing.T) {
+	root := fixture(t, "minimal")
+	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"modes.dark": "{gray.200}"}})
+	assert.Contains(t, msg, "mode keys look like axis:value, such as appearance:dark")
+	msg = fails(t, root, "airframe_token_set", map[string]any{"name": "surface", "set": map[string]any{"modes.compact": "{gray.200}"}})
+	assert.Contains(t, msg, "a density value is density.<value>, such as density.compact")
+}
+
+// m-5: baseVersion is for edits, never with create.
+func TestCreateRefusesBaseVersion(t *testing.T) {
+	root := fixture(t, "consumers")
+	before := snapshot(t, root)
+	msg := fails(t, root, "airframe_token_set", map[string]any{"name": "fresh", "create": true, "file": "design-system/tokens/semantic.tokens.json",
+		"set": map[string]any{"$type": "color", "$value": "{gray.50}"}, "baseVersion": "sha256:00"})
+	assert.Contains(t, msg, "baseVersion is for edits")
+	msg = fails(t, root, "airframe_component_set", map[string]any{"id": "card", "create": true, "set": map[string]any{"noun": "Card"}, "baseVersion": "sha256:00"})
+	assert.Contains(t, msg, "baseVersion is for edits")
+	assert.Equal(t, before, snapshot(t, root))
+}
+
+// m-6: a token's version covers the group $type it inherits.
+func TestTokenVersionInheritsGroupType(t *testing.T) {
+	root := fixture(t, "consumers")
+	p, _ := loaded(t, root)
+	tok := p.Tokens.Tokens["gray-50"]
+	require.NotNil(t, tok)
+	v := tokenVersion(p, tok)
+	file := tok.File
+	p.Sources[file] = []byte(strings.Replace(string(p.Sources[file]), `"$type": "color"`, `"$type": "dimension"`, 1))
+	assert.NotEqual(t, v, tokenVersion(p, tok), "the inherited $type is part of the record")
+}
+
+// m-7: a created component's tokens are a flow list.
+func TestComponentCreateTokensFlow(t *testing.T) {
+	root := fixture(t, "consumers")
+	var r writeResult
+	ok(t, root, "airframe_component_set", map[string]any{"id": "card", "create": true, "preview": true, "set": map[string]any{
+		"noun": "Card", "tokens": []any{"button-bg", "button-ink"}, "owners": []any{"web/src/card/**"},
+	}}, &r)
+	assert.Contains(t, r.Files["design-system/components/card.yaml"], "tokens: [button-bg, button-ink]\n")
 }

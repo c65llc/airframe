@@ -642,8 +642,9 @@ values, where `null` removes a key:
 - `density.<value>`, such as `density.compact`;
 - `modes.<mode key>`, such as `modes.appearance:dark`: a mode value goes
   beside the token's existing value for that key, else into the project's
-  mode file for the key, and a new mode file is made only where the
-  project's layout says where it goes;
+  mode file for the key, else into a new mode file where the project's
+  layout says one goes, else inline in the token's own `modes`; removing
+  a value the token does not have changes nothing;
 - `names.<format>`, a platform spelling such as `names.swift`.
 
 With `create: true` it adds a token instead, at `path` (default: its name)

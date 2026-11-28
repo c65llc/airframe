@@ -166,12 +166,12 @@ func runSkillsInstall(inv *invocation) int {
 	}
 	_, _ = fmt.Fprintln(inv.stdout, line)
 	if n := len(res.Staged); n > 0 {
-		subject := "1 file was"
+		subject, kept, merge := "1 file was", "it was", "its new version"
 		if n > 1 {
-			subject = fmt.Sprintf("%d files were", n)
+			subject, kept, merge = fmt.Sprintf("%d files were", n), "they were", "their new versions"
 		}
-		_, _ = fmt.Fprintf(inv.stderr, "warning: %s edited or not installed by Airframe, so it was kept; "+
-			"merge its new version from %s/ by hand\n", subject, skills.PendingDir)
+		_, _ = fmt.Fprintf(inv.stderr, "warning: %s edited or not installed by Airframe, so %s kept; "+
+			"merge %s from %s/ by hand\n", subject, kept, merge, skills.PendingDir)
 	}
 	return ExitOK
 }

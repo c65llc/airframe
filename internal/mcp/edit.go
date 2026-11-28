@@ -16,6 +16,7 @@ import (
 
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/emit"
+	"github.com/c65llc/airframe/internal/format"
 	"github.com/c65llc/airframe/internal/lint"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/report"
@@ -111,18 +112,30 @@ func ruleList(ds []diag.Diagnostic) string {
 	return strings.Join(slices.Compact(ids), ", ")
 }
 
+// editChanged reports whether data, the edited and formatted file name,
+// differs from its source old other than by formatting: a file the edit
+// read but did not change is not rewritten in fmt's form.
+func editChanged(name string, old, data []byte) bool {
+	if bytes.Equal(old, data) {
+		return false
+	}
+	formatted, err := format.File(name, old)
+	return err != nil || !bytes.Equal(formatted, data)
+}
+
 // commit runs the pipeline for the formatted sources an edit changed.
 // check, when not nil, may refuse the edited project with a message (a
 // mode value that would not load where it was put); versionOf is the
 // edited record's version in it.
-func (s *server) commit(p *project.Project, changed map[string][]byte, preview bool, format string,
+func (s *server) commit(p *project.Project, changed map[string][]byte, preview bool, form string,
 	check func(*project.Project) string, versionOf func(*project.Project) string,
 ) (toolResult, error) {
 	sources := map[string][]byte{}
 	for name, data := range changed {
-		if old, ok := p.Sources[name]; !ok || !bytes.Equal(old, data) {
-			sources[name] = data
+		if old, ok := p.Sources[name]; ok && !editChanged(name, old, data) {
+			continue
 		}
+		sources[name] = data
 	}
 	over := project.MemFS{}
 	for name, data := range sources {
@@ -212,7 +225,7 @@ func (s *server) commit(p *project.Project, changed map[string][]byte, preview b
 		RecordVersion: version, Refused: refused, Lint: lintReport.Bytes(),
 	}
 	switch {
-	case preview && format == formatDiff:
+	case preview && form == formatDiff:
 		out.Diffs = previewDiffs(p.Sources, sources)
 	case preview:
 		files := map[string]string{}

@@ -179,7 +179,7 @@ func TestSkillsInstall(t *testing.T) {
 	assert.Equal(t, ExitOK, code)
 	assert.Contains(t, out, "staged .claude/skills/airframe/SKILL.md as .airframe/pending/.claude/skills/airframe/SKILL.md\n")
 	assert.Contains(t, out, "0 written, 3 unchanged, 1 staged\n")
-	assert.Contains(t, errOut, "warning: 1 file was edited or not installed by Airframe")
+	assert.Contains(t, errOut, "warning: 1 file was edited or not installed by Airframe, so it was kept; merge its new version from .airframe/pending/ by hand\n")
 	assert.Equal(t, "mine\n", readFile(t, dir, ".claude/skills/airframe/SKILL.md"))
 
 	code, out, _ = run("--root", dir, "skills", "install", "--agent", "claude-code", "--dry-run")
@@ -188,7 +188,7 @@ func TestSkillsInstall(t *testing.T) {
 
 	skillsWrite(t, dir, map[string]string{".claude/skills/airframe-adopt/SKILL.md": "mine too\n"})
 	_, _, errOut = run("--root", dir, "skills", "install", "--agent", "claude-code")
-	assert.Contains(t, errOut, "warning: 2 files were edited or not installed by Airframe")
+	assert.Contains(t, errOut, "warning: 2 files were edited or not installed by Airframe, so they were kept; merge their new versions from .airframe/pending/ by hand\n")
 }
 
 // TestSkillsInstallEveryFileIsTheRendering: an install for every agent

@@ -28,7 +28,7 @@ import (
 var writeTools = []tool{
 	{
 		name: "airframe_token_set", title: "Create or update a token", write: true,
-		description: "Set or remove fields of one token, or create one. Call it with preview: true first. Each key of set is set to its value, and null removes it: $value, $type, $description, tier, component, emit, retired, density.<value>, modes.<mode key> and names.<format>. A mode value goes where lint loads it: beside the token's existing value for that key, else into the project's mode file for the key; a new mode file is made only where the project's layout says where it goes. The edit is formatted as airframe fmt formats it; it is refused, writing nothing, if the project would not load or build afterwards. A write also regenerates the outputs airframe build writes. The result lists the source files written, the outputs regenerated, the token's new recordVersion and the project's lint report. Renaming is not an edit: use airframe rename.",
+		description: "Set or remove fields of one token, or create one. Call it with preview: true first. Each key of set is set to its value, and null removes it: $value, $type, $description, tier, component, emit, retired, density.<value>, modes.<mode key> and names.<format>. A mode value goes where lint loads it: beside the token's existing value for that key, else into the project's mode file for the key, else into a new mode file where the project's layout says one goes, else inline in the token's own modes. The edit is formatted as airframe fmt formats it; it is refused, writing nothing, if the project would not load or build afterwards. A write also regenerates the outputs airframe build writes. The result lists the source files written, the outputs regenerated, the token's new recordVersion and the project's lint report. Renaming is not an edit: use airframe rename.",
 		input: object([]string{"name", "set"}, map[string]any{
 			"name":        str("The token name, with - or the DTCG path's . (accent-bg or accent.bg). With create, the new token's name."),
 			"set":         map[string]any{"type": "object", "description": "Keys to set, such as {\"$value\": \"{gray.700}\", \"modes.appearance:dark\": \"{gray.200}\", \"$description\": null}. A null value removes the key."},
@@ -360,12 +360,17 @@ func (e *tokenEdit) apply(node *ojson.Node, key string, raw json.RawMessage) err
 // key (its own modes or density, or a mode file); else the one token file
 // whose root mode is the key; else a new file beside the other values'
 // files of the same axis, when they are all <dir>/<value>.tokens.json in
-// one directory. Anything else is refused: a value written somewhere the
-// loader does not read it, or reads it for another key, would be lost.
+// one directory; else inline, in the token's own modes. More than one
+// file holding the key is refused. The tool's post-load check refuses a
+// value that does not load for the key where it was put.
 func (e *tokenEdit) mode(node *ojson.Node, k string, raw json.RawMessage) error {
 	mk, err := e.p.Config.ParseModeKey(k)
 	if err != nil || mk == "" {
-		return failf("modes.%s: not a mode key of this project; airframe.yaml declares the axes and their values", k)
+		hint := "mode keys look like axis:value, such as appearance:dark"
+		if v, ok := e.densityValue(k); ok {
+			hint = "a density value is density.<value>, such as density." + v
+		}
+		return failf("modes.%s: not a mode key of this project; %s, from the axes airframe.yaml declares", k, hint)
 	}
 	remove := isNull(raw)
 	if !remove {
@@ -406,7 +411,7 @@ func (e *tokenEdit) mode(node *ojson.Node, k string, raw json.RawMessage) error 
 	}
 	switch {
 	case remove:
-		return failf("token %s has no %s value to remove", e.name, mk)
+		return nil // nothing to remove, like every other null
 	case len(holders) > 1:
 		return failf("more than one token file holds mode %s, so there is no one place for a new value; add it by hand to the file you mean", mk)
 	case len(holders) == 1:
@@ -418,7 +423,9 @@ func (e *tokenEdit) mode(node *ojson.Node, k string, raw json.RawMessage) error 
 	}
 	file, ok := e.newModeFile(mk)
 	if !ok {
-		return failf(`no token file holds mode %s yet, and the project's mode files do not show where one goes; create one under the content directory with {"$extensions": {"%s": {"mode": "%s"}}} at its root, then retry`, mk, tokens.Namespace, mk)
+		// No file for the key, and no layout for one: the token's own
+		// modes, which the loader always reads.
+		return setIn(child(ext(node, true), "modes", true), string(mk), raw)
 	}
 	d, err := e.doc(file)
 	if err != nil {
@@ -435,6 +442,25 @@ func (e *tokenEdit) mode(node *ojson.Node, k string, raw json.RawMessage) error 
 		return err
 	}
 	return setIn(n, "$value", raw)
+}
+
+// densityValue reports whether k, a modes key that is not a mode key,
+// names density (its axis, a value of it, or density.<value> misspelt),
+// and the value to show in density.<value>.
+func (e *tokenEdit) densityValue(k string) (string, bool) {
+	for _, a := range e.p.Config.Axes {
+		if a.Name != "density" {
+			continue
+		}
+		v := strings.TrimLeft(strings.TrimPrefix(k, "density"), ".:")
+		if slices.Contains(a.Values, v) {
+			return v, true
+		}
+		if k == "density" && len(a.Values) > 0 {
+			return a.Values[0], true
+		}
+	}
+	return "", false
 }
 
 // newModeFile is where a new mode file for the one-axis key mk goes: beside
@@ -511,6 +537,8 @@ func tokenSet(s *server, raw json.RawMessage) (toolResult, error) {
 		return toolResult{}, failf("set is empty: pass the keys to set, such as {\"$value\": \"{gray.700}\"}")
 	case !a.Create && (a.Path != "" || a.File != ""):
 		return toolResult{}, failf("path and file go with create: true; an existing token stays where it is")
+	case a.Create && a.BaseVersion != "":
+		return toolResult{}, failf("baseVersion is for edits: a new token has no version yet, so leave it out with create: true")
 	}
 	keys := slices.Sorted(keysOf(a.Set))
 	for _, k := range keys {
@@ -688,7 +716,8 @@ func pair(m *yaml.Node, key string) int {
 }
 
 // setYAML sets key in mapping m to v (a removal when v is nil). A
-// replaced list or map keeps the flow or block style it had.
+// replaced list or map keeps the flow or block style it had, and a
+// replaced value keeps the comments it had.
 func setYAML(m *yaml.Node, key string, v any) error {
 	i := pair(m, key)
 	if v == nil {
@@ -702,9 +731,12 @@ func setYAML(m *yaml.Node, key string, v any) error {
 		return err
 	}
 	if i >= 0 {
-		if old := m.Content[i+1]; old.Kind == n.Kind && n.Kind != yaml.ScalarNode {
+		old := m.Content[i+1]
+		if old.Kind == n.Kind && n.Kind != yaml.ScalarNode {
 			n.Style = old.Style
 		}
+		// The comments on the old value are the person's: keep them.
+		n.HeadComment, n.LineComment, n.FootComment = old.HeadComment, old.LineComment, old.FootComment
 		m.Content[i+1] = &n
 		return nil
 	}
@@ -734,6 +766,8 @@ func componentSet(s *server, raw json.RawMessage) (toolResult, error) {
 		return toolResult{}, failf("set is empty: pass the keys to set, such as {\"noun\": \"Tab strip\"}")
 	case !componentID.MatchString(a.ID):
 		return toolResult{}, failf("invalid component ID %q: lowercase words joined by -, such as tab-strip", a.ID)
+	case a.Create && a.BaseVersion != "":
+		return toolResult{}, failf("baseVersion is for edits: a new component has no version yet, so leave it out with create: true")
 	}
 	keys := slices.SortedFunc(keysOf(a.Set), func(x, y string) int {
 		if d := componentRank(x) - componentRank(y); d != 0 {
@@ -793,6 +827,11 @@ func componentSet(s *server, raw json.RawMessage) (toolResult, error) {
 		if err := setYAML(target, key, values[k]); err != nil {
 			return toolResult{}, failf("the edited component file cannot be written in canonical form; check the values you set")
 		}
+	}
+	if i := pair(m, "tokens"); a.Create && i >= 0 && m.Content[i+1].Kind == yaml.SequenceNode {
+		// A new file lists its tokens on one line, as the fixtures and the
+		// skills write them.
+		m.Content[i+1].Style = yaml.FlowStyle
 	}
 	if i := pair(m, "implementations"); i >= 0 && m.Content[i+1].Kind == yaml.MappingNode && len(m.Content[i+1].Content) == 0 {
 		m.Content = slices.Delete(m.Content, i, i+2)

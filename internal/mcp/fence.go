@@ -14,9 +14,9 @@ import (
 
 // Results carry the project's own text: token names, descriptions and
 // values, component files and consumer source that anyone with commit
-// access wrote. That is data the server did
-// not author, so every result fences it (sec-01 §8, arch-10 §5): the text
-// content is the payload inside an <untrusted-data> container, followed by
+// access wrote. That is data the server did not author, so every result
+// fences it, as Starboard's MCP server design does: the text content is
+// the payload inside an <untrusted-data> container, followed by
 // UntrustedDataRule as a second text item. structuredContent keeps the
 // exact JSON the CLI prints, for programs rather than the model.
 

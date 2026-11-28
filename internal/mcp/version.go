@@ -20,9 +20,9 @@ import (
 // A record version is a content hash of one record's formatted source: a
 // token's node, or a whole component file. The read tools return it, and
 // the write tools take it back as baseVersion, so an edit made on a stale
-// read is refused instead of overwriting someone else's change (arch-10
-// §4). Formatting first means a change fmt would undo is not a change; a
-// change to another token is not one either.
+// read is refused instead of overwriting someone else's change, as in
+// Starboard's MCP server design. Formatting first means a change fmt would
+// undo is not a change; a change to another token is not one either.
 
 // hash is the version of text.
 func hash(text []byte) string {
@@ -32,7 +32,9 @@ func hash(text []byte) string {
 
 // tokenVersion is the version of t: its node in its own token file and in
 // every mode file that gives it a value, each with only its own $ keys (a
-// nested token is a record of its own), in file order.
+// nested token is a record of its own), in file order. Each node also
+// carries the group $type it inherits along its path, when it has none of
+// its own, since that is the token's type too.
 func tokenVersion(p *project.Project, t *tokens.Token) string {
 	files := []string{t.File}
 	_, vals := t.Values()
@@ -65,9 +67,13 @@ func tokenNode(src []byte, path []string) *ojson.Node {
 	if err != nil {
 		return nil
 	}
+	var inherited *ojson.Node
 	for _, key := range path {
 		if n.Kind != ojson.Object || n.Fields[key] == nil {
 			return nil
+		}
+		if typ := n.Fields["$type"]; typ != nil {
+			inherited = typ
 		}
 		n = n.Fields[key]
 	}
@@ -80,6 +86,12 @@ func tokenNode(src []byte, path []string) *ojson.Node {
 			own.Keys = append(own.Keys, k)
 			own.Fields[k] = n.Fields[k]
 		}
+	}
+	// A key no token file can hold, so it never collides with the node's
+	// own: the group's $type, when the token inherits it.
+	if inherited != nil && own.Fields["$type"] == nil {
+		own.Keys = append(own.Keys, "inherited $type")
+		own.Fields["inherited $type"] = inherited
 	}
 	return own
 }
