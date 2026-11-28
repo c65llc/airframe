@@ -559,29 +559,71 @@ func wordPat(word string) string {
 	return `(?:^|[^A-Za-z0-9_-])(` + regexp.QuoteMeta(word) + `)(?:[^A-Za-z0-9_-]|$)`
 }
 
-// wordMarkers are the reasons of every marker re (a wordPat) matches on
-// line, read as an airframe-exempt marker's reason is: after a ":", up to
-// the first comment closer or the next marker, trimmed; "" with no ":".
+// wordMarkers are the reasons of every marker re (a wordPat) matches
+// inside a comment on line: the word must follow a comment opener (//,
+// /*, <!-- or {/*) in the same comment, so the word in code or in a string
+// marks nothing. A reason is read as an airframe-exempt marker's is: after
+// a ":", up to the comment's closer or the next marker, trimmed; "" with
+// no ":".
 func wordMarkers(line string, re *regexp.Regexp) []string {
-	var starts, ends []int
+	spans := commentSpans(line)
+	var starts, ends, stops []int
 	for i := 0; i < len(line); {
 		m := re.FindStringSubmatchIndex(line[i:])
 		if m == nil {
 			break
 		}
-		starts, ends = append(starts, i+m[2]), append(ends, i+m[3])
-		i += m[3]
+		start, end := i+m[2], i+m[3]
+		i = end
+		for _, sp := range spans {
+			if start >= sp[0] && end <= sp[1] {
+				starts, ends, stops = append(starts, start), append(ends, end), append(stops, sp[1])
+				break
+			}
+		}
 	}
 	out := make([]string, 0, len(starts))
 	for i := range starts {
-		end := len(line)
+		end := stops[i]
 		if i+1 < len(starts) {
-			end = starts[i+1]
+			end = min(end, starts[i+1])
 		}
 		if m := markerRE.FindStringIndex(line[ends[i]:end]); m != nil {
 			end = ends[i] + m[0]
 		}
 		out = append(out, markerReason(line[ends[i]:end]))
+	}
+	return out
+}
+
+// commentSpans are the comments on line, as [after its opener, its
+// closer's start) byte ranges: a // comment runs to the end of the line,
+// and so does a block comment left open.
+func commentSpans(line string) [][2]int {
+	var out [][2]int
+	for i := 0; i < len(line); {
+		at, which := -1, -1
+		for k, c := range commentOpeners {
+			if j := strings.Index(line[i:], c[0]); j >= 0 && (at < 0 || i+j < at) {
+				at, which = i+j, k
+			}
+		}
+		if at < 0 {
+			break
+		}
+		open, closer := commentOpeners[which][0], commentOpeners[which][1]
+		body := at + len(open)
+		stop := len(line)
+		if closer != "" {
+			if j := strings.Index(line[body:], closer); j >= 0 {
+				stop = body + j
+			}
+		}
+		out = append(out, [2]int{body, stop})
+		i = stop + len(closer)
+		if closer == "" || i > len(line) {
+			break
+		}
 	}
 	return out
 }

@@ -9,7 +9,9 @@
 // files on every platform, wrappers of all three shapes and a component
 // with owners, a ruling, a file per platform and one n/a, so the consumer
 // and component rules are proven silent on real reads; with no gantry.yaml
-// its ruling is checked for syntax only). A gate
+// its ruling is checked for syntax only; a retired.yaml treatment whose
+// spellings match nothing and a retired token nothing reads, so
+// retired-used is applicable there and silent). A gate
 // whose self-test fails is not believed, however clean its real run reads.
 package selftest
 

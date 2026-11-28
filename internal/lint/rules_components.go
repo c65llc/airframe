@@ -206,8 +206,20 @@ func implementationProblem(fsys fs.FS, v string) string {
 	if strings.Contains(v, `\`) || !fs.ValidPath(v) || v == "." {
 		return fmt.Sprintf(`%q is not a repo-relative file path (a clean slash path under the project root) nor "n/a: <reason>"`, v)
 	}
-	info, err := fs.Stat(fsys, v)
+	// Like the consumer scan and rulingref, a symlink is never followed:
+	// not the file, nor any directory on its path. fs.Lstat is fs.Stat on
+	// an FS that cannot read links.
+	parts := strings.Split(v, "/")
+	for i := 1; i < len(parts); i++ {
+		at := strings.Join(parts[:i], "/")
+		if info, err := fs.Lstat(fsys, at); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+			return fmt.Sprintf("%s is under %s, which is a symlink; not followed", v, at)
+		}
+	}
+	info, err := fs.Lstat(fsys, v)
 	switch {
+	case err == nil && info.Mode()&fs.ModeSymlink != 0:
+		return fmt.Sprintf("%s is a symlink; not followed", v)
 	case errors.Is(err, fs.ErrNotExist):
 		return fmt.Sprintf("%s does not exist; implementations are checked, so name the file that builds the component", v)
 	case err != nil:
@@ -253,7 +265,7 @@ func hostCycles(cs map[string]*component.Component) [][]string {
 
 // ruleRetiredUsed reports what retirement forbids: a consumer reference,
 // direct or through a wrapper, to a retired token; a non-retired token
-// whose alias chain reaches a retired one (at the token, so its exempt map
+// that aliases a retired one directly (at the token, so its exempt map
 // applies); and a retired.yaml spelling matched in a consumer file read by
 // the spelling's adapter. A treatment's marker with a reason escapes its
 // spellings, as airframe-exempt retired-used does. It examines every
@@ -313,58 +325,28 @@ func ruleRetiredUsed(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Ta
 	return out, tally
 }
 
-// retiredAliases reports, once per retired token reached, each retired
-// token t's alias chains reach: from its base value or any mode value,
-// through every value of each token aliased. The finding is at the first
-// value (base, then modes in key order) whose chain reaches it, and names
-// the chain.
+// retiredAliases reports each retired token t aliases directly, on the
+// first hop, from its base value or any mode value: once per retired
+// token, at the first such value (base, then modes in key order). A chain
+// that passes through a non-retired token is that token's finding, and is
+// fixed by fixing it.
 func retiredAliases(p *project.Project, c *Context, t *tokens.Token) []diag.Diagnostic {
 	const id = "retired-used"
-	type hit struct {
-		chain []string
-		v     *tokens.Value
-		key   config.ModeKey
-	}
-	found := map[string]hit{}
-	var order []string
-	var walk func(name string, chain []string, seen map[string]bool, v *tokens.Value, key config.ModeKey)
-	walk = func(name string, chain []string, seen map[string]bool, v *tokens.Value, key config.ModeKey) {
-		x := p.Tokens.Tokens[name]
-		if x == nil || seen[name] {
-			return
-		}
-		chain = append(slices.Clone(chain), name)
-		if x.Retired {
-			if _, ok := found[name]; !ok {
-				found[name] = hit{chain: chain, v: v, key: key}
-				order = append(order, name)
-			}
-			return
-		}
-		seen[name] = true
-		defer delete(seen, name)
-		for _, xv := range tokenValues(x) {
-			if xv.v.Alias != "" {
-				walk(xv.v.Alias, chain, seen, v, key)
-			}
-		}
-	}
-	for _, tv := range tokenValues(t) {
-		if tv.v.Alias != "" {
-			walk(tv.v.Alias, []string{t.Name}, map[string]bool{t.Name: true}, tv.v, tv.key)
-		}
-	}
+	seen := map[string]bool{}
 	var out []diag.Diagnostic
-	for _, name := range order {
-		h := found[name]
-		where := ""
-		if h.key != "" {
-			where = " (" + string(h.key) + ")"
+	for _, tv := range tokenValues(t) {
+		x := p.Tokens.Tokens[tv.v.Alias]
+		if tv.v.Alias == "" || x == nil || !x.Retired || seen[x.Name] {
+			continue
 		}
-		file := p.Tokens.FileOf(h.v)
-		out = add(out, c.TokenFinding(id, t, file, h.v.Line, fmt.Sprintf(
-			"token %s%s aliases retired token %s: %s; a retired token is kept only while code migrates off it, so alias what replaced it",
-			t.Name, where, name, strings.Join(h.chain, " → "))))
+		seen[x.Name] = true
+		where := ""
+		if tv.key != "" {
+			where = " (" + string(tv.key) + ")"
+		}
+		out = add(out, c.TokenFinding(id, t, p.Tokens.FileOf(tv.v), tv.v.Line, fmt.Sprintf(
+			"token %s%s aliases retired token %s; a retired token is kept only while code migrates off it, so alias what replaced it",
+			t.Name, where, x.Name)))
 	}
 	return out
 }

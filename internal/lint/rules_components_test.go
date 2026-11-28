@@ -4,6 +4,9 @@
 package lint
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -299,11 +302,13 @@ func TestRetiredAlias(t *testing.T) {
 		paths[d.Path] = d.Message
 		assert.Equal(t, "design-system/tokens.tokens.json", d.File)
 	}
-	require.Len(t, got, 2, messages(got))
+	require.Len(t, got, 1, messages(got))
 	// old-accent is itself retired, so its alias to blue.old is not a finding.
 	assert.NotContains(t, paths, "old-accent")
-	assert.Contains(t, paths["ink"], "ink (appearance:dark) aliases retired token blue-old: ink → blue-old")
-	assert.Contains(t, paths["button.bg"], "button-bg → ink → blue-old")
+	assert.Contains(t, paths["ink"], "token ink (appearance:dark) aliases retired token blue-old;")
+	// Only the first hop counts: button-bg reaches blue-old through ink,
+	// which is ink's finding, and fixing ink fixes it.
+	assert.NotContains(t, paths, "button.bg")
 	// edge's exempt map applies: it is recorded, not reported.
 	assert.NotContains(t, paths, "edge")
 	assert.Contains(t, res.Exemptions, Exemption{Rule: "retired-used", File: "design-system/tokens.tokens.json", Line: 8, Marker: "exempt", Reason: "migrating in #40"})
@@ -394,6 +399,31 @@ func TestRetiredMarker(t *testing.T) {
 	}, ex)
 }
 
+// A treatment's marker counts only inside a comment: the word in code or
+// a string escapes nothing, and its reason stops at the comment's closer.
+func TestRetiredMarkerInCommentOnly(t *testing.T) {
+	res := lintLoaded(t, retiredFS(flushBar, map[string]string{
+		"web/src/a.css": ".a { box-shadow: inset 3px 0 0 red; content: \"audited-bar: in a string\"; }\n" + // 1 fires
+			".b { box-shadow: inset 3px 0 0 red; } audited-bar: in code\n" + // 2 fires
+			".c { box-shadow: inset 3px 0 0 red; } /* audited-bar: print */ .x { color: red; }\n", // 3 suppressed
+		"web/src/b.tsx": "const s = \"inset 3px 0 0\" // audited-bar: legacy chart\n" + // 1 suppressed
+			"const t = <i style={{ boxShadow: \"inset 3px 0 0\" }} /> {/* audited-bar: jsx */}\n", // 2 suppressed
+	}))
+	got := spellingFindings(res)
+	var at []string
+	for _, d := range got {
+		at = append(at, fmt.Sprintf("%s:%d", d.File, d.Line))
+	}
+	assert.Equal(t, []string{"web/src/a.css:1", "web/src/a.css:2"}, at, messages(got))
+	reasons := map[string]string{}
+	for _, e := range res.Exemptions {
+		reasons[fmt.Sprintf("%s:%d", e.File, e.Line)] = e.Reason
+	}
+	assert.Equal(t, "print", reasons["web/src/a.css:3"], "cut at the closer")
+	assert.Equal(t, "legacy chart", reasons["web/src/b.tsx:1"])
+	assert.Equal(t, "jsx", reasons["web/src/b.tsx:2"])
+}
+
 // A treatment's marker escapes only that treatment's spelling, never a
 // retired token read on the same line.
 func TestRetiredMarkerScoped(t *testing.T) {
@@ -415,4 +445,32 @@ func TestRetiredMarkerScoped(t *testing.T) {
 func TestRetiredUsedNotApplicable(t *testing.T) {
 	res := lintLoaded(t, consumerFS(consumerConfig, map[string]string{"web/src/a.css": ".a { color: var(--accent); }\n"}))
 	assert.Equal(t, "no retired tokens or treatments", tallyOf(res, "retired-used").NotApplicable)
+}
+
+// An implementation that is a symlink, or sits under one, is not
+// followed, as the consumer scan and rulingref do not follow one.
+func TestComponentIncompleteSymlink(t *testing.T) {
+	repo, outside := t.TempDir(), t.TempDir()
+	write := func(p, data string) {
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(data), 0o644))
+	}
+	for k, v := range componentFS(twoPlatforms, map[string]string{
+		"button": "ruling: \"@ruling:button\"\nimplementations:\n  web: web/src/button/Button.ts\n  apple: apple/Linked/Button.swift\n",
+	}, map[string]string{"web/src/a.ts": "export const a = 1\n", "apple/App.swift": "let x = 1\n"}) {
+		write(filepath.Join(repo, k), v)
+	}
+	write(filepath.Join(outside, "Button.ts"), "export const b = 1\n")
+	write(filepath.Join(outside, "Button.swift"), "let b = 1\n")
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, "web/src/button"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(outside, "Button.ts"), filepath.Join(repo, "web/src/button/Button.ts")))
+	require.NoError(t, os.Symlink(outside, filepath.Join(repo, "apple/Linked")))
+
+	res := lintLoaded(t, os.DirFS(repo))
+	msgs := map[string]string{}
+	for _, d := range byRule(res.Diagnostics, "component-incomplete") {
+		msgs[d.Path] = d.Message
+	}
+	assert.Contains(t, msgs["implementations.web"], "web/src/button/Button.ts is a symlink; not followed")
+	assert.Contains(t, msgs["implementations.apple"], "is under apple/Linked, which is a symlink; not followed")
 }

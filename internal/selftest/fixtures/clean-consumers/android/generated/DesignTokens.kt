@@ -33,6 +33,7 @@ public class DesignTokens(
     public val gray900: Color get() = colors.gray900
     public val hairline: Dp get() = Companion.hairline
     public val ink: Color get() = colors.ink
+    public val legacyInk: Color get() = colors.legacyInk
     public val line1: Dp get() = Companion.line1
     public val space2: Dp get() = Companion.space2
     public val space4: Dp get() = Companion.space4
@@ -47,6 +48,7 @@ public data class DesignColors(
     public val gray50: Color,
     public val gray900: Color,
     public val ink: Color,
+    public val legacyInk: Color,
     public val surface: Color,
 )
 
@@ -59,6 +61,7 @@ public object DesignColorValues {
         gray50 = Color(0xFFF6F9FB),
         gray900 = Color(0xFF13161A),
         ink = Color(0xFF13161A),
+        legacyInk = Color(0xFF13161A),
         surface = Color(0xFFF6F9FB),
     )
 
@@ -70,6 +73,7 @@ public object DesignColorValues {
         gray50 = Color(0xFFF6F9FB),
         gray900 = Color(0xFF13161A),
         ink = Color(0xFFF6F9FB),
+        legacyInk = Color(0xFF13161A),
         surface = Color(0xFF13161A),
     )
 }

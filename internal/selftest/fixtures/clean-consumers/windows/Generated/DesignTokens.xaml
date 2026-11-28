@@ -9,6 +9,7 @@
             <SolidColorBrush x:Key="DesignGray50" Color="#FFF6F9FB" />
             <SolidColorBrush x:Key="DesignGray900" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignInk" Color="#FF13161A" />
+            <SolidColorBrush x:Key="DesignLegacyInk" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignSurface" Color="#FFF6F9FB" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
@@ -19,6 +20,7 @@
             <SolidColorBrush x:Key="DesignGray50" Color="#FFF6F9FB" />
             <SolidColorBrush x:Key="DesignGray900" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignInk" Color="#FFF6F9FB" />
+            <SolidColorBrush x:Key="DesignLegacyInk" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignSurface" Color="#FF13161A" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Default">
@@ -29,6 +31,7 @@
             <SolidColorBrush x:Key="DesignGray50" Color="#FFF6F9FB" />
             <SolidColorBrush x:Key="DesignGray900" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignInk" Color="#FF13161A" />
+            <SolidColorBrush x:Key="DesignLegacyInk" Color="#FF13161A" />
             <SolidColorBrush x:Key="DesignSurface" Color="#FFF6F9FB" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
