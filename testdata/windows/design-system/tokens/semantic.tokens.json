@@ -1,0 +1,80 @@
+{
+  "surface": {
+    "$type": "color",
+    "$value": "{gray.50}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "density:compact": "{gray.200}",
+          "density:relaxed": "{gray.50}",
+          "appearance:dark+density:compact": "{gray.800}",
+          "appearance:dark+density:relaxed": "{gray.900}"
+        }
+      }
+    }
+  },
+  "ink": {
+    "$type": "color",
+    "$value": "{gray.900}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "accent": {
+    "$type": "color",
+    "$value": "{blue.500}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "app:tasks": "{green.500}"
+        }
+      }
+    }
+  },
+  "highlight": {
+    "$type": "color",
+    "$value": "{vivid}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "banner": {
+    "$type": "color",
+    "$value": "{gray.200}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "channel:next": "{green.500}"
+        }
+      }
+    }
+  },
+  "gap": {
+    "$type": "dimension",
+    "$value": "{space.1}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "density:relaxed": "{space.2}"
+        }
+      }
+    }
+  },
+  "elevation": {
+    "$type": "shadow",
+    "$value": "{shadow.sm}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  }
+}

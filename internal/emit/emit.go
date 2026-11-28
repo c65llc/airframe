@@ -38,6 +38,7 @@ var defaultOut = map[string]string{
 	"swift": "generated/apple/DesignTokens.swift",
 	// kotlin is the per-app values file; options.sharedOut names the shared one.
 	"kotlin": "generated/android/DesignColorValues.kt",
+	"xaml":   "generated/windows/DesignTokens.xaml",
 	// colorsets is a catalog folder, not a file.
 	"colorsets": "generated/apple/Assets.xcassets/Tokens",
 }
