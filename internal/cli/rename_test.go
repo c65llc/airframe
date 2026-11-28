@@ -116,6 +116,13 @@ func TestRenameAllOrNothing(t *testing.T) {
 	ro := filepath.Join(dir, "web", "src")
 	require.NoError(t, os.Chmod(ro, 0o555))
 	t.Cleanup(func() { _ = os.Chmod(ro, 0o755) })
+	if f, err := os.CreateTemp(ro, "probe"); err == nil {
+		// Windows (and some filesystems) ignore a read-only directory
+		// mode, so there is no failing write to provoke here.
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		t.Skip("a read-only directory mode does not stop writes here")
+	}
 	before := treeHash(t, dir)
 	code, stdout, stderr := run("--root", dir, "rename", "gap", "spacing")
 	assert.Equal(t, ExitUsage, code)
