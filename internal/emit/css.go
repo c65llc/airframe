@@ -15,11 +15,13 @@ import (
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
-// scope is where one CSS block applies: a selector, inside zero or more
-// nested @media conditions (outermost first).
-type scope struct {
-	media []string
-	sel   string
+// Scope is where one CSS block applies: a selector, inside zero or more
+// nested @media conditions.
+type Scope struct {
+	// Media holds the nested @media conditions, outermost first.
+	Media []string
+	// Selector is the block's selector, starting from :root.
+	Selector string
 }
 
 // option is one way an axis value is spelled: an optional media condition
@@ -69,7 +71,7 @@ func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 		if len(decls) == 0 {
 			continue
 		}
-		scopes, err := scopesFor(p.Config, key)
+		scopes, err := Scopes(p.Config, key)
 		if err != nil {
 			return nil, err
 		}
@@ -89,40 +91,42 @@ func inMode(k config.ModeKey) string {
 	return " (mode " + string(k) + ")"
 }
 
-func writeBlock(b *strings.Builder, sc scope, decls []string) {
+func writeBlock(b *strings.Builder, sc Scope, decls []string) {
 	ind := ""
-	for _, m := range sc.media {
+	for _, m := range sc.Media {
 		b.WriteString(ind + m + " {\n")
 		ind += "  "
 	}
-	b.WriteString(ind + sc.sel + " {\n")
+	b.WriteString(ind + sc.Selector + " {\n")
 	for _, d := range decls {
 		b.WriteString(ind + "  " + d + "\n")
 	}
 	b.WriteString(ind + "}\n")
-	for range sc.media {
+	for range sc.Media {
 		ind = ind[2:]
 		b.WriteString(ind + "}\n")
 	}
 }
 
-// scopesFor expands a mode key into its CSS scopes. Starting from :root,
-// each of the key's pairs, in the key's own order, multiplies the scopes by
-// that value's spellings: media lists concatenate, compounds append.
-func scopesFor(cfg *config.Config, key config.ModeKey) ([]scope, error) {
-	out := []scope{{sel: ":root"}}
+// Scopes expands a mode key into its CSS scopes, the mapping the emitter
+// writes and the importer inverts. Starting from :root, each of the key's
+// pairs, in the key's own order, multiplies the scopes by that value's
+// spellings: media lists concatenate (outermost first), compounds append.
+// The scopes are returned in emit order, the order their blocks are written.
+func Scopes(cfg *config.Config, key config.ModeKey) ([]Scope, error) {
+	out := []Scope{{Selector: ":root"}}
 	for _, pr := range pairsOf(key) {
 		ax, _ := axisNamed(cfg, pr[0])
 		opts, err := options(ax, pr[1])
 		if err != nil {
 			return nil, err
 		}
-		next := make([]scope, 0, len(out)*len(opts))
+		next := make([]Scope, 0, len(out)*len(opts))
 		for _, s := range out {
 			for _, o := range opts {
-				next = append(next, scope{
-					media: slices.Concat(s.media, o.media),
-					sel:   s.sel + o.compound,
+				next = append(next, Scope{
+					Media:    slices.Concat(s.Media, o.media),
+					Selector: s.Selector + o.compound,
 				})
 			}
 		}
@@ -259,6 +263,19 @@ var genericFamilies = map[string]bool{
 	"ui-rounded": true, "math": true, "emoji": true, "fangsong": true,
 }
 
+// GenericFamily reports whether name is a CSS generic font family keyword.
+func GenericFamily(name string) bool { return genericFamilies[name] }
+
+// QuotedGeneric is the fontFamily name for the font literally named
+// generic, a generic keyword: the keyword in double quotes, which the CSS
+// emitter writes as it is, so it stays distinct from the generic.
+func QuotedGeneric(generic string) string { return `"` + generic + `"` }
+
+// isQuotedGeneric reports whether name is QuotedGeneric of a generic.
+func isQuotedGeneric(name string) bool {
+	return len(name) > 2 && name[0] == '"' && name[len(name)-1] == '"' && genericFamilies[name[1:len(name)-1]]
+}
+
 // CSSValue is v as a CSS value: var(--target) for an alias, else the
 // literal. It is "" when the value cannot be written (CSS reports that).
 func CSSValue(v *tokens.Value) string {
@@ -277,7 +294,7 @@ func CSSValue(v *tokens.Value) string {
 	case []string:
 		names := make([]string, len(l))
 		for i, n := range l {
-			if genericFamilies[n] {
+			if genericFamilies[n] || isQuotedGeneric(n) {
 				names[i] = n
 			} else {
 				names[i] = `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(n) + `"`

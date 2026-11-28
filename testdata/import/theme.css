@@ -1,0 +1,74 @@
+/* A hand-written theme for the importer fixture. Comments may hold
+   structural characters: { } ; , */
+
+:root {
+  --gray-50: #f8f8f8;
+  --gray-900: rgb(24, 24, 27);
+  --amber-500: oklch(0.75 0.15 70);
+  --blue-500: #3b82f6;
+  --shade: rgb(0 0 0 / 40%);
+  --danger: hsl(0deg 70% 50%);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-4: 1rem;
+  --radius: 6px;
+  --hairline: 1px;
+
+  --body-font: "Inter", system-ui, sans-serif;
+  --mono-family: ui-monospace, "Fira Code", monospace;
+  --body-weight: 400;
+  --line-height: 1.5;
+  --fast: 120ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 20%), 0 4px 8px -2px rgb(0 0 0 / 10%);
+
+  --surface: var(--gray-50);
+  /**
+   * The main text colour:
+   *   body copy and headings.
+   */
+  --ink: var(--gray-900);
+  --accent: var(--amber-500);
+  --accent-ink: var(--accent);
+  --gap: var(--space-2);
+  --control-h: 2rem;
+  --border-w: var(--hairline);
+
+  color: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --surface: var(--gray-900);
+    --ink: var(--gray-50);
+    --accent-ink: var(--gray-900);
+  }
+}
+
+:root[data-theme='dark'] {
+  --surface: var(--gray-900);
+  --ink: var(--gray-50);
+  --accent-ink: var(--gray-900);
+}
+
+:root[data-density='compact'] {
+  --gap: var(--space-1);
+  --control-h: 1.75rem;
+}
+
+:root[data-density='relaxed'] {
+  --gap: var(--space-4);
+  --control-h: 2.5rem;
+}
+
+@media (pointer: coarse) {
+  :root:not([data-density]) {
+    --gap: var(--space-4);
+    --control-h: 2.5rem;
+  }
+}
+
+:root[data-app='slides'] {
+  --accent: var(--blue-500);
+}

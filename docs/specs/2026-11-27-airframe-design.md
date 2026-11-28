@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -76,7 +76,7 @@ The three tools share conventions: lint JSON, a documentation page per rule, `fm
 
 | Option | For | Against |
 |---|---|---|
-| **A. DTCG JSON as source, CSS emitted (chosen)** | A W3C community standard (first stable version 2025); typed; Figma and Tokens Studio interop later at little cost; CSS becomes one output among several | Teams with hand-written CSS tokens convert once (`airframe import css`, planned) |
+| **A. DTCG JSON as source, CSS emitted (chosen)** | A W3C community standard (first stable version 2025); typed; Figma and Tokens Studio interop later at little cost; CSS becomes one output among several | Teams with hand-written CSS tokens convert once (`airframe import css`) |
 | B. CSS custom properties with structured comments | No migration for web teams | The comment grammar *is* the schema; every team writes CSS-with-annotations; favours web-first over native-first teams |
 | C. YAML with Airframe's own schema | As typed as A | No ecosystem; rejected |
 
@@ -251,7 +251,7 @@ airframe build [--check] [--platform <p>]...      # v0.1.2; --check = drift gate
 airframe show <token> [--json]                    # v0.1.2; value per mode key, tier, alias chain
 airframe explain <rule|token>                     # v0.1.2
 airframe rules [--json] | schema <kind> | version # v0.1.2
-airframe import css <files…>                      # planned: adopt existing custom properties
+airframe import css <files…> [--dry-run] [--force] # v0.2.0; adopt existing custom properties, equivalence-checked
 airframe find <role words>                        # planned: "which token for muted text on a sheet"
 airframe usages <token>                           # planned: every consumer reference across platforms
 airframe diff <ref-a> <ref-b> [--format md|json]  # planned: token changes between git refs, with swatches
@@ -277,7 +277,7 @@ All surfaces share the Go core through its wasm build.
 ### 6.7 Roadmap
 
 1. **Core** (v0.1.2): DTCG parsing, modes, source and invariant lint, `fmt`, CSS and JSON `build`, the gate protocol with self-test, the GitHub Action.
-2. **Importer:** `airframe import css`, with a semantic-equivalence check: for every mode combination, each custom property resolves to the same value in the old and generated CSS.
+2. **Importer** (v0.2.0): `airframe import css`, with a semantic-equivalence check: for every mode combination, each custom property resolves to the same value in the old and generated CSS.
 3. **Native emitters:** Swift and asset-catalog colorsets, Kotlin/Compose with an optional Material 3 scheme, C#/XAML, including per-app fan-out and gamut handling.
 4. **Consumer rules,** with the wrapper map.
 5. **Components and retired treatments:** the inventory, `component-unruled`, `retired-used`.

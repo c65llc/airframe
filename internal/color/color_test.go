@@ -113,3 +113,44 @@ func TestMatricesConsistent(t *testing.T) {
 	near(t, "grey g", g, r, 1e-6)
 	near(t, "grey b", b, r, 1e-6)
 }
+
+func TestFromSRGBRed(t *testing.T) {
+	got := FromSRGB(1, 0, 0, 1)
+	near(t, "L", got.L, 0.62796, 1e-4)
+	near(t, "C", got.C, 0.25768, 1e-4)
+	near(t, "H", got.H, 29.2339, 1e-4)
+	near(t, "Alpha", got.Alpha, 1, 1e-4)
+}
+
+func TestFromSRGBWhiteAchromatic(t *testing.T) {
+	got := FromSRGB(1, 1, 1, 1)
+	near(t, "L", got.L, 1, 1e-4)
+	if got.C >= 1e-6 {
+		t.Errorf("C = %v, want < 1e-6", got.C)
+	}
+	if got.H != 0 {
+		t.Errorf("H = %v, want 0", got.H)
+	}
+}
+
+func TestFromSRGBRoundTrip(t *testing.T) {
+	cases := []OKLCH{
+		{0.3, 0.05, 10, 1}, {0.4, 0.08, 45, 1}, {0.5, 0.1, 80, 1},
+		{0.55, 0.12, 120, 1}, {0.6, 0.1, 150, 1}, {0.65, 0.09, 180, 1},
+		{0.7, 0.1, 200, 1}, {0.45, 0.07, 230, 1}, {0.5, 0.15, 260, 1},
+		{0.4, 0.15, 290, 1}, {0.55, 0.15, 320, 1}, {0.6, 0.12, 350, 1},
+		{0.2, 0.02, 0, 1}, {0.8, 0.05, 90, 1}, {0.9, 0.03, 200, 1},
+		{0.5, 0, 0, 1}, {0.75, 0.08, 359, 1}, {0.35, 0.06, 135, 1},
+		{0.85, 0.1, 100, 1}, {0.6, 0.2, 30, 0.5},
+	}
+	for _, c := range cases {
+		r, g, b := c.ToSRGB(Clip)
+		got := FromSRGB(r, g, b, c.Alpha)
+		l1, a1, b1 := polar(c)
+		l2, a2, b2 := polar(got)
+		if d := deltaEOK(l1, a1, b1, l2, a2, b2); d > 1e-6 {
+			t.Errorf("%+v round-trips to %+v (dE %v)", c, got, d)
+		}
+		near(t, "alpha", got.Alpha, c.Alpha, 1e-12)
+	}
+}

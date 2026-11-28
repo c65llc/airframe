@@ -1,0 +1,51 @@
+# The equivalence check runs after a clean import, and its findings fail
+# the command and write nothing. Here the stylesheet sets dark mode only by
+# attribute, but airframe.yaml also spells it as a media query.
+exits 1 airframe import css theme.css
+stdout '^theme.css:1: error import-not-equivalent: --ink differs with prefers-color-scheme=dark: '
+stdout '; not equivalent: compared \d+ environments across 1 properties$'
+! stdout 'wrote'
+! exists design-system/tokens
+
+# Without a platform that emits css there is nothing to check against.
+cp nocss.yaml airframe.yaml
+exits 1 airframe import css theme.css
+stdout 'error import-nothing: no platform emits css'
+stdout '; equivalence not checked \(check errors\)$'
+! exists design-system/tokens
+
+# A warning alone does not fail the import.
+cp css.yaml airframe.yaml
+exec airframe import css dup.css
+stdout '^dup.css:3: warn import-duplicate: '
+stdout '^wrote design-system/tokens/primitive.tokens.json$'
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- nocss.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  json: {emit: [json]}
+-- css.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- theme.css --
+:root { --ink: #000; }
+:root[data-theme='dark'] { --ink: #fff; }
+-- dup.css --
+:root {
+  --gap: 4px;
+  --gap: 6px;
+}

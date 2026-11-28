@@ -6,9 +6,9 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.1.2 is the first release: the core. Nothing here is stable yet.
+v0.2.0 is the current release: the core plus the CSS importer. Nothing here is stable yet.
 
-**What v0.1.2 does**
+**What v0.2.0 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
 - **Lints the token source.** Tiers (a primitive aliases nothing; a semantic token reads primitives; a component token reads semantics), literals in semantic tokens, density coverage, accent groups, hue families, alias cycles and type mismatches, ambiguous or conflicting mode values, stale generated files and unformatted sources. `airframe rules` lists every rule; each has a page at `https://airframe.c65llc.com/rules/<rule>/`.
@@ -16,14 +16,15 @@ v0.1.2 is the first release: the core. Nothing here is stable yet.
 - **Formats.** `airframe fmt` rewrites config, token and invariants files in canonical form.
 - **Speaks a gate protocol.** `airframe lint --format gate` prints a JSON verdict for CI gates, and `--json` prints the findings.
 - **Self-tests.** Every run of the gate checks that each rule still fires on a fixture built to trip it and stays silent on a clean one; a gate whose self-test fails is not believed.
+- **Imports existing CSS** (new in v0.2.0). `airframe import css` turns hand-written custom properties into token files, mapping each block to a mode key through the `web:` spellings in `airframe.yaml`, and proves that the CSS `airframe build` generates from them resolves every property to the same value in every environment. See [Importing existing CSS](docs/guides/importing.md).
 
-**Planned (not in v0.1.2)**
+**Planned (not in v0.2.0)**
 
-- Native emitters: Swift and asset-catalog colorsets, Kotlin/Compose, C#/XAML. `airframe.yaml` already accepts `swift`, `colorsets`, `kotlin` and `xaml`; v0.1.2 builds nothing for them and says so (`emit-unsupported`, a warning).
+- Native emitters: Swift and asset-catalog colorsets, Kotlin/Compose, C#/XAML. `airframe.yaml` already accepts `swift`, `colorsets`, `kotlin` and `xaml`; v0.2.0 builds nothing for them and says so (`emit-unsupported`, a warning).
 - Consumer rules: reading tokens where they are used (every platform's code, not just the token files) to enforce tiers and ownership at the consumer.
 - Components and a reference surface for asking which token to use and whether a file may read it.
 
-These land in later plans (2 to 8); until then, no part of this README describes them as working.
+These land in later plans (3 to 8); until then, no part of this README describes them as working.
 
 ## Install
 
@@ -40,6 +41,7 @@ airframe init      # write a starter project (airframe.yaml + design-system/) an
 airframe lint      # check it; exit 1 on findings
 airframe build     # regenerate the CSS and JSON outputs
 airframe fmt       # rewrite the sources in canonical form
+airframe import css theme.css   # adopt an existing stylesheet's custom properties as tokens
 ```
 
 `airframe help` lists every command. Exit status is 0 when clean, 1 on findings or drift, 2 on a usage or I/O error.
@@ -61,7 +63,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.1.2
+    version: v0.2.0
     args: lint --format gate
 ```
 
