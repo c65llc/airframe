@@ -43,7 +43,8 @@
           "required": ["ref", "commit"],
           "properties": {
             "ref": { "type": "string", "description": "the ref as given" },
-            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$", "description": "the commit it resolved to" }
+            "commit": { "type": "string", "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$", "description": "the commit it resolved to" },
+            "missing": { "const": true, "description": "present when the ref has no airframe.yaml at the project's directory: the side is an empty token set, so every token of the other side is added or removed" }
           }
         },
         {

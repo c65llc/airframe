@@ -8,10 +8,11 @@
 //
 // Every git command runs with an argument list (never a shell), with
 // GIT_TERMINAL_PROMPT=0, GIT_PAGER=cat, --no-pager, core.fsmonitor off,
-// optional locks off, lazy fetching off and literal pathspecs, and with
-// the variables that would point git at another repository or inject
-// config removed, so the repository is always the one holding the
-// directory Open was given.
+// optional locks off, lazy fetching off, replace objects off and literal
+// pathspecs, and with the variables that would point git at another
+// repository, at another config file or inject config removed, so the
+// repository is always the one holding the directory Open was given. git
+// still reads its default config files (system, user and repository).
 package gitfs
 
 import (
@@ -53,12 +54,17 @@ type Repo struct {
 }
 
 // scrubbed are the variables that would make git use a repository other
-// than the one holding the directory, or pass it options; they are
-// removed from git's environment.
+// than the one holding the directory, read a config file other than its
+// default ones, or take config from the environment; they are removed
+// from git's environment, with every GIT_CONFIG_KEY_<n> and
+// GIT_CONFIG_VALUE_<n>. git still reads its default config files: the
+// system file, the user's ~/.gitconfig (or XDG config) and the
+// repository's own.
 var scrubbed = []string{
 	"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
 	"GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE",
 	"GIT_PREFIX", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+	"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG",
 }
 
 // env is the environment every git command runs in.

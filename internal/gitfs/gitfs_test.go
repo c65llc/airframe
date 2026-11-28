@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -155,4 +156,27 @@ func TestOpenNoGit(t *testing.T) {
 	t.Setenv("PATH", "")
 	_, err := Open(t.TempDir())
 	assert.ErrorIs(t, err, ErrNoGit)
+}
+
+// The variables that point git at another repository, another config file
+// or inject config never reach git; the rest of the environment does.
+func TestEnvScrubs(t *testing.T) {
+	for _, name := range []string{
+		"GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+		"GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+		"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG",
+	} {
+		t.Setenv(name, "/elsewhere")
+	}
+	t.Setenv("AIRFRAME_KEPT", "1")
+	got := env()
+	for _, kv := range got {
+		name, _, _ := strings.Cut(kv, "=")
+		assert.NotContains(t, []string{
+			"GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+			"GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+			"GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG",
+		}, name)
+	}
+	assert.Contains(t, got, "AIRFRAME_KEPT=1")
 }

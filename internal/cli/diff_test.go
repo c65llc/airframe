@@ -246,16 +246,71 @@ func TestDiffLoadFailure(t *testing.T) {
 	r.Commit("broken")
 	r.Git("tag", "broken")
 
-	code, stdout, stderr := run("--root", r.Dir, "diff", "empty", "main~1")
+	code, stdout, stderr := run("--root", r.Dir, "diff", "main~1", "broken")
 	assert.Equal(t, ExitFindings, code)
 	assert.Empty(t, stdout)
-	assert.Contains(t, stderr, "the project does not load at empty (")
-	assert.Contains(t, stderr, "config-missing")
-
-	code, _, stderr = run("--root", r.Dir, "diff", "main~1", "broken")
-	assert.Equal(t, ExitFindings, code)
 	assert.Contains(t, stderr, "the project does not load at broken (")
 	assert.Contains(t, stderr, "ds/tokens/base.tokens.json")
+
+	// An airframe.yaml that is there but does not load is a failure too,
+	// not a missing side.
+	r.Write(map[string]string{"airframe.yaml": "version: [", "ds/tokens/base.tokens.json": diffBefore})
+	r.Commit("bad config")
+	r.Git("tag", "bad-config")
+	code, stdout, stderr = run("--root", r.Dir, "diff", "main~2", "bad-config")
+	assert.Equal(t, ExitFindings, code)
+	assert.Empty(t, stdout)
+	assert.Contains(t, stderr, "the project does not load at bad-config (")
+	assert.NotContains(t, stderr, "has no airframe.yaml")
+}
+
+// A ref from before the project was adopted has no airframe.yaml: it is
+// an empty side, so every token is added (or, the other way, removed).
+func TestDiffMissingSide(t *testing.T) {
+	r := gittest.New(t)
+	r.Write(map[string]string{"README.md": "no project yet\n"})
+	r.Commit("before")
+	r.Git("tag", "before")
+	r.Write(map[string]string{"design/airframe.yaml": diffConfig, "design/ds/tokens/base.tokens.json": diffBefore})
+	r.Commit("adopt")
+	dir := filepath.Join(r.Dir, "design")
+
+	code, stdout, stderr := run("--root", dir, "diff", "before", "main")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Equal(t, "airframe diff: before has no airframe.yaml at design/; comparing against an empty token set\n", stderr)
+	assert.Contains(t, stdout, "before → main: 7 added, 0 removed")
+
+	// The working tree side too, and the other way round.
+	code, stdout, stderr = run("--root", dir, "diff", "before")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Contains(t, stdout, "before → working tree: 7 added, 0 removed")
+	code, stdout, stderr = run("--root", dir, "diff", "main", "before")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Contains(t, stdout, "main → before: 0 added, 7 removed")
+	assert.Contains(t, stderr, "before has no airframe.yaml at design/")
+
+	// Markdown says so in the summary itself; JSON marks the side.
+	code, stdout, _ = run("--root", dir, "diff", "before", "main", "--format", "md")
+	require.Equal(t, ExitOK, code)
+	assert.Contains(t, stdout, "`before` has no airframe.yaml at `design/`")
+	code, stdout, _ = run("--root", dir, "diff", "before", "main", "--format", "json")
+	require.Equal(t, ExitOK, code)
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal([]byte(stdout), &doc))
+	assert.Equal(t, true, doc["from"].(map[string]any)["missing"])
+	assert.NotContains(t, doc["to"], "missing")
+	assert.Empty(t, schema.Validate("diff", doc))
+	assert.Len(t, doc["added"], 7)
+
+	// At the repository root the note names the root.
+	r2 := gittest.New(t)
+	r2.Write(map[string]string{"README.md": "x\n"})
+	r2.Commit("before")
+	r2.Git("tag", "before")
+	r2.Write(map[string]string{"airframe.yaml": diffConfig, "ds/tokens/base.tokens.json": diffBefore})
+	r2.Commit("adopt")
+	_, _, stderr = run("--root", r2.Dir, "diff", "before", "main")
+	assert.Equal(t, "airframe diff: before has no airframe.yaml at the repository root; comparing against an empty token set\n", stderr)
 }
 
 func TestDiffNotWorkTree(t *testing.T) {

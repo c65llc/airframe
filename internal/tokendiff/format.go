@@ -14,10 +14,15 @@ import (
 )
 
 // Side names one side of a diff: a ref as the user wrote it and the commit
-// it resolved to, or the working tree when Commit is "".
+// it resolved to, or the working tree when Commit is "". Missing is set
+// when the ref has no airframe.yaml at the project's directory, so the
+// side is an empty token set; Prefix is that directory, for Markdown's
+// note.
 type Side struct {
-	Ref    string
-	Commit string
+	Ref     string
+	Commit  string
+	Missing bool
+	Prefix  string
 }
 
 // Label is the side as text and Markdown name it: the ref, or "working
@@ -29,15 +34,17 @@ func (s Side) Label() string {
 	return s.Ref
 }
 
-// MarshalJSON writes {"ref", "commit"}, or {"workingTree": true}.
+// MarshalJSON writes {"ref", "commit"}, with "missing": true for a side
+// that has no airframe.yaml, or {"workingTree": true}.
 func (s Side) MarshalJSON() ([]byte, error) {
 	if s.Commit == "" {
 		return []byte(`{"workingTree":true}`), nil
 	}
 	return marshal(struct {
-		Ref    string `json:"ref"`
-		Commit string `json:"commit"`
-	}{s.Ref, s.Commit})
+		Ref     string `json:"ref"`
+		Commit  string `json:"commit"`
+		Missing bool   `json:"missing,omitempty"`
+	}{s.Ref, s.Commit, s.Missing})
 }
 
 // ContextLabel is a value change's context as printed: "base" or the mode
@@ -229,6 +236,15 @@ func WriteMarkdown(w io.Writer, d Diff, from, to Side) error {
 		return code(s.Ref)
 	}
 	fmt.Fprintf(&b, "## Token changes: %s → %s\n\n", label(from), label(to))
+	for _, s := range []Side{from, to} {
+		if s.Missing {
+			at := "the repository root"
+			if s.Prefix != "" {
+				at = code(s.Prefix)
+			}
+			fmt.Fprintf(&b, "%s has no airframe.yaml at %s, so every token is compared against an empty set.\n\n", code(s.Ref), at)
+		}
+	}
 	if d.Empty() {
 		b.WriteString("No token changes.\n")
 		_, err := io.WriteString(w, b.String())

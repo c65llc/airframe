@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/gitfs"
 	"github.com/c65llc/airframe/internal/project"
@@ -24,7 +25,7 @@ var diffFormats = []string{"text", "md", "json"}
 var diffCommand = Command{
 	Name:    "diff",
 	Args:    "<ref-a> [<ref-b>]",
-	Summary: "Show how the tokens changed from git ref A to ref B, or to the working tree; reads git, checks nothing out.",
+	Summary: "Show how the tokens changed from git ref A to ref B, or to the working tree; reads git, checks nothing out. A ref with no airframe.yaml counts as no tokens; symlinked files are skipped at a ref but followed in the working tree.",
 	Flags: []Flag{
 		{Name: "format", Arg: "F", Summary: "print as F: text, md (a pull request job summary) or json"},
 		{Name: "exit-code", Summary: "exit 1 when the tokens changed, as git diff --exit-code does"},
@@ -32,9 +33,15 @@ var diffCommand = Command{
 }
 
 // runDiff compares the project's tokens at ref A with those at ref B, or in
-// the working tree. Each side loads with its own airframe.yaml. Git
-// missing, a directory outside a work tree or a bad ref exits 2; a side
-// that does not load exits 1 with its diagnostics.
+// the working tree. Each side loads with its own airframe.yaml. A ref with
+// no airframe.yaml at the project's directory (from before the project was
+// adopted) is an empty side, with a note on stderr. Git missing, a
+// directory outside a work tree or a bad ref exits 2; a side that does not
+// load exits 1 with its diagnostics.
+//
+// A ref side is read from git's objects, which store a symlink as a link:
+// a symlinked token or config file is skipped there, though the working
+// tree follows it.
 func runDiff(inv *invocation) int {
 	if len(inv.args) < 1 || len(inv.args) > 2 {
 		return inv.usageError("diff takes one or two git refs")
@@ -83,6 +90,13 @@ func runDiff(inv *invocation) int {
 			}
 			defer gfs.Close()
 			fsys = gfs
+			if _, err := fs.Stat(fsys, config.File); errors.Is(err, fs.ErrNotExist) {
+				// Before the project was adopted: compare with nothing.
+				sides[i].Missing, sides[i].Prefix = true, repo.Prefix
+				_, _ = fmt.Fprintf(inv.stderr, "airframe diff: %s has no %s at %s; comparing against an empty token set\n",
+					s.Ref, config.File, prefixName(repo.Prefix))
+				continue
+			}
 		}
 		p, ds, err := project.Load(fsys)
 		if err != nil {
@@ -118,4 +132,13 @@ func where(s tokendiff.Side) string {
 		return s.Label()
 	}
 	return fmt.Sprintf("%s (%s)", s.Ref, s.Commit[:min(12, len(s.Commit))])
+}
+
+// prefixName is the project directory inside the repository, as the
+// missing-side note names it.
+func prefixName(prefix string) string {
+	if prefix == "" {
+		return "the repository root"
+	}
+	return prefix
 }
