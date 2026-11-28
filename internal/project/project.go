@@ -19,6 +19,7 @@ import (
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/invariants"
+	"github.com/c65llc/airframe/internal/retired"
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
@@ -29,6 +30,7 @@ type Project struct {
 	Tokens     *tokens.Set
 	Invariants []invariants.Invariant
 	Components map[string]*component.Component // by id; a file that did not load is absent
+	Retired    []retired.Treatment             // <content>/retired.yaml; nil when absent or invalid
 	Sources    map[string][]byte               // repo-relative path -> bytes of every file loaded
 	TokenFiles []string                        // sorted repo-relative token file paths
 	// ComponentFiles are the sorted repo-relative paths of every
@@ -44,7 +46,7 @@ func diagnostic(rule, file, msg string) diag.Diagnostic {
 }
 
 // Load reads airframe.yaml, every <content>/**/*.tokens.json, the optional
-// <content>/invariants.yaml and every <content>/components/*.yaml, then
+// <content>/invariants.yaml, the optional <content>/retired.yaml and every <content>/components/*.yaml, then
 // checks the components against the parsed tokens. Problems with the project's own files come back
 // as diagnostics; the error is reserved for I/O failures other than a file
 // not existing.
@@ -117,6 +119,19 @@ func Load(fsys fs.FS) (*Project, []diag.Diagnostic, error) {
 		return nil, nil, err
 	}
 	all = append(all, cds...)
+
+	retPath := path.Join(cfg.Content, retired.File)
+	retData, err := fs.ReadFile(fsys, retPath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		return nil, nil, fmt.Errorf("read %s: %w", retPath, err)
+	default:
+		p.Sources[retPath] = retData
+		ts, rds := retired.Parse(retPath, retData)
+		all = append(all, rds...)
+		p.Retired = ts
+	}
 	return p, all, nil
 }
 

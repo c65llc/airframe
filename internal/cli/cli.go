@@ -161,8 +161,8 @@ var Commands = []Command{
 	},
 	{
 		Name:    "schema",
-		Args:    "<config|tokens|invariants|component>",
-		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml or component files.",
+		Args:    "<config|tokens|invariants|component|retired>",
+		Summary: "Print the JSON Schema of airframe.yaml, token files, invariants.yaml, component files or retired.yaml.",
 	},
 	{
 		Name:    "version",

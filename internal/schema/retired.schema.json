@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "retired.yaml",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "spellings"],
+    "properties": {
+      "id": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$", "description": "kebab-case; unique in the file" },
+      "ruling": { "type": "string", "description": "a @ruling:<id> reference" },
+      "spellings": {
+        "type": "object",
+        "description": "adapter name to the RE2 patterns that must not appear in that adapter's consumer files",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "css": { "$ref": "#/$defs/patterns" },
+          "swift": { "$ref": "#/$defs/patterns" },
+          "kotlin": { "$ref": "#/$defs/patterns" },
+          "xaml": { "$ref": "#/$defs/patterns" },
+          "cs": { "$ref": "#/$defs/patterns" }
+        }
+      },
+      "marker": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$", "description": "escape word; a match carrying it and a reason is exempt" }
+    }
+  },
+  "$defs": {
+    "patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

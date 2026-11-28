@@ -20,6 +20,7 @@ import (
 	"github.com/c65llc/airframe/internal/invariants"
 	"github.com/c65llc/airframe/internal/ojson"
 	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/retired"
 )
 
 // reserved is the order a token's reserved keys take; every other key
@@ -107,7 +108,7 @@ func normalise(b []byte) []byte {
 }
 
 // Paths lists, sorted, the repo-relative files Project formats: airframe.yaml,
-// every token file, <content>/invariants.yaml when the project has one, and
+// every token file, <content>/invariants.yaml and <content>/retired.yaml when the project has them, and
 // every component file.
 func Paths(p *project.Project) []string {
 	out := []string{config.File}
@@ -116,6 +117,10 @@ func Paths(p *project.Project) []string {
 	inv := path.Join(p.Config.Content, invariants.File)
 	if _, ok := p.Sources[inv]; ok {
 		out = append(out, inv)
+	}
+	ret := path.Join(p.Config.Content, retired.File)
+	if _, ok := p.Sources[ret]; ok {
+		out = append(out, ret)
 	}
 	slices.Sort(out)
 	return slices.Compact(out)

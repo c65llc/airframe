@@ -1037,3 +1037,8 @@ func checkNaming(format string, v *yaml.Node) *buildError {
 	}
 	return nil
 }
+
+// AdapterNames are the consumer adapters, the names a retired.yaml spelling
+// is keyed by: "cs" is the C# adapter. The consumer package pins its
+// adapters to this list.
+var AdapterNames = []string{"css", "swift", "kotlin", "xaml", "cs"}

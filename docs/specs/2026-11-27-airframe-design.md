@@ -230,7 +230,7 @@ shared: false
 - id: flush-left-selection-bar
   ruling: "@ruling:selection-treatment"
   spellings:
-    css: ["inset 3px 0 0", "border-left: 3px solid var(--accent"]
+    css: ["inset 3px 0 0", "border-left: 3px solid var\\(--accent"]
     swift: ["\\.frame\\(width: 3\\).*accent"]
   marker: audited-not-retired-treatment     # escape marker; requires a reason
 ```

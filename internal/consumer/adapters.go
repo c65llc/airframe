@@ -18,16 +18,17 @@ import (
 
 // adapter finds the direct references in one kind of consumer file.
 type adapter struct {
+	name   string // the adapter's name in config.AdapterNames
 	format string // the emit format whose names it reads
 	scan   func(r *platformRun, f *file) error
 }
 
 var (
-	cssAdapter    = &adapter{format: "css", scan: scanCSS}
-	swiftAdapter  = &adapter{format: "swift", scan: scanSwift}
-	kotlinAdapter = &adapter{format: "kotlin", scan: scanKotlin}
-	xamlAdapter   = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, xamlRefPat) }}
-	csAdapter     = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, csRefPat) }}
+	cssAdapter    = &adapter{name: "css", format: "css", scan: scanCSS}
+	swiftAdapter  = &adapter{name: "swift", format: "swift", scan: scanSwift}
+	kotlinAdapter = &adapter{name: "kotlin", format: "kotlin", scan: scanKotlin}
+	xamlAdapter   = &adapter{name: "xaml", format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, xamlRefPat) }}
+	csAdapter     = &adapter{name: "cs", format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, csRefPat) }}
 )
 
 // adapters maps a consumer file extension to its adapter.
