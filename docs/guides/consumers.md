@@ -43,6 +43,7 @@ platforms:
     emit: [css]
     out: {css: web/src/generated/tokens.css}
     consumers: ["web/src/**/*.{css,tsx}"]
+    externalProperties: ["--radix-*", "--font-*"]
   apple:
     emit: [swift, colorsets]
     out: {swift: apple/Generated/DesignTokens.swift, colorsets: apple/Generated/Assets.xcassets/Tokens/}
@@ -124,7 +125,9 @@ A custom property your own CSS defines is not a token read:
 ```
 
 `--sidebar-w` is defined (`--sidebar-w:`) in a consumer file of the same
-platform, so `var(--sidebar-w)` is app-local. A name that is neither a
+platform, so `var(--sidebar-w)` is app-local. So is a property a script
+in a consumer file of the platform sets, as `setProperty("--sheet-h", …)`
+or a computed key `{ ["--sheet-h"]: h }` (either quote). A name that is neither a
 token nor defined anywhere in the platform's consumer files is a typo,
 and `reference-undeclared`:
 
@@ -140,6 +143,30 @@ and `reference-undeclared`:
 ```text
 web/src/legacy.css:3:14: error reference-undeclared: --accnet is not a token, and no web consumer file defines it
 ```
+
+### Third-party CSS properties
+
+A library defines custom properties your CSS reads but no consumer file
+defines: Radix Themes' `--radix-accent-9`, the `--font-inter` that
+`next/font` sets. Declare them per platform with `externalProperties`, as
+the web platform above does: a list of globs over the property name, with
+`path.Match` semantics (`*` matches any run of characters). Each entry
+must start with `--`, and only a platform that emits css may have the
+list.
+
+```tsx
+// web/src/sheet.tsx
+export const Sheet = ({ el, h }: { el: HTMLElement; h: string }) => {
+  el.style.setProperty("--sheet-h", h);
+  return <div style={{ ["--sheet-w"]: "320px", height: "var(--sheet-h)", width: "var(--sheet-w)", color: "var(--radix-accent-9)", fontFamily: "var(--font-inter, sans-serif)" }} />;
+};
+```
+
+A `var()` of a matching property is foreign: it is never
+`reference-undeclared`, and its fallback is not checked against a token,
+so `var(--font-inter, sans-serif)` is no `fallback-literal`. The list is
+declared, never inferred: a prefix it does not name is still a typo.
+`--sheet-h` and `--sheet-w` are app-local, set by the script itself.
 
 ### Which native names are "ours"
 
@@ -314,8 +341,12 @@ A marker suppresses one rule for one reference:
 }
 ```
 
-- The marker is `airframe-exempt <rule>: <reason>`, on the reference's
-  line or the line before it, in whatever comment the language has.
+- A marker is one rule on one line: `airframe-exempt <rule>: <reason>`,
+  in whatever comment the language has, on the reference's own line or
+  alone on the line before it. A line before counts only when it is
+  nothing but comment, with no code and no reference, so a trailing
+  marker exempts its own line and never the next. The reason ends at the
+  comment's closer (`*/`, `-->`).
 - It needs a reason. A marker with none exempts nothing, and the finding
   says so:
 
@@ -324,7 +355,9 @@ web/src/vendor.css:5:21: error primitive-read-by-consumer: platform web: --gray-
 ```
 
 - Every honoured marker is listed in the gate JSON's `exemptions`, with
-  its file, line and reason, so an exemption is visible in review.
+  its file, line, reason and the `rule` it suppresses (Airframe's
+  addition to the gate protocol, as token `exempt` entries carry too), so
+  an exemption is visible in review.
 
 ## 6. The rules
 
@@ -364,6 +397,16 @@ clean one.
   declare is invisible: `Theme.ink` through an undeclared `Theme` is not
   checked. Declare every layer you read tokens through; an unmapped
   member of a declared one is reported, never skipped.
+- **Wrappers over system types stay undeclared.** An extension such as
+  `extension Color { static let brand = DesignTokens.accent }` is not a
+  wrapper to declare: `root: Color` would make every `Color.red` an
+  unmapped member. Its own direct read (`DesignTokens.accent`) is still
+  checked; reads of `Color.brand` are not.
+- **Third-party and script-set CSS properties are invisible unless
+  declared.** A library's properties need `externalProperties`; a
+  property set from JS counts as app-local only when a consumer file sets
+  it with a literal name (`setProperty("--x"`, `["--x"`), not one built
+  at run time (`setProperty(name, …)`).
 - **Owners are declared, never inferred.** Airframe does not guess a
   component's files from its name or folder.
 - `component-unruled` and `retired-used` are planned, with the component

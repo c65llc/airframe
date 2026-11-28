@@ -126,7 +126,7 @@ modes:                    # every axis a token value may vary on
 # never names a base value, and lint checks the base context (the unset render) like any other.
 accentGroups: { required: [accent, accent-ink, accent-contrast, accent-on-ink, accent-soft] }   # any mode with `group: accent` must set all five
 platforms:
-  web:     { emit: css, out: dist/web/tokens.css, consumers: ["web/**/*.{css,tsx}"] }
+  web:     { emit: css, out: dist/web/tokens.css, consumers: ["web/**/*.{css,tsx}"], externalProperties: ["--radix-*", "--font-*"] }   # a var() of a library's property is foreign, not undeclared
   apple:                   # emitters may fan out per build-bound mode value
     emit: [swift, colorsets]             # a shared .swift + one asset-catalog colorset per colour token (P3, light/dark)
     out: { swift: ios/Shared/DesignTokens.swift, colorsets: "ios/{app}/Assets.xcassets/Tokens/" }
@@ -136,8 +136,8 @@ platforms:
       - root: Theme                      # `Theme.<member>`: members are the platform's generated names
         generated: true
       - root: AppTheme.spacing           # irregular names: map first, then patterns in order
-        map: { small: space-2, hairlineStrong: hairline }
-        patterns: [ { match: '^space(\d+)$', token: 'space-{1}' } ]
+        map: { small: gap, hairlineStrong: hairline }
+        patterns: [ { match: '^(accent|ink|surface)Tone$', token: '{1}' } ]
   android:
     emit: [kotlin]
     out: { kotlin: "android/{app}/src/main/kotlin/DesignColorValues.kt" }   # out keys are emit formats

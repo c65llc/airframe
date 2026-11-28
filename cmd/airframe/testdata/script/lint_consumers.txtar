@@ -54,7 +54,8 @@ stdout '"ok": true'
 stdout '"findings": \[\]'
 stdout '"file": "web/app.css",'
 stdout '"marker": "airframe-exempt",'
-stdout '"reason": "legacy embed, see #42"'
+stdout '"reason": "legacy embed, see #42",'
+stdout '"rule": "fallback-literal"'
 replace web/app.css 'var(--surface, #fff); /* airframe-exempt fallback-literal: legacy embed, see #42 */' 'var(--surface);'
 
 # A wrapper member the map does not name.

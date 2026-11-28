@@ -716,3 +716,28 @@ func TestWrappersConfig(t *testing.T) {
 	// No wrappers key is no wrappers.
 	assert.Nil(t, mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n").Platforms[0].Wrappers)
 }
+
+func TestExternalPropertiesConfig(t *testing.T) {
+	pre := "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    externalProperties: "
+	at := "platforms.web.externalProperties"
+	for _, tc := range []struct{ label, value, path, msg string }{
+		{"not a list", "'--radix-*'", at, "array"},
+		{"no dashes", "['radix-*']", at + ".0", "--"},
+		{"one dash", "['--font-*', '-x']", at + ".1", "--"},
+		{"number", "[5]", at + ".0", "string"},
+		{"bad glob", "['--radix-[']", at + ".0", "glob"},
+	} {
+		d := loadErr(t, pre+tc.value+"\n")
+		assert.Equal(t, tc.path, d.Path, tc.label)
+		assert.Contains(t, d.Message, tc.msg, tc.label)
+		assert.NotZero(t, d.Line, tc.label)
+	}
+	// Only a platform that emits css may declare them.
+	d := loadErr(t, "version: 1\nplatforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    externalProperties: ['--radix-*']\n")
+	assert.Equal(t, "platforms.apple.externalProperties", d.Path)
+	assert.Contains(t, d.Message, "css")
+
+	c := mustLoad(t, pre+"['--radix-*', '--font-*', '--exact']\n")
+	assert.Equal(t, []string{"--radix-*", "--font-*", "--exact"}, c.Platforms[0].ExternalProperties)
+	assert.Nil(t, mustLoad(t, "version: 1\nplatforms:\n  a:\n    emit: css\n    out: a.css\n").Platforms[0].ExternalProperties)
+}

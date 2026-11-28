@@ -49,6 +49,7 @@ func TestConsumerExemptionInGate(t *testing.T) {
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &doc))
 	assert.Equal(t, []map[string]any{{
 		"file": "web/a.css", "line": float64(1), "marker": "airframe-exempt", "reason": "brand banner",
+		"rule": "primitive-read-by-consumer",
 	}}, doc.Exemptions)
 	for _, f := range doc.Findings {
 		assert.NotEqual(t, "primitive-read-by-consumer", f.Rule)

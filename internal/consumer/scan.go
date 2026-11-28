@@ -259,8 +259,10 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		}
 		f := newFile(fp, string(b))
 		loaded = append(loaded, f)
-		for _, m := range localPropRE.FindAllStringSubmatch(f.code, -1) {
-			r.local[m[1]] = true
+		for _, re := range []*regexp.Regexp{localPropRE, scriptPropRE} {
+			for _, m := range re.FindAllStringSubmatch(f.code, -1) {
+				r.local[m[1]] = true
+			}
 		}
 	}
 
@@ -412,8 +414,10 @@ var markerRE = regexp.MustCompile(`airframe-exempt\s+([A-Za-z0-9][A-Za-z0-9-]*)`
 type marker struct{ rule, reason string }
 
 // markers parses every airframe-exempt marker on line. A marker's reason
-// follows a ":" and runs to the next marker or the end of the line, less a
-// trailing comment closer (*/ or -->); with no ":" it has none.
+// follows a ":" and runs to the first comment closer (*/ or -->), the next
+// marker or the end of the line, whichever comes first, trimmed; with no
+// ":" it has none. So two markers in two comments on one line keep their
+// own reasons, and a block comment before code never takes the code.
 func markers(line string) []marker {
 	idx := markerRE.FindAllStringSubmatchIndex(line, -1)
 	out := make([]marker, 0, len(idx))
@@ -424,19 +428,52 @@ func markers(line string) []marker {
 		}
 		reason := ""
 		if rest, ok := strings.CutPrefix(strings.TrimLeft(line[m[1]:end], " \t"), ":"); ok {
-			reason = strings.TrimSpace(rest)
 			for _, closer := range []string{"*/", "-->"} {
-				reason = strings.TrimSpace(strings.TrimSuffix(reason, closer))
+				rest, _, _ = strings.Cut(rest, closer)
 			}
+			reason = strings.TrimSpace(rest)
 		}
 		out = append(out, marker{rule: line[m[2]:m[3]], reason: reason})
 	}
 	return out
 }
 
+// commentOpeners are the comments a line may consist of, with their
+// closers ("" for one that runs to the end of the line). {/* … */} is a
+// JSX comment.
+var commentOpeners = [][2]string{{"//", ""}, {"{/*", "*/}"}, {"/*", "*/"}, {"<!--", "-->"}}
+
+// commentOnly reports whether line holds nothing but comments: no code
+// before, between or after them. A block comment left open runs to the
+// end of the line.
+func commentOnly(line string) bool {
+	s := strings.TrimSpace(line)
+	if s == "" {
+		return false
+	}
+	for s != "" {
+		i := slices.IndexFunc(commentOpeners, func(c [2]string) bool { return strings.HasPrefix(s, c[0]) })
+		if i < 0 {
+			return false
+		}
+		open, closer := commentOpeners[i][0], commentOpeners[i][1]
+		if closer == "" {
+			return true
+		}
+		j := strings.Index(s[len(open):], closer)
+		if j < 0 {
+			return true
+		}
+		s = strings.TrimSpace(s[len(open)+j+len(closer):])
+	}
+	return true
+}
+
 // exemptions records, for each line of this platform that holds a
-// reference or a reference problem, the markers on it and on the line
-// before it.
+// reference or a reference problem, the markers on it and those on the
+// line before it when that line is nothing but comment: it holds no code,
+// and no reference or problem of its own. A marker beside code exempts its
+// own line only, so it never spills onto the next.
 func (r *platformRun) exemptions(files []*file) {
 	byPath := map[string]*file{}
 	for _, f := range files {
@@ -460,6 +497,9 @@ func (r *platformRun) exemptions(files []*file) {
 	for l := range lines {
 		f := byPath[l.file]
 		for _, ml := range []int{l.line - 1, l.line} {
+			if ml < l.line && (lines[at{l.file, ml}] || !commentOnly(f.line(ml))) {
+				continue
+			}
 			for _, m := range markers(f.line(ml)) {
 				r.res.Exempt = append(r.res.Exempt, Exemption{
 					Rule: m.rule, Platform: r.pl.Name, File: l.file, Line: l.line, MarkerLine: ml, Reason: m.reason,

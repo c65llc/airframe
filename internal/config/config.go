@@ -75,6 +75,10 @@ type Platform struct {
 	FanOut    string         // name of the build-bound axis the emitters fan out over
 	Options   map[string]any // scalars as string, bool or float64; mappings as map[string]any
 	Wrappers  []Wrapper      // hand-written token wrappers, in file order
+	// ExternalProperties are path.Match globs over custom-property names
+	// (--radix-*) that a library or script defines, not the tokens: a
+	// var() of one is foreign. Only a platform that emits css has them.
+	ExternalProperties []string
 }
 
 // Wrapper declares one hand-written wrapper root on a platform: a read of
@@ -552,6 +556,13 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 		return p, &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name),
 			path: "platforms." + p.Name + ".options.package", line: key.Line}
 	}
+	if e := field(n, "externalProperties"); e != nil {
+		ps, err := buildExternalProperties(p, e)
+		if err != nil {
+			return p, err
+		}
+		p.ExternalProperties = ps
+	}
 	if w := field(n, "wrappers"); w != nil {
 		ws, err := buildWrappers(p.Name, w)
 		if err != nil {
@@ -866,6 +877,28 @@ var (
 // isString is a plain YAML string scalar: not a number, bool, null or
 // timestamp that JSON validation would see as (or turn into) a string.
 func isString(n *yaml.Node) bool { return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!str" }
+
+// buildExternalProperties reads and checks a platform's externalProperties.
+// The schema has already checked it is a list of strings each starting
+// with "--"; each must also be a valid path.Match glob, and the platform
+// must emit css, the only format whose references they describe.
+func buildExternalProperties(p Platform, n *yaml.Node) ([]string, *buildError) {
+	at := "platforms." + p.Name + ".externalProperties"
+	if !slices.Contains(p.Emit, "css") {
+		return nil, &buildError{msg: fmt.Sprintf("platform %s: externalProperties name CSS custom properties, but platform %s does not emit css", p.Name, p.Name), path: at, line: n.Line}
+	}
+	var out []string
+	for i, e := range n.Content {
+		if !isString(e) || !strings.HasPrefix(e.Value, "--") { // the schema checks both
+			return nil, &buildError{msg: fmt.Sprintf("platform %s: externalProperties entry must be a string starting with --", p.Name), path: fmt.Sprintf("%s.%d", at, i), line: e.Line}
+		}
+		if _, err := path.Match(e.Value, ""); err != nil {
+			return nil, &buildError{msg: fmt.Sprintf("platform %s: externalProperties entry %q is not a valid glob: %v", p.Name, e.Value, err), path: fmt.Sprintf("%s.%d", at, i), line: e.Line}
+		}
+		out = append(out, e.Value)
+	}
+	return out, nil
+}
 
 // buildWrappers reads and checks a platform's wrappers list. The schema has
 // already checked its structure: a list of mappings with known keys of the

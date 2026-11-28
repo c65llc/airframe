@@ -71,6 +71,11 @@
             "additionalProperties": { "type": "string" }
           },
           "consumers": { "type": "array", "items": { "type": "string" } },
+          "externalProperties": {
+            "type": "array",
+            "description": "path.Match globs over custom-property names a library or script defines (--radix-*); a platform that emits css only",
+            "items": { "type": "string", "pattern": "^--" }
+          },
           "fanOut": { "type": "string" },
           "options": { "type": "object" },
           "wrappers": {

@@ -41,11 +41,17 @@ type finding struct {
 	Rule    string `json:"rule"`
 }
 
+// exemption is one honoured marker. Rule is Airframe's addition to the
+// protocol, like notApplicable: the rule the marker suppresses, for a
+// consumer airframe-exempt marker and a token's exempt entry alike. Gantry
+// ignores it as an unknown field; file, line, marker and reason are as the
+// protocol defines them.
 type exemption struct {
 	File   string `json:"file"`
 	Line   int    `json:"line,omitempty"`
 	Marker string `json:"marker"`
 	Reason string `json:"reason"`
+	Rule   string `json:"rule"`
 }
 
 // notApplicable is Airframe's addition to the protocol: a rule that had
@@ -95,7 +101,7 @@ func Write(w io.Writer, r lint.Result, st selftest.Result, files int) error {
 		doc.Findings = append(doc.Findings, finding{File: d.File, Line: d.Line, Message: d.Message, Rule: d.Rule})
 	}
 	for _, e := range r.Exemptions {
-		doc.Exemptions = append(doc.Exemptions, exemption{File: e.File, Line: e.Line, Marker: e.Marker, Reason: e.Reason})
+		doc.Exemptions = append(doc.Exemptions, exemption{File: e.File, Line: e.Line, Marker: e.Marker, Reason: e.Reason, Rule: e.Rule})
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

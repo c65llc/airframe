@@ -158,8 +158,24 @@ func scanMatches(r *platformRun, f *file, pat, format string) error {
 	return nil
 }
 
+// swiftMetatype are the members Swift itself gives every type:
+// DesignTokens.self, DesignTokens.Type and DesignTokens.Protocol name the
+// type, never a token, unless backticked.
+var swiftMetatype = map[string]bool{"self": true, "Type": true, "Protocol": true}
+
 func scanSwift(r *platformRun, f *file) error {
-	return scanMatches(r, f, notIdent+`(`+regexp.QuoteMeta(r.typePart("swift"))+`\.(`+identPat+`))`, "swift")
+	pat := notIdent + `(` + regexp.QuoteMeta(r.typePart("swift")) + `\.(` + identPat + `))`
+	for _, m := range r.regex(pat).FindAllStringSubmatchIndex(f.code, -1) {
+		ident := f.code[m[4]:m[5]]
+		if swiftMetatype[ident] {
+			r.claim(f, m[2])
+			continue
+		}
+		if err := r.native(f, m[2], f.code[m[2]:m[3]], ident, "swift"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func scanKotlin(r *platformRun, f *file) error {
@@ -182,6 +198,21 @@ func scanXAML(r *platformRun, f *file, pat string) error {
 // localPropRE is a custom property definition (--name: or, in a script
 // object, '--name':), which makes the property app-local.
 var localPropRE = regexp.MustCompile(`(?:^|[^A-Za-z0-9_\x{80}-\x{10FFFF}-])(--(?:[A-Za-z0-9_-]|[^\x00-\x7F])+)['"]?\s*:`)
+
+// scriptPropRE is a custom property a script sets: setProperty("--name"
+// or a computed key ["--name"], either quote. It makes the property
+// app-local like a stylesheet definition.
+var scriptPropRE = regexp.MustCompile(`(?:setProperty\(\s*|\[\s*)["'](--(?:[A-Za-z0-9_-]|[^\x00-\x7F])+)["']`)
+
+// external reports whether custom property name matches one of the
+// platform's externalProperties globs: a property a library or script
+// defines, which is foreign.
+func (r *platformRun) external(name string) bool {
+	return slices.ContainsFunc(r.pl.ExternalProperties, func(g string) bool {
+		ok, _ := path.Match(g, name)
+		return ok
+	})
+}
 
 // isIdentByte is a byte of a CSS identifier: ASCII letters, digits, "-"
 // and "_", and every byte of a non-ASCII character.
@@ -353,6 +384,8 @@ func scanCSS(r *platformRun, f *file) error {
 			r.ref(f, v.nameOff, v.name, tok, Direct)
 		case r.local[v.name]:
 			continue // app-local: defined in a consumer file
+		case r.external(v.name):
+			continue // foreign: a library's or a script's, declared in externalProperties
 		default:
 			r.ref(f, v.nameOff, v.name, "", Direct)
 			r.problem(f, v.nameOff, Undeclared, v.name, fmt.Sprintf(

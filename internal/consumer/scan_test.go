@@ -278,7 +278,6 @@ func TestExemptionMarkers(t *testing.T) {
 	assert.Equal(t, []Exemption{
 		{Rule: "fallback-literal", Platform: "web", File: "web/src/a.css", Line: 2, MarkerLine: 1, Reason: "legacy theme"},
 		{Rule: "fallback-literal", Platform: "web", File: "web/src/a.css", Line: 3, MarkerLine: 3, Reason: ""},
-		{Rule: "fallback-literal", Platform: "web", File: "web/src/a.css", Line: 4, MarkerLine: 3, Reason: ""},
 		{Rule: "fallback-literal", Platform: "web", File: "web/src/a.css", Line: 4, MarkerLine: 4, Reason: ""},
 		{Rule: "primitive-read-by-consumer", Platform: "web", File: "web/src/a.css", Line: 6, MarkerLine: 5, Reason: "one-off"},
 		{Rule: "token-owner-violation", Platform: "web", File: "web/src/a.css", Line: 6, MarkerLine: 5, Reason: "shared"},
@@ -501,4 +500,108 @@ func TestUnicodeIdentifiers(t *testing.T) {
 	assert.Equal(t, []string{"--accenté="}, raws(refsIn(res, "web/src/a.css"), ref))
 	assert.Equal(t, []string{"theme.space.smallé=", "tokens.accentñ="}, raws(refsIn(res, "web/src/a.tsx"), ref))
 	assert.Equal(t, 2, len(problemsIn(res, "web/src/a.tsx")))
+}
+
+// TestExemptionNoSpillOver: a marker on the line before a reference counts
+// only when that line is nothing but comment; a trailing marker, or one
+// beside code or another reference, exempts its own line and no other.
+func TestExemptionNoSpillOver(t *testing.T) {
+	res := scan(t, fixture(t, false, map[string]string{
+		"web/src/a.css": strings.Join([]string{
+			".a { color: var(--blue-500); } /* airframe-exempt primitive-read-by-consumer: trailing */",
+			".b { color: var(--gray-900); }",
+			".c { display: block; } /* airframe-exempt primitive-read-by-consumer: beside code */",
+			".d { color: var(--gray-900); }",
+			"  /* airframe-exempt primitive-read-by-consumer: comment only */",
+			".e { color: var(--gray-900); }",
+			"/* one */ /* airframe-exempt primitive-read-by-consumer: two comments */",
+			".f { color: var(--gray-900); }",
+		}, "\n") + "\n",
+		"web/src/b.tsx": strings.Join([]string{
+			`const a = "var(--blue-500)"; // airframe-exempt primitive-read-by-consumer: trailing`,
+			`const b = "var(--gray-900)";`,
+			`  {/* airframe-exempt primitive-read-by-consumer: jsx */}`,
+			`  <i style={{ color: "var(--gray-900)" }} />`,
+			`// airframe-exempt primitive-read-by-consumer: line comment`,
+			`const c = "var(--gray-900)";`,
+		}, "\n") + "\n",
+	}))
+	at := func(e Exemption) string { return fmt.Sprintf("%s:%d<-%d %s", e.File, e.Line, e.MarkerLine, e.Reason) }
+	assert.Equal(t, []string{
+		"web/src/a.css:1<-1 trailing",
+		"web/src/a.css:6<-5 comment only",
+		"web/src/a.css:8<-7 two comments",
+		"web/src/b.tsx:1<-1 trailing",
+		"web/src/b.tsx:4<-3 jsx",
+		"web/src/b.tsx:6<-5 line comment",
+	}, raws(res.Exempt, at))
+}
+
+// TestExemptionReasonCut: a reason ends at its comment's closer, so two
+// markers on a line keep their own reasons and a leading block comment
+// does not take the code after it as its reason.
+func TestExemptionReasonCut(t *testing.T) {
+	for _, tc := range []struct {
+		line string
+		want []marker
+	}{
+		{"/* airframe-exempt a: one */ /* airframe-exempt b: two */", []marker{{"a", "one"}, {"b", "two"}}},
+		{"/* airframe-exempt a: why */ color: var(--x);", []marker{{"a", "why"}}},
+		{"<!-- airframe-exempt a: xaml --> <Grid />", []marker{{"a", "xaml"}}},
+		{"{/* airframe-exempt a: jsx */}", []marker{{"a", "jsx"}}},
+		{"// airframe-exempt a: one airframe-exempt b: two", []marker{{"a", "one"}, {"b", "two"}}},
+		{"/* airframe-exempt a */ x", []marker{{"a", ""}}},
+		{"/* airframe-exempt a: */ x", []marker{{"a", ""}}},
+	} {
+		assert.Equal(t, tc.want, markers(tc.line), tc.line)
+	}
+}
+
+// TestExternalProperties: a var() of a property a platform's
+// externalProperties match is foreign, never undeclared and never
+// fallback-checked; one a script sets (setProperty, a computed key) is
+// app-local.
+func TestExternalProperties(t *testing.T) {
+	files := map[string]string{
+		"web/src/a.css": strings.Join([]string{
+			".a { color: var(--radix-accent-9); background: var(--radix-gray-1, #fff); }",
+			".b { font-family: var(--font-inter, sans-serif); }",
+			".c { width: var(--sheet-w); height: var(--sheet-h); top: var(--panel-top, 0); }",
+			".d { color: var(--radixx); }",
+		}, "\n") + "\n",
+		"web/src/b.tsx": strings.Join([]string{
+			`el.style.setProperty("--sheet-w", w);`,
+			`el.style.setProperty( '--sheet-h' , h);`,
+			`const s = { ["--panel-top"]: top };`,
+		}, "\n") + "\n",
+	}
+	cfg := strings.Replace(fixture(t, false, nil)["airframe.yaml"],
+		`consumers: ["web/src/**/*.css"`, `externalProperties: ["--radix-*", "--font-*"]`+"\n    "+`consumers: ["web/src/**/*.css"`, 1)
+	require.Contains(t, cfg, "externalProperties")
+	files["airframe.yaml"] = cfg
+	res := scan(t, fixture(t, false, files))
+	prob := func(p Problem) string { return p.Kind + " " + p.Raw }
+	assert.Equal(t, []string{"undeclared --radixx"}, raws(problemsIn(res, "web/src/a.css"), prob))
+	assert.Equal(t, []string{"--radixx"}, raws(refsIn(res, "web/src/a.css"), func(r Reference) string { return r.Raw }))
+
+	// Without the declaration the same file trips the rules.
+	delete(files, "airframe.yaml")
+	delete(files, "web/src/b.tsx")
+	res = scan(t, fixture(t, false, files))
+	assert.Contains(t, raws(problemsIn(res, "web/src/a.css"), prob), "undeclared --radix-accent-9")
+	assert.Contains(t, raws(problemsIn(res, "web/src/a.css"), prob), "fallback-literal sans-serif")
+	assert.Contains(t, raws(problemsIn(res, "web/src/a.css"), prob), "undeclared --sheet-w")
+}
+
+func TestSwiftMetatypes(t *testing.T) {
+	res := scan(t, fixture(t, false, map[string]string{
+		"apple/Sources/A.swift": strings.Join([]string{
+			"let a = DesignTokens.self",
+			"let b: DesignTokens.Type = DesignTokens.self",
+			"let c = DesignTokens.Protocol.self",
+			"let d = DesignTokens.accent",
+		}, "\n") + "\n",
+	}))
+	assert.Empty(t, problemsIn(res, "apple/Sources/A.swift"))
+	assert.Equal(t, []string{"DesignTokens.accent"}, raws(refsIn(res, "apple/Sources/A.swift"), func(r Reference) string { return r.Raw }))
 }
