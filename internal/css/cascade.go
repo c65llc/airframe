@@ -95,17 +95,104 @@ func (c *Compiled) Resolve(e Env) map[string]Computed {
 			wins[d.Name] = winner{d.Value, spec, r.sheet, d.Order}
 		}
 	}
-	res := &resolver{wins: wins, out: map[string]Computed{}, visiting: map[string]bool{}}
-	for name := range wins {
+	res := &resolver{wins: wins, out: map[string]Computed{}}
+	names := sortedKeys(wins)
+	res.markCycles(names)
+	for _, name := range names {
 		res.resolve(name)
 	}
 	return res.out
 }
 
+// maxValueLen caps an expanded value (CSS Variables L1 permits a UA cap);
+// a value over it is Invalid.
+const maxValueLen = 1 << 20
+
 type resolver struct {
-	wins     map[string]winner
-	out      map[string]Computed
-	visiting map[string]bool
+	wins map[string]winner
+	out  map[string]Computed
+}
+
+// markCycles marks every property in a dependency cycle (an SCC of more
+// than one node, or a self-reference) Invalid, whatever its fallbacks.
+func (r *resolver) markCycles(names []string) {
+	index := map[string]int{}
+	low := map[string]int{}
+	on := map[string]bool{}
+	var stack []string
+	next := 0
+	var visit func(n string)
+	visit = func(n string) {
+		index[n], low[n] = next, next
+		next++
+		stack = append(stack, n)
+		on[n] = true
+		self := false
+		for _, m := range collectVars(r.wins[n].value) {
+			if _, ok := r.wins[m]; !ok {
+				continue
+			}
+			if m == n {
+				self = true
+			}
+			if _, seen := index[m]; !seen {
+				visit(m)
+				low[n] = min(low[n], low[m])
+			} else if on[m] {
+				low[n] = min(low[n], index[m])
+			}
+		}
+		if low[n] != index[n] {
+			return
+		}
+		var comp []string
+		for {
+			m := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			on[m] = false
+			comp = append(comp, m)
+			if m == n {
+				break
+			}
+		}
+		if len(comp) > 1 || self {
+			for _, m := range comp {
+				r.out[m] = Computed{Invalid: true}
+			}
+		}
+	}
+	for _, n := range names {
+		if _, seen := index[n]; !seen {
+			visit(n)
+		}
+	}
+}
+
+// collectVars lists every var() target in s, including those inside fallbacks.
+func collectVars(s string) []string {
+	var out []string
+	for i := 0; i < len(s); {
+		c := s[i]
+		if c == '"' || c == '\'' {
+			i = skipString(s, i)
+			continue
+		}
+		if isVarAt(s, i) {
+			end := matchParen(s, i+3)
+			if end < 0 {
+				return out
+			}
+			name, fallback, has := splitVarArgs(s[i+4 : end])
+			out = append(out, name)
+			if has {
+				out = append(out, collectVars(fallback)...)
+			}
+			i = end + 1
+			continue
+		}
+		i++
+	}
+	return out
 }
 
 func (r *resolver) resolve(name string) (Computed, bool) {
@@ -116,15 +203,10 @@ func (r *resolver) resolve(name string) (Computed, bool) {
 	if !ok {
 		return Computed{}, false
 	}
-	if r.visiting[name] {
-		return Computed{Invalid: true}, true
-	}
-	r.visiting[name] = true
 	v, ok := r.subst(w.value)
-	delete(r.visiting, name)
-	c := Computed{Value: v, Invalid: !ok}
+	c := Computed{Value: v}
 	if !ok {
-		c.Value = ""
+		c = Computed{Invalid: true}
 	}
 	r.out[name] = c
 	return c, true
@@ -153,21 +235,24 @@ func (r *resolver) subst(s string) (string, bool) {
 				return "", false
 			}
 			b.WriteString(v)
+			if b.Len() > maxValueLen {
+				return "", false
+			}
 			i = end + 1
 			continue
 		}
 		b.WriteByte(c)
 		i++
 	}
-	return b.String(), true
+	return b.String(), b.Len() <= maxValueLen
 }
 
 func (r *resolver) lookup(name, fallback string, hasFallback bool) (string, bool) {
 	if !strings.HasPrefix(name, "--") {
 		return "", false
 	}
-	if c, found := r.resolve(name); found {
-		return c.Value, !c.Invalid
+	if c, found := r.resolve(name); found && !c.Invalid {
+		return c.Value, true
 	}
 	if !hasFallback {
 		return "", false

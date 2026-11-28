@@ -3,7 +3,11 @@
 
 package css
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+	"time"
+)
 
 func sheet(t *testing.T, src string) *Sheet {
 	t.Helper()
@@ -72,9 +76,10 @@ func TestResolveNestedParensInFallback(t *testing.T) {
 
 func TestResolveCycleIsInvalid(t *testing.T) {
 	got := resolve(t, Env{}, `:root{--a: var(--b); --b: var(--a); --c: var(--zz); --d: var(--a, 1); --e: 1px var(--c)}`)
-	for _, n := range []string{"--a", "--b", "--c", "--d", "--e"} {
+	for _, n := range []string{"--a", "--b", "--c", "--e"} {
 		want(t, got, n, Computed{Invalid: true})
 	}
+	want(t, got, "--d", Computed{Value: "1"})
 }
 
 func TestResolveEmptyValueIsValid(t *testing.T) {
@@ -98,4 +103,58 @@ func TestResolveBadRuleIsError(t *testing.T) {
 	if _, err := Resolve([]*Sheet{s}, Env{}); err == nil {
 		t.Error("bad media: want error")
 	}
+}
+
+func TestResolveFallbackOverInvalidTarget(t *testing.T) {
+	got := resolve(t, Env{}, `:root{--a: var(--b); --b: var(--a); --c: var(--a, 5px); --d: var(--missing, var(--a, 7px)); --z: var(--zz); --y: var(--z, 3px)}`)
+	want(t, got, "--a", Computed{Invalid: true})
+	want(t, got, "--b", Computed{Invalid: true})
+	want(t, got, "--c", Computed{Value: "5px"})
+	want(t, got, "--d", Computed{Value: "7px"})
+	want(t, got, "--z", Computed{Invalid: true})
+	want(t, got, "--y", Computed{Value: "3px"})
+}
+
+func TestResolveCycleWithFallbackIsOrderIndependent(t *testing.T) {
+	for _, src := range []string{
+		`:root{--a: var(--c, 1px); --c: var(--a)}`,
+		`:root{--c: var(--a); --a: var(--c, 1px)}`,
+	} {
+		for range 20 {
+			got := resolve(t, Env{}, src)
+			want(t, got, "--a", Computed{Invalid: true})
+			want(t, got, "--c", Computed{Invalid: true})
+		}
+	}
+}
+
+func TestResolveSelfReferenceIsInvalid(t *testing.T) {
+	want(t, resolve(t, Env{}, `:root{--s: var(--s, 2px)}`), "--s", Computed{Invalid: true})
+}
+
+func TestResolveExpansionCap(t *testing.T) {
+	src := ":root{--a0: 1234567890;"
+	for i := 1; i <= 30; i++ {
+		src += fmt.Sprintf("--a%d: var(--a%d) var(--a%d);", i, i-1, i-1)
+	}
+	src += "}"
+	start := time.Now()
+	got := resolve(t, Env{}, src)
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("took %v", d)
+	}
+	want(t, got, "--a30", Computed{Invalid: true})
+	want(t, got, "--a29", Computed{Invalid: true})
+	if got["--a1"].Invalid {
+		t.Error("--a1 should be valid")
+	}
+}
+
+func TestResolveSmallPins(t *testing.T) {
+	got := resolve(t, Env{}, `:root{--a:1; --a:2; --X:1; --u: var(--x); --e: var(--x,); --w: var( --a ); --f: var( --nope , 9px )}`)
+	want(t, got, "--a", Computed{Value: "2"})
+	want(t, got, "--u", Computed{Invalid: true})
+	want(t, got, "--e", Computed{})
+	want(t, got, "--w", Computed{Value: "2"})
+	want(t, got, "--f", Computed{Value: "9px"})
 }
