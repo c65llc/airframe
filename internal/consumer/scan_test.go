@@ -311,9 +311,9 @@ func TestUnadaptedExtension(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{
-		"platform android: no adapter reads 2 consumer file(s): android/src/legacy.rb (no adapter reads .rb), android/src/sub/b.java (no adapter reads .java) (platforms.android.consumers)",
-		"platform apple: no adapter reads 1 consumer file(s): apple/Sources/b.kt (.kt is read through kotlin names, which platform apple does not emit) (platforms.apple.consumers)",
-		"platform web: no adapter reads 2 consumer file(s): web/src/Makefile (no adapter reads a file with no extension), web/src/notes.md (no adapter reads .md) (platforms.web.consumers)",
+		"platform android: no adapter reads 2 consumer file(s): android/src/legacy.rb (no adapter reads .rb), android/src/sub/b.java (no adapter reads .java)",
+		"platform apple: no adapter reads 1 consumer file(s): apple/Sources/b.kt (.kt is read through kotlin names, which platform apple does not emit)",
+		"platform web: no adapter reads 2 consumer file(s): web/src/Makefile (no adapter reads a file with no extension), web/src/notes.md (no adapter reads .md)",
 	}, got)
 	// An unadapted file is still read for wrappers; the adapted ones are scanned.
 	assert.Equal(t, []string{"theme.space.small=space-2"}, raws(refsIn(res, "web/src/notes.md"), func(r Reference) string { return r.Raw + "=" + r.Token }))
@@ -441,7 +441,7 @@ func TestSymlinksNotFollowed(t *testing.T) {
 			web = append(web, p.Detail)
 		}
 	}
-	assert.Equal(t, []string{"platform web: consumer symlinks are not followed, so 2 matched file(s) were not scanned: web/src/dir.css, web/src/link.css (platforms.web.consumers)"}, web)
+	assert.Equal(t, []string{"platform web: consumer symlinks are not followed, so 2 matched file(s) were not scanned: web/src/dir.css, web/src/link.css"}, web)
 	assert.Equal(t, 1, res.Files["web"])
 	assert.Equal(t, []string{"web/src/a.css"}, raws(res.Refs, func(r Reference) string { return r.File }))
 }

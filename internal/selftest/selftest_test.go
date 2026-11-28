@@ -5,6 +5,7 @@ package selftest
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -14,7 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/c65llc/airframe/internal/consumer"
 	"github.com/c65llc/airframe/internal/lint"
+	"github.com/c65llc/airframe/internal/project"
 )
 
 func TestSelfTestEveryRuleFlagged(t *testing.T) {
@@ -121,4 +124,47 @@ func TestSelfTestUnknownRuleID(t *testing.T) {
 	r := run(sub(t, func(p string) bool { return strings.HasPrefix(p, "fixtures/flag/not-formatted/") }), ids)
 	assert.False(t, r.OK)
 	assert.Equal(t, []string{"unknown rule ID emitted: not-formatted"}, r.Failures)
+}
+
+// A finding on the consumers clean fixture fails the self-test, naming it.
+func TestSelfTestCleanConsumersFindingFails(t *testing.T) {
+	const f = "fixtures/clean-consumers/web/src/app.css"
+	fsys := sub(t, func(p string) bool { return p == f })
+	fsys[f] = &fstest.MapFile{Data: []byte(".a { color: var(--accnet); }\n")}
+	r := run(fsys, lint.AllIDs())
+	assert.False(t, r.OK)
+	assert.Equal(t, len(lint.AllIDs())-1, r.Ignored)
+	require.Len(t, r.Failures, 1)
+	assert.Contains(t, r.Failures[0], "clean-consumers: reference-undeclared fired: web/src/app.css:1")
+}
+
+// The consumers clean fixture is a real test of the consumer rules: every
+// one of them examined something there, on every platform.
+func TestCleanConsumersExercisesConsumerRules(t *testing.T) {
+	root, err := fs.Sub(fixtures, "fixtures/clean-consumers")
+	require.NoError(t, err)
+	p, ds, err := project.Load(root)
+	require.NoError(t, err)
+	require.Empty(t, ds)
+	res := lint.Run(p, ds, lint.Options{})
+	require.NoError(t, res.Err)
+	assert.Empty(t, res.Diagnostics)
+	for _, tl := range res.Tallies {
+		switch tl.Rule {
+		case "reference-undeclared", "primitive-read-by-consumer", "token-owner-violation", "fallback-literal", "wrapper-unmapped":
+			assert.Empty(t, tl.NotApplicable, tl.Rule)
+			assert.Positive(t, tl.Items, tl.Rule)
+		}
+	}
+	res2, err := consumer.Scan(p)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"android", "apple", "web", "windows"}, slices.Sorted(maps.Keys(res2.Files)))
+	vias := map[string]bool{}
+	for _, r := range res2.Refs {
+		assert.NotEmpty(t, r.Token, "%s:%d %s resolves", r.File, r.Line, r.Raw)
+		vias[r.Via] = true
+	}
+	for _, root := range []string{"theme.space", "tokens", "AppTheme.spacing", "Theme", "LocalTokens.current", "Palette"} {
+		assert.True(t, vias["wrapper:"+root], "a read through %s", root)
+	}
 }

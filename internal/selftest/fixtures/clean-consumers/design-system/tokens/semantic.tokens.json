@@ -1,0 +1,56 @@
+{
+  "surface": {
+    "$type": "color",
+    "$value": "{gray.50}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "appearance:dark": "{gray.900}"
+        }
+      }
+    }
+  },
+  "ink": {
+    "$type": "color",
+    "$value": "{gray.900}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "appearance:dark": "{gray.50}"
+        }
+      }
+    }
+  },
+  "accent": {
+    "$type": "color",
+    "$value": "{blue.500}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "gap": {
+    "$type": "dimension",
+    "$value": "{space.2}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic",
+        "modes": {
+          "density:compact": "{space.2}"
+        }
+      }
+    }
+  },
+  "hairline": {
+    "$type": "dimension",
+    "$value": "{line.1}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  }
+}

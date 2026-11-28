@@ -235,12 +235,12 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 	r := &platformRun{s: s, pl: pl, res: res, local: map[string]bool{}, taken: map[string]map[int]bool{}}
 	for _, g := range bad {
 		r.problem(cfgFile, 0, SchemaInvalid, g, fmt.Sprintf(
-			"platform %s: consumers glob %q is not a valid glob (platforms.%s.consumers)", pl.Name, g, pl.Name))
+			"platform %s: consumers glob %q is not a valid glob", pl.Name, g))
 	}
 	if len(links) > 0 {
 		r.problem(cfgFile, 0, SchemaInvalid, strings.Join(links, ", "), fmt.Sprintf(
-			"platform %s: consumer symlinks are not followed, so %d matched file(s) were not scanned: %s (platforms.%s.consumers)",
-			pl.Name, len(links), strings.Join(links, ", "), pl.Name))
+			"platform %s: consumer symlinks are not followed, so %d matched file(s) were not scanned: %s",
+			pl.Name, len(links), strings.Join(links, ", ")))
 	}
 	for _, g := range dead {
 		r.problem(cfgFile, 0, EmptyScan, g, fmt.Sprintf(
@@ -303,8 +303,8 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 	}
 	if len(unadapted) > 0 {
 		r.problem(cfgFile, 0, SchemaInvalid, strings.Join(unadapted, ", "), fmt.Sprintf(
-			"platform %s: no adapter reads %d consumer file(s): %s (platforms.%s.consumers)",
-			pl.Name, len(unadapted), strings.Join(unadapted, ", "), pl.Name))
+			"platform %s: no adapter reads %d consumer file(s): %s",
+			pl.Name, len(unadapted), strings.Join(unadapted, ", ")))
 	}
 	for _, f := range loaded {
 		if err := r.wrappers(f); err != nil {

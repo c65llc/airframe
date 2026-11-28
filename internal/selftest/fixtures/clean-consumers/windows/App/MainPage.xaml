@@ -1,0 +1,5 @@
+<Page x:Class="App.MainPage">
+  <Grid Background="{ThemeResource DesignSurface}" Padding="{StaticResource DesignGapCompact}">
+    <TextBlock Foreground="{ThemeResource SystemControlForegroundBaseHighBrush}" />
+  </Grid>
+</Page>

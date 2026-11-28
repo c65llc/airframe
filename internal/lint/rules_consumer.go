@@ -5,6 +5,7 @@ package lint
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -55,7 +56,8 @@ func (c *Context) fail(err error) {
 	}
 }
 
-// consumerFiles is how many consumer files the scan read, every platform's.
+// consumerFiles is how many consumer files the scan read, every platform's:
+// a file two platforms read counts once for each.
 func consumerFiles(s *consumer.Result) int {
 	n := 0
 	for _, k := range s.Files {
@@ -139,14 +141,20 @@ func anyRef(consumer.Reference) bool { return true }
 
 // ruleReferenceUndeclared reports the references to names that are not
 // tokens, each consumers glob that matched no file, and each platform
-// whose names could not be rendered. It also passes along the scan's
-// schema-invalid problems (a file no adapter reads, a bad glob, a
-// symlink), once: no other consumer rule does.
+// whose names could not be rendered. It examines every reference and
+// every consumers glob, so a run whose globs are all dead still counts
+// what it checked. It also passes along the scan's schema-invalid
+// problems (a file no adapter reads, a bad glob, a symlink), once: no
+// other consumer rule does.
 func ruleReferenceUndeclared(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Tally) {
 	const id = "reference-undeclared"
 	out, tally := problemRule(p, c, id,
 		[]string{consumer.Undeclared, consumer.EmptyScan, consumer.NamesUnavailable}, anyRef)
 	if s, _ := c.consumerScan(p); s != nil {
+		tally.Noun = "references and globs"
+		for _, pl := range p.Config.Platforms {
+			tally.Items += len(pl.Consumers)
+		}
 		for _, pr := range s.Problems {
 			if pr.Kind == consumer.SchemaInvalid {
 				out = add(out, c.problemFinding(s, schema.RuleID, pr))
@@ -169,11 +177,7 @@ func ruleFallbackLiteral(p *project.Project, c *Context) ([]diag.Diagnostic, dia
 		out, tally := problemRule(p, c, id, []string{consumer.FallbackLiteral}, func(r consumer.Reference) bool {
 			return r.Via == consumer.Direct && css[r.Platform+"\x00"+r.File]
 		})
-		files := map[string]bool{}
-		for k := range css {
-			files[strings.SplitN(k, "\x00", 2)[1]] = true
-		}
-		tally.Files = len(files)
+		tally.Files = len(css) // once per platform, as consumerFiles counts
 		return out, tally
 	}
 	return problemRule(p, c, id, nil, anyRef)
@@ -193,18 +197,64 @@ func cssFiles(p *project.Project, s *consumer.Result) map[string]bool {
 	return out
 }
 
-// ruleWrapperUnmapped reports every wrapper read that stands for no token.
-// It examines the wrapper reads.
+// ruleWrapperUnmapped reports every wrapper read that stands for no
+// token, and every wrapper map entry whose token does not exist, whether
+// or not anything reads it (a pattern's token depends on its captures, so
+// it is checked only when read). It examines the wrapper reads and the
+// map entries. A read through a dangling map entry is still reported where
+// it is, pointing at the entry.
 func ruleWrapperUnmapped(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Tally) {
 	const id = "wrapper-unmapped"
-	if s, _ := c.consumerScan(p); s != nil && !slices.ContainsFunc(p.Config.Platforms, func(pl config.Platform) bool {
-		return len(pl.Consumers) > 0 && len(pl.Wrappers) > 0
-	}) {
+	hasWrappers := slices.ContainsFunc(p.Config.Platforms, func(pl config.Platform) bool { return len(pl.Wrappers) > 0 })
+	s, na := c.consumerScan(p)
+	switch {
+	case !hasWrappers && s == nil:
+		return nil, diag.Tally{Noun: referencesNoun, NotApplicable: na}
+	case !hasWrappers:
 		return nil, diag.Tally{Noun: referencesNoun, NotApplicable: "no platform declares wrappers"}
+	case p.Tokens == nil:
+		return nil, diag.Tally{Noun: referencesNoun, NotApplicable: "no tokens loaded"}
 	}
-	return problemRule(p, c, id, []string{consumer.WrapperUnmapped}, func(r consumer.Reference) bool {
-		return strings.HasPrefix(r.Via, "wrapper:")
-	})
+	tally := diag.Tally{Noun: "references and map entries"}
+	var out []diag.Diagnostic
+	dangling := map[string]string{} // platform NUL root.member → its path
+	for _, pl := range p.Config.Platforms {
+		for i, w := range pl.Wrappers {
+			for _, member := range slices.Sorted(maps.Keys(w.Map)) {
+				tally.Items++
+				tok := w.Map[member]
+				if _, ok := p.Tokens.Tokens[tok]; ok {
+					continue
+				}
+				at := fmt.Sprintf("platforms.%s.wrappers.%d.map.%s", pl.Name, i, member)
+				dangling[pl.Name+"\x00"+w.Root+"."+member] = at
+				out = append(out, diag.Diagnostic{
+					Rule: id, Severity: diag.Error, File: config.File, Path: at, Docs: diag.DocsURL(id),
+					Message: fmt.Sprintf("platform %s: wrapper %s maps %s to %s, which is not a token; reads are always declared, and this one declares a token that does not exist",
+						pl.Name, w.Root, member, tok),
+				})
+			}
+		}
+	}
+	if s == nil {
+		return out, tally
+	}
+	tally.Files = consumerFiles(s)
+	for _, r := range s.Refs {
+		if strings.HasPrefix(r.Via, "wrapper:") {
+			tally.Items++
+		}
+	}
+	for _, pr := range s.Problems {
+		if pr.Kind != consumer.WrapperUnmapped {
+			continue
+		}
+		if at, ok := dangling[pr.Platform+"\x00"+pr.Raw]; ok {
+			pr.Detail = fmt.Sprintf("%s reads a wrapper map entry whose token does not exist; see %s", pr.Raw, at)
+		}
+		out = add(out, c.problemFinding(s, id, pr))
+	}
+	return out, tally
 }
 
 // resolvedRule runs check on every resolved reference, tallying them.
@@ -255,9 +305,26 @@ func rulePrimitiveRead(p *project.Project, c *Context) ([]diag.Diagnostic, diag.
 			by = strings.Join(readers, ", ")
 		}
 		return c.consumerFinding(s, id, r.Platform, r.File, r.Line, r.Col, fmt.Sprintf(
-			"platform %s: %s is token %s, of tier %s, which consumers may not read (it is readable by %s); read a semantic token instead",
-			r.Platform, refText(r), t.Name, t.Tier, by))
+			"platform %s: %s is token %s, of tier %s, which consumers may not read (it is readable by %s); %s",
+			r.Platform, refText(r), t.Name, t.Tier, by, consumerTiersHint(p)))
 	})
+}
+
+// consumerTiersHint names the tiers consumers may read, from the config.
+func consumerTiersHint(p *project.Project) string {
+	var ok []string
+	for _, name := range slices.Sorted(maps.Keys(p.Config.Tiers)) {
+		if slices.Contains(p.Config.Tiers[name].ReadableBy, "consumers") {
+			ok = append(ok, name)
+		}
+	}
+	switch len(ok) {
+	case 0:
+		return "no tier's readableBy lists consumers, so consumers may read no token outside their components"
+	case 1:
+		return "read a token of tier " + ok[0] + " instead"
+	}
+	return "read a token of tier " + strings.Join(ok, " or ") + " instead"
 }
 
 // ruleOwnerViolation reports a consumer reference to a component token

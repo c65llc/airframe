@@ -1,0 +1,9 @@
+:root {
+  --sidebar-w: 240px;
+}
+.app {
+  width: var(--sidebar-w);
+  color: var(--ink);
+  background: var(--surface);
+  margin: var(--gap, var(--hairline));
+}

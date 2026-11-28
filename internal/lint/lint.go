@@ -201,7 +201,11 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 	for _, r := range Rules() {
 		ds, tally := r.Run(p, ctx)
 		tally.Rule = r.ID
-		if tally.Items == 0 && tally.NotApplicable == "" {
+		// A rule that reported a finding of its own was applicable,
+		// whatever it counted: it is never tallied not applicable.
+		if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Rule == r.ID }) {
+			tally.NotApplicable = ""
+		} else if tally.Items == 0 && tally.NotApplicable == "" {
 			noun := tally.Noun
 			if noun == "" {
 				noun = "items"

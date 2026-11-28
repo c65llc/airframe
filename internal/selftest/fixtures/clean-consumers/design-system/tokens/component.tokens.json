@@ -1,0 +1,24 @@
+{
+  "button": {
+    "bg": {
+      "$type": "color",
+      "$value": "{accent}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    },
+    "ink": {
+      "$type": "color",
+      "$value": "{surface}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    }
+  }
+}

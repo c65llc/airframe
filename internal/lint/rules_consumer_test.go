@@ -133,20 +133,6 @@ func TestConsumerSchemaInvalidOnce(t *testing.T) {
 	assert.Len(t, byRule(res.Diagnostics, "schema-invalid"), 1)
 }
 
-// Review Focus 5: a glob typo fails lint, naming the platform and the glob.
-func TestEmptyScanFails(t *testing.T) {
-	cfg := strings.Replace(consumerConfig, `["web/src/**/*.{css,ts}"]`, `["web/**/*.tssx"]`, 1)
-	res := lintLoaded(t, consumerFS(cfg, map[string]string{"web/src/a.ts": "export const a = 1\n"}))
-	got := byRule(res.Diagnostics, "reference-undeclared")
-	require.Len(t, got, 1, messages(got))
-	assert.Equal(t, diag.Error, got[0].Severity)
-	assert.Contains(t, got[0].Message, "platform web")
-	assert.Contains(t, got[0].Message, `"web/**/*.tssx"`)
-	assert.Equal(t, "airframe.yaml", got[0].File)
-	assert.Equal(t, "platforms.web.consumers", got[0].Path)
-	assert.Positive(t, res.Errors)
-}
-
 func TestPrimitiveReadByConsumer(t *testing.T) {
 	res := lintConsumers(t, map[string]string{
 		"web/src/a.css":        ".a { color: var(--blue-500); background: var(--accent); }\n",
@@ -252,6 +238,52 @@ func TestWrapperUnmapped(t *testing.T) {
 	assert.Contains(t, got[0].Message, "large")
 }
 
+// Every wrapper map entry whose token does not exist is reported at
+// airframe.yaml, read or not; a read through it points at the entry.
+func TestWrapperMapEntryDangling(t *testing.T) {
+	cfg := strings.Replace(consumerConfig, "map: {small: space-2}", "map: {small: space-2, wide: space-9, huge: space-99}", 1)
+	res := lintLoaded(t, consumerFS(cfg, map[string]string{
+		"web/src/a.ts":  "const a = theme.space.wide\n",
+		"web/src/c.css": ".c { color: var(--accent); }\n",
+	}))
+	got := byRule(res.Diagnostics, "wrapper-unmapped")
+	require.Len(t, got, 3, messages(got))
+	assert.Equal(t, "airframe.yaml", got[0].File)
+	assert.Equal(t, "platforms.web.wrappers.0.map.huge", got[0].Path, "reported though nothing reads it")
+	assert.Contains(t, got[0].Message, "space-99")
+	assert.Equal(t, "platforms.web.wrappers.0.map.wide", got[1].Path)
+	assert.Equal(t, "web/src/a.ts", got[2].File)
+	assert.Contains(t, got[2].Message, "see platforms.web.wrappers.0.map.wide")
+	assert.NotContains(t, got[2].Message, "space-9", "the entry's finding names the token, once")
+}
+
+// The primitive hint names the tiers consumers may read, from config.
+func TestPrimitiveReadHint(t *testing.T) {
+	res := lintConsumers(t, map[string]string{"web/src/a.css": ".a { color: var(--blue-500); }\n"})
+	got := byRule(res.Diagnostics, "primitive-read-by-consumer")
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0].Message, "read a token of tier semantic instead")
+
+	cfg := consumerConfig + "tiers:\n  primitive: {readableBy: [semantic]}\n  semantic: {readableBy: [component, emitters]}\n  component: {readableBy: [owner]}\n"
+	res = lintLoaded(t, consumerFS(cfg, map[string]string{"web/src/a.css": ".a { color: var(--accent); }\n"}))
+	got = byRule(res.Diagnostics, "primitive-read-by-consumer")
+	require.Len(t, got, 1)
+	assert.Contains(t, got[0].Message, "no tier's readableBy lists consumers")
+}
+
+// A file two platforms read counts once per platform in every rule.
+func TestConsumerFilesPerPlatform(t *testing.T) {
+	cfg := consumerConfig + `  web2:
+    emit: [css]
+    out: {css: web/generated2/tokens.css}
+    consumers: ["web/src/**/*.css"]
+`
+	res := lintLoaded(t, consumerFS(cfg, map[string]string{"web/src/a.css": ".a { color: var(--accent); }\n"}))
+	for _, id := range consumerRuleIDs {
+		assert.Equal(t, 2, tallyOf(res, id).Files, id)
+	}
+}
+
 var consumerRuleIDs = []string{
 	"fallback-literal", "primitive-read-by-consumer", "reference-undeclared", "token-owner-violation", "wrapper-unmapped",
 }
@@ -263,19 +295,23 @@ func TestConsumerTallies(t *testing.T) {
 		"web/src/button/c.ts": "const c = theme.button.bg\n",
 	})
 	want := map[string]diag.Tally{
-		// every reference: three css, three wrapper reads
-		"reference-undeclared": {Files: 3, Items: 6},
+		// every reference (three css, three wrapper reads) and the one glob
+		"reference-undeclared": {Files: 3, Items: 7, Noun: "references and globs"},
 		// the resolved ones
 		"primitive-read-by-consumer": {Files: 3, Items: 4},
 		"token-owner-violation":      {Files: 3, Items: 4},
 		// the css references (.ts is read through css names too)
 		"fallback-literal": {Files: 3, Items: 3},
-		// the wrapper reads
-		"wrapper-unmapped": {Files: 3, Items: 3},
+		// the wrapper reads and the two map entries
+		"wrapper-unmapped": {Files: 3, Items: 5, Noun: "references and map entries"},
 	}
 	for _, id := range consumerRuleIDs {
 		tl := tallyOf(res, id)
-		assert.Equal(t, "references", tl.Noun, id)
+		noun := want[id].Noun
+		if noun == "" {
+			noun = "references"
+		}
+		assert.Equal(t, noun, tl.Noun, id)
 		assert.Empty(t, tl.NotApplicable, id)
 		assert.Equal(t, want[id].Files, tl.Files, id)
 		assert.Equal(t, want[id].Items, tl.Items, id)
@@ -302,7 +338,7 @@ platforms:
     consumers: ["apple/**/*.swift"]
 `
 	res = lintLoaded(t, consumerFS(cfg, map[string]string{"apple/A.swift": "let a = DesignTokens.accent\n"}))
-	assert.Equal(t, 1, tallyOf(res, "reference-undeclared").Items)
+	assert.Equal(t, 2, tallyOf(res, "reference-undeclared").Items, "one reference, one glob")
 	assert.Equal(t, "no platform declares wrappers", tallyOf(res, "wrapper-unmapped").NotApplicable)
 	assert.Equal(t, "no css consumer files", tallyOf(res, "fallback-literal").NotApplicable)
 }

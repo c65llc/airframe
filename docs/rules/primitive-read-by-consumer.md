@@ -11,7 +11,7 @@ A consumer file reads a token whose tier consumers may not read, such as a primi
 
 Primitives hold raw values; semantic tokens name the roles an app uses. An app that reads `--blue-500` directly cannot be re-themed by changing what `accent` means, and the dark appearance or another accent never reaches it. A tier is readable by consumers when its `readableBy` in `tiers` lists `consumers`; the default lets them read semantic tokens only. Component tokens are judged by `token-owner-violation` instead.
 
-A read through a declared wrapper counts exactly like a direct read.
+A read through a declared wrapper counts exactly like a direct read. The rule's name reflects the default tiers, where only primitives are closed to consumers; with custom `tiers` it fires for any non-component tier whose `readableBy` lacks `consumers`, and the message names the tiers that list it.
 
 **Fix**
 

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/c65llc/airframe/internal/diag"
+	"github.com/c65llc/airframe/internal/project"
 )
 
 // flagAll is a project on which every rule fires at least once.
@@ -214,4 +215,25 @@ func TestRunWithEmptyTokenSet(t *testing.T) {
 	assert.Empty(t, without(res.Diagnostics, "not-formatted"), "the fixture's YAML is hand-aligned")
 	assert.NotNil(t, res.Diagnostics, "an empty run reports [] not null")
 	assert.Len(t, res.Tallies, len(Rules()))
+}
+
+// A rule that reports a finding under its own ID is never tallied not
+// applicable, whatever it counted or said, so a failing check is never
+// filed as n/a; one that found nothing and counted nothing still is.
+func TestFiringRuleNeverNotApplicable(t *testing.T) {
+	saved := allRules
+	t.Cleanup(func() { allRules = saved })
+	finding := diag.Diagnostic{Rule: "a-fires", Severity: diag.Error, File: "x", Message: "m"}
+	allRules = []Rule{
+		{ID: "a-fires", Default: diag.Error, Run: func(*project.Project, *Context) ([]diag.Diagnostic, diag.Tally) {
+			return []diag.Diagnostic{finding}, diag.Tally{Noun: "things", NotApplicable: "nothing to read"}
+		}},
+		{ID: "b-quiet", Default: diag.Error, Run: func(*project.Project, *Context) ([]diag.Diagnostic, diag.Tally) {
+			return nil, diag.Tally{Noun: "things"}
+		}},
+	}
+	res := Run(load(t, map[string]string{"a.tokens.json": `{ "gap": { "$type": "number", "$value": 4 } }`}), nil, Options{})
+	require.Len(t, res.Tallies, 2)
+	assert.Empty(t, res.Tallies[0].NotApplicable, "a-fires reported a finding")
+	assert.Equal(t, "no things in scope", res.Tallies[1].NotApplicable)
 }

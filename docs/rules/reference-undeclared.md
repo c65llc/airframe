@@ -13,6 +13,8 @@ A reference to a token that is not there fails quietly at runtime: CSS falls bac
 
 Names an adapter does not own are left alone: a CSS custom property some consumer file defines (`--sidebar-w: 240px`) is app-local, and a Swift, Kotlin or XAML name outside the naming template's prefix and suffix (`{ThemeResource SystemControlForegroundBaseHighBrush}`) is foreign.
 
+Turning this rule off also hides the platforms skipped because their names were unavailable, and the dead globs: keep it on wherever consumers are declared.
+
 **Fix**
 
 Correct the name, or add the token. For an empty scan, fix the glob so it matches the files you meant (the message names the platform and the glob), or remove it. For unavailable names, fix the emit failure first.
