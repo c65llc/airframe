@@ -139,13 +139,19 @@ func (s *scanner) refNames(pl config.Platform, format string) (map[string]string
 
 // file is one consumer file being scanned.
 type file struct {
-	path   string
-	src    string
+	path string
+	src  string // as read: exemption markers are read here
+	// code is src as the adapters and wrappers read it: for a stylesheet,
+	// its /* … */ comments blanked to spaces, newlines and byte offsets kept.
+	code   string
 	starts []int // byte offset of each line's start
 }
 
-func newFile(path, src string) *file {
-	f := &file{path: path, src: src, starts: []int{0}}
+func newFile(name, src string) *file {
+	f := &file{path: name, src: src, code: src, starts: []int{0}}
+	if stylesheetExts[strings.ToLower(path.Ext(name))] {
+		f.code = blankComments(src)
+	}
 	for i := 0; i < len(src); i++ {
 		if src[i] == '\n' {
 			f.starts = append(f.starts, i+1)
@@ -174,11 +180,25 @@ func (f *file) line(n int) string {
 
 // platformRun collects one platform's findings.
 type platformRun struct {
-	s     *scanner
-	pl    config.Platform
-	res   *Result
-	local map[string]bool // custom properties some consumer file defines
-	taken map[string]map[int]bool
+	s       *scanner
+	pl      config.Platform
+	res     *Result
+	local   map[string]bool // custom properties some consumer file defines
+	taken   map[string]map[int]bool
+	regexes map[string]*regexp.Regexp
+}
+
+// regex is pat compiled, once per platform run.
+func (r *platformRun) regex(pat string) *regexp.Regexp {
+	if re, ok := r.regexes[pat]; ok {
+		return re
+	}
+	if r.regexes == nil {
+		r.regexes = map[string]*regexp.Regexp{}
+	}
+	re := regexp.MustCompile(pat)
+	r.regexes[pat] = re
+	return re
 }
 
 func (r *platformRun) ref(f *file, off int, raw, token, via string) {
@@ -204,7 +224,7 @@ func (r *platformRun) claim(f *file, off int) {
 func (r *platformRun) claimed(f *file, off int) bool { return r.taken[f.path][off] }
 
 func (s *scanner) platform(pl config.Platform, res *Result) error {
-	files, bad, dead, err := s.consumerFiles(pl)
+	files, bad, dead, links, err := s.consumerFiles(pl)
 	if err != nil {
 		return err
 	}
@@ -213,6 +233,11 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 	for _, g := range bad {
 		r.problem(cfgFile, 0, SchemaInvalid, g, fmt.Sprintf(
 			"platform %s: consumers glob %q is not a valid glob (platforms.%s.consumers)", pl.Name, g, pl.Name))
+	}
+	if len(links) > 0 {
+		r.problem(cfgFile, 0, SchemaInvalid, strings.Join(links, ", "), fmt.Sprintf(
+			"platform %s: consumer symlinks are not followed, so %d matched file(s) were not scanned: %s (platforms.%s.consumers)",
+			pl.Name, len(links), strings.Join(links, ", "), pl.Name))
 	}
 	for _, g := range dead {
 		r.problem(cfgFile, 0, EmptyScan, g, fmt.Sprintf(
@@ -231,7 +256,7 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		}
 		f := newFile(fp, string(b))
 		loaded = append(loaded, f)
-		for _, m := range localPropRE.FindAllStringSubmatch(f.src, -1) {
+		for _, m := range localPropRE.FindAllStringSubmatch(f.code, -1) {
 			r.local[m[1]] = true
 		}
 	}
@@ -334,16 +359,18 @@ func (s *scanner) excluded(f string) bool {
 // consumerFiles are the sorted, distinct files pl's consumers globs match,
 // less the excluded ones; bad lists the globs that are not valid, and dead
 // the valid ones that match no file once the exclusions are taken out.
-func (s *scanner) consumerFiles(pl config.Platform) (files, bad, dead []string, err error) {
+// Symlinks are never followed: links lists each matched one, which is not
+// scanned (a matched symlink still makes its glob live).
+func (s *scanner) consumerFiles(pl config.Platform) (files, bad, dead, links []string, err error) {
 	seen := map[string]bool{}
 	for _, g := range pl.Consumers {
-		ms, err := doublestar.Glob(s.p.FS, g, doublestar.WithFilesOnly())
+		ms, err := doublestar.Glob(s.p.FS, g, doublestar.WithFilesOnly(), doublestar.WithNoFollow())
 		if errors.Is(err, doublestar.ErrBadPattern) {
 			bad = append(bad, g)
 			continue
 		}
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("platform %s: find consumers %q: %w", pl.Name, g, err)
+			return nil, nil, nil, nil, fmt.Errorf("platform %s: find consumers %q: %w", pl.Name, g, err)
 		}
 		matched := false
 		for _, m := range ms {
@@ -351,17 +378,28 @@ func (s *scanner) consumerFiles(pl config.Platform) (files, bad, dead []string, 
 				continue
 			}
 			matched = true
-			if !seen[m] {
-				seen[m] = true
-				files = append(files, m)
+			if seen[m] {
+				continue
 			}
+			seen[m] = true
+			// fs.Lstat is fs.Stat on an FS that cannot read links.
+			info, err := fs.Lstat(s.p.FS, m)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("platform %s: stat consumer %s: %w", pl.Name, m, err)
+			}
+			if info.Mode()&fs.ModeSymlink != 0 {
+				links = append(links, m)
+				continue
+			}
+			files = append(files, m)
 		}
 		if !matched {
 			dead = append(dead, g)
 		}
 	}
 	slices.Sort(files)
-	return files, bad, dead, nil
+	slices.Sort(links)
+	return files, bad, dead, links, nil
 }
 
 // markerRE is an exemption marker's start: airframe-exempt and the rule.

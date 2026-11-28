@@ -18,11 +18,12 @@ import (
 // are, tried in this order before css.
 var nativeFormats = []string{"swift", "kotlin", "xaml"}
 
-// rootRE matches a read of root.<member> that is not itself a member of
+// rootPat matches a read of root.<member> that is not itself a member of
 // something else: root is preceded by the start of a line or by a
-// character that is neither a word character nor a ".".
-func rootRE(root string) *regexp.Regexp {
-	return regexp.MustCompile(`(?m)(?:^|[^\w.])(` + regexp.QuoteMeta(root) + `)\.([A-Za-z_]\w*)`)
+// character that is neither an identifier character nor a ".". The member
+// is the whole identifier, non-ASCII letters included.
+func rootPat(root string) string {
+	return `(?m)(?:^|[^\p{L}\p{M}\p{N}_.])(` + regexp.QuoteMeta(root) + `)\.(` + identRune + `)`
 }
 
 // wrappers finds the reads through each of the platform's wrapper roots in
@@ -35,12 +36,12 @@ func (r *platformRun) wrappers(f *file) error {
 		return cmp.Or(cmp.Compare(len(b.Root), len(a.Root)), cmp.Compare(a.Root, b.Root))
 	})
 	for _, w := range ws {
-		for _, m := range rootRE(w.Root).FindAllStringSubmatchIndex(f.src, -1) {
-			off, member := m[2], f.src[m[4]:m[5]]
+		for _, m := range r.regex(rootPat(w.Root)).FindAllStringSubmatchIndex(f.code, -1) {
+			off, member := m[2], f.code[m[4]:m[5]]
 			if r.claimed(f, off) {
 				continue
 			}
-			raw, via := f.src[off:m[5]], "wrapper:"+w.Root
+			raw, via := f.code[off:m[5]], "wrapper:"+w.Root
 			tok, why, err := r.resolveMember(w, member)
 			if err != nil {
 				return err

@@ -6,12 +6,14 @@ package consumer
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -416,4 +418,87 @@ func TestScanDeterministic(t *testing.T) {
 		assert.Equal(t, want, scan(t, m))
 	}
 	assert.Equal(t, want, scan(t, reversedFS{m}))
+}
+
+func TestSymlinksNotFollowed(t *testing.T) {
+	dir := t.TempDir()
+	for p, src := range fixture(t, false, map[string]string{"web/src/a.css": ".a { color: var(--accent); }\n"}) {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(src), 0o644))
+	}
+	src := filepath.Join(dir, "web", "src")
+	if err := os.Symlink("a.css", filepath.Join(src, "link.css")); err != nil {
+		t.Skipf("symlinks not permitted here: %v", err)
+	}
+	// A directory symlink loop and a directory symlink with a matching name.
+	require.NoError(t, os.Symlink(".", filepath.Join(src, "loop")))
+	require.NoError(t, os.Symlink(".", filepath.Join(src, "dir.css")))
+	res := scan(t, os.DirFS(dir))
+	var web []string
+	for _, p := range res.Problems {
+		if p.Platform == "web" && p.Kind == SchemaInvalid {
+			web = append(web, p.Detail)
+		}
+	}
+	assert.Equal(t, []string{"platform web: consumer symlinks are not followed, so 2 matched file(s) were not scanned: web/src/dir.css, web/src/link.css (platforms.web.consumers)"}, web)
+	assert.Equal(t, 1, res.Files["web"])
+	assert.Equal(t, []string{"web/src/a.css"}, raws(res.Refs, func(r Reference) string { return r.File }))
+}
+
+func TestFallbackBound(t *testing.T) {
+	var b strings.Builder
+	// An unclosed fallback must not run on to a ")" on a later line.
+	b.WriteString(".z { margin: var(--gap, 7px; }\n.y ) {}\n")
+	for range 6000 {
+		b.WriteString(".a { margin: var(--gap, 4px; }\n")
+		b.WriteString("x var(--gap, 1px 2px\n")
+		b.WriteString("y var(--gap, 3px } z\n")
+		b.WriteString("w var(--gap, 5px !important\n")
+	}
+	b.WriteString(".b { margin: var(--gap,\n  6px); }\n")
+	start := time.Now()
+	res := scan(t, fixture(t, false, map[string]string{"web/src/a.css": b.String()}))
+	assert.Less(t, time.Since(start), 2*time.Second, "unclosed var( must not make the scan quadratic")
+	ps := problemsIn(res, "web/src/a.css")
+	require.Len(t, ps, 4*6000+2)
+	assert.Equal(t, []string{"7px", "4px", "1px 2px", "3px", "5px"}, raws(ps[:5], func(p Problem) string { return p.Raw }))
+	assert.Equal(t, "6px", ps[len(ps)-1].Raw, "a closed fallback may span lines")
+	for _, p := range ps {
+		assert.LessOrEqual(t, len(p.Raw), 8)
+	}
+	assert.Len(t, refsIn(res, "web/src/a.css"), 4*6000+2)
+}
+
+func TestStylesheetCommentsBlanked(t *testing.T) {
+	res := scan(t, fixture(t, false, map[string]string{
+		"web/src/a.css": strings.Join([]string{
+			".a { /* var(--nope) theme.space.huge */ color: var(--accent); }",
+			"/* multi",
+			"   line var(--nope2) */ .b { margin: var(--gap); }",
+			`.c { content: "/* not a comment"; color: var(--ink); }`,
+			"/* --ghost: 1px */ .d { width: var(--ghost); }",
+			"/* unclosed var(--nope3)",
+		}, "\n") + "\n",
+		"web/src/b.tsx": "/* var(--nope4) */\n",
+	}))
+	ref := func(r Reference) string { return fmt.Sprintf("%d:%d %s=%s", r.Line, r.Col, r.Raw, r.Token) }
+	assert.Equal(t, []string{"1:52 --accent=accent", "3:42 --gap=gap", "4:46 --ink=ink", "5:36 --ghost="},
+		raws(refsIn(res, "web/src/a.css"), ref), "a commented custom property defines nothing")
+	assert.Equal(t, []string{"1:8 --nope4="}, raws(refsIn(res, "web/src/b.tsx"), ref), "only stylesheets have comments blanked")
+}
+
+func TestUnicodeIdentifiers(t *testing.T) {
+	res := scan(t, fixture(t, false, map[string]string{
+		"apple/Sources/A.swift": "let a = DesignTokens.café\nlet b = éDesignTokens.accent\nlet c = DesignTokens.accent\n",
+		"windows/App/A.xaml":    `<a b="{StaticResource DesignCafé}" c="{StaticResource DesignAccent}" />` + "\n",
+		"web/src/a.css":         ".a { color: var(--accenté); }\n",
+		"web/src/a.tsx":         "f(theme.space.smallé, tokens.accentñ)\n",
+	}))
+	ref := func(r Reference) string { return r.Raw + "=" + r.Token }
+	assert.Equal(t, []string{"DesignTokens.café=", "DesignTokens.accent=accent"}, raws(refsIn(res, "apple/Sources/A.swift"), ref))
+	assert.Equal(t, []string{"{StaticResource DesignCafé}=", "{StaticResource DesignAccent}=accent"}, raws(refsIn(res, "windows/App/A.xaml"), ref))
+	assert.Equal(t, []string{"--accenté="}, raws(refsIn(res, "web/src/a.css"), ref))
+	assert.Equal(t, []string{"theme.space.smallé=", "tokens.accentñ="}, raws(refsIn(res, "web/src/a.tsx"), ref))
+	assert.Equal(t, 2, len(problemsIn(res, "web/src/a.tsx")))
 }

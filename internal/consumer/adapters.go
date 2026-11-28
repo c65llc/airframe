@@ -26,8 +26,8 @@ var (
 	cssAdapter    = &adapter{format: "css", scan: scanCSS}
 	swiftAdapter  = &adapter{format: "swift", scan: scanSwift}
 	kotlinAdapter = &adapter{format: "kotlin", scan: scanKotlin}
-	xamlAdapter   = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, xamlRefRE) }}
-	csAdapter     = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, csRefRE) }}
+	xamlAdapter   = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, xamlRefPat) }}
+	csAdapter     = &adapter{format: "xaml", scan: func(r *platformRun, f *file) error { return scanXAML(r, f, csRefPat) }}
 )
 
 // adapters maps a consumer file extension to its adapter.
@@ -128,52 +128,55 @@ func (r *platformRun) typePart(format string) string {
 	return t
 }
 
-const identPat = "`?[A-Za-z_][A-Za-z0-9_]*`?"
+// identRune is a whole identifier, non-ASCII letters included, so a name
+// such as café is matched entire rather than cut at its first non-ASCII
+// letter; identPat is one that may be backticked.
+const (
+	identRune = `[\p{L}_][\p{L}\p{M}\p{N}_]*`
+	identPat  = "`?" + identRune + "`?"
+	notIdent  = `(?m)(?:^|[^\p{L}\p{M}\p{N}_])`
+)
 
-func scanSwift(r *platformRun, f *file) error {
-	re := regexp.MustCompile(`\b` + regexp.QuoteMeta(r.typePart("swift")) + `\.(` + identPat + `)`)
-	for _, m := range re.FindAllStringSubmatchIndex(f.src, -1) {
-		if err := r.native(f, m[0], f.src[m[0]:m[1]], f.src[m[2]:m[3]], "swift"); err != nil {
+// scanMatches runs pat over f's code; group 1 is the raw reference and
+// group 2 the identifier the format's names are looked up by.
+func scanMatches(r *platformRun, f *file, pat, format string) error {
+	for _, m := range r.regex(pat).FindAllStringSubmatchIndex(f.code, -1) {
+		if err := r.native(f, m[2], f.code[m[2]:m[3]], f.code[m[4]:m[5]], format); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func scanSwift(r *platformRun, f *file) error {
+	return scanMatches(r, f, notIdent+`(`+regexp.QuoteMeta(r.typePart("swift"))+`\.(`+identPat+`))`, "swift")
 }
 
 func scanKotlin(r *platformRun, f *file) error {
 	typ := r.typePart("kotlin")
-	member := regexp.MustCompile(`\b` + regexp.QuoteMeta(typ) + `\.(` + identPat + `)`)
-	slot := regexp.MustCompile(`\b` + regexp.QuoteMeta(emit.KotlinColorValuesType(typ)) + `\.` + identPat + `\.(` + identPat + `)`)
-	for _, re := range []*regexp.Regexp{member, slot} {
-		for _, m := range re.FindAllStringSubmatchIndex(f.src, -1) {
-			if err := r.native(f, m[0], f.src[m[0]:m[1]], f.src[m[2]:m[3]], "kotlin"); err != nil {
-				return err
-			}
-		}
+	if err := scanMatches(r, f, notIdent+`(`+regexp.QuoteMeta(typ)+`\.(`+identPat+`))`, "kotlin"); err != nil {
+		return err
 	}
-	return nil
+	return scanMatches(r, f, notIdent+`(`+regexp.QuoteMeta(emit.KotlinColorValuesType(typ))+`\.`+identPat+`\.(`+identPat+`))`, "kotlin")
 }
 
-var (
-	xamlRefRE = regexp.MustCompile(`\{(?:StaticResource|ThemeResource)\s+([A-Za-z_]\w*)\s*\}`)
-	csRefRE   = regexp.MustCompile(`Resources\["([A-Za-z_]\w*)"\]`)
+const (
+	xamlRefPat = `(\{(?:StaticResource|ThemeResource)\s+(` + identRune + `)\s*\})`
+	csRefPat   = `(Resources\["(` + identRune + `)"\])`
 )
 
-func scanXAML(r *platformRun, f *file, re *regexp.Regexp) error {
-	for _, m := range re.FindAllStringSubmatchIndex(f.src, -1) {
-		if err := r.native(f, m[0], f.src[m[0]:m[1]], f.src[m[2]:m[3]], "xaml"); err != nil {
-			return err
-		}
-	}
-	return nil
+func scanXAML(r *platformRun, f *file, pat string) error {
+	return scanMatches(r, f, pat, "xaml")
 }
 
 // localPropRE is a custom property definition (--name: or, in a script
 // object, '--name':), which makes the property app-local.
-var localPropRE = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(--[A-Za-z0-9_-]+)['"]?\s*:`)
+var localPropRE = regexp.MustCompile(`(?:^|[^A-Za-z0-9_\x{80}-\x{10FFFF}-])(--(?:[A-Za-z0-9_-]|[^\x00-\x7F])+)['"]?\s*:`)
 
+// isIdentByte is a byte of a CSS identifier: ASCII letters, digits, "-"
+// and "_", and every byte of a non-ASCII character.
 func isIdentByte(c byte) bool {
-	return c == '-' || c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+	return c == '-' || c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
 }
 
 // cssVar is one var( occurrence: the custom property and, when there is
@@ -229,11 +232,18 @@ func skipSpace(s string, i int) int {
 	return i
 }
 
+// maxFallback bounds how far a fallback is searched for its ")", so a
+// file of unclosed var( stays linear.
+const maxFallback = 4096
+
 // fallbackEnd is the offset of the ")" that closes the var( whose fallback
-// starts at start.
+// starts at start. With none (a depth-0 ";", "{", "}" or "!" comes first,
+// or none within maxFallback bytes) the fallback is unclosed: see
+// unclosedEnd.
 func fallbackEnd(s string, start int) int {
 	depth := 0
-	for i := start; i < len(s); i++ {
+	limit := min(len(s), start+maxFallback)
+	for i := start; i < limit; i++ {
 		switch c := s[i]; c {
 		case '(':
 			depth++
@@ -243,15 +253,82 @@ func fallbackEnd(s string, start int) int {
 			}
 			depth--
 		case '"', '\'':
-			if q := strings.IndexByte(s[i+1:], c); q >= 0 {
+			if q := strings.IndexByte(s[i+1:lineEnd(s, i+1)], c); q >= 0 {
 				i += q + 1
+			}
+		case ';', '{', '}', '!':
+			if depth == 0 {
+				return unclosedEnd(s, start)
 			}
 		}
 	}
-	if nl := strings.IndexByte(s[start:], '\n'); nl >= 0 {
-		return start + nl
+	return unclosedEnd(s, start)
+}
+
+// unclosedEnd ends an unclosed fallback at its first depth-0 ";", "{",
+// "}" or "!", or at the end of its line, whichever comes first.
+func unclosedEnd(s string, start int) int {
+	end, depth := lineEnd(s, start), 0
+	for i := start; i < end; i++ {
+		switch s[i] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case ';', '{', '}', '!':
+			if depth <= 0 {
+				return i
+			}
+		}
+	}
+	return end
+}
+
+// lineEnd is the offset of the newline ending the line holding i, or len(s).
+func lineEnd(s string, i int) int {
+	if nl := strings.IndexByte(s[i:], '\n'); nl >= 0 {
+		return i + nl
 	}
 	return len(s)
+}
+
+// stylesheetExts are the extensions whose /* … */ comments are blanked
+// before scanning; in every other file type a comment is read as code.
+var stylesheetExts = map[string]bool{".css": true, ".scss": true, ".sass": true, ".less": true}
+
+// blankComments replaces each /* … */ comment in a stylesheet (an
+// unclosed one runs to the end) with spaces, keeping newlines and so every
+// byte offset, line and col. Quoted strings are skipped, so "/*" in one
+// opens no comment.
+func blankComments(src string) string {
+	b := []byte(src)
+	for i := 0; i < len(b); i++ {
+		switch b[i] {
+		case '"', '\'':
+			q := b[i]
+			for i++; i < len(b) && b[i] != q && b[i] != '\n'; i++ {
+				if b[i] == '\\' {
+					i++
+				}
+			}
+		case '/':
+			if i+1 >= len(b) || b[i+1] != '*' {
+				continue
+			}
+			end := strings.Index(src[i+2:], "*/")
+			stop := len(b)
+			if end >= 0 {
+				stop = i + 2 + end + 2
+			}
+			for ; i < stop; i++ {
+				if b[i] != '\n' && b[i] != '\r' {
+					b[i] = ' '
+				}
+			}
+			i--
+		}
+	}
+	return string(b)
 }
 
 func scanCSS(r *platformRun, f *file) error {
@@ -259,7 +336,7 @@ func scanCSS(r *platformRun, f *file) error {
 	if err != nil {
 		return err
 	}
-	for _, v := range cssVars(f.src) {
+	for _, v := range cssVars(f.code) {
 		tok := names[v.name]
 		switch {
 		case tok != "":
