@@ -36,6 +36,16 @@ type option struct {
 // Blocks go in (pair count, key) order and declarations in name order. An
 // alias is written as var(--target), so overrides cascade.
 func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
+	out, _, err := buildCSS(p, pl)
+	return out, err
+}
+
+// cssProperty is t's custom property, per the fixed css naming --{name}.
+func cssProperty(t *tokens.Token) string { return "--" + t.Name }
+
+// buildCSS is CSS, also returning the tokens it declared, which
+// ReferenceNames reads.
+func buildCSS(p *project.Project, pl config.Platform) (map[string][]byte, []*tokens.Token, error) {
 	toks := emitted(p, "css")
 	inCSS := map[string]bool{}
 	for _, t := range toks {
@@ -60,27 +70,27 @@ func CSS(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 				continue
 			}
 			if v.Alias != "" && !inCSS[v.Alias] {
-				return nil, fmt.Errorf("--%s aliases %s, which is not emitted to css%s", t.Name, v.Alias, inMode(key))
+				return nil, nil, fmt.Errorf("--%s aliases %s, which is not emitted to css%s", t.Name, v.Alias, inMode(key))
 			}
 			val := CSSValue(v)
 			if val == "" {
-				return nil, fmt.Errorf("--%s: cannot write its value as CSS%s", t.Name, inMode(key))
+				return nil, nil, fmt.Errorf("--%s: cannot write its value as CSS%s", t.Name, inMode(key))
 			}
-			decls = append(decls, "--"+t.Name+": "+val+";")
+			decls = append(decls, cssProperty(t)+": "+val+";")
 		}
 		if len(decls) == 0 {
 			continue
 		}
 		scopes, err := Scopes(p.Config, key)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, sc := range scopes {
 			b.WriteByte('\n')
 			writeBlock(&b, sc, decls)
 		}
 	}
-	return map[string][]byte{outPath(p, pl, "css"): []byte(b.String())}, nil
+	return map[string][]byte{outPath(p, pl, "css"): []byte(b.String())}, toks, nil
 }
 
 // inMode is " (mode <key>)" for an override and "" for $value.

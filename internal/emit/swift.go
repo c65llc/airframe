@@ -36,6 +36,13 @@ import (
 // (and shadow colours) read Task 4's colorsets by ColorsetName, so they
 // need colorsets emitted on the same platform.
 func Swift(p *project.Project, pl config.Platform) (map[string][]byte, error) {
+	out, _, err := buildSwift(p, pl)
+	return out, err
+}
+
+// buildSwift is Swift, also returning the swifter whose names it wrote,
+// which ReferenceNames reads.
+func buildSwift(p *project.Project, pl config.Platform) (map[string][]byte, *swifter, error) {
 	np := PlanNative(p.Config, pl)
 	sw := &swifter{p: p, np: np, template: p.Config.NamingFor("swift")}
 	tmpl := outPath(p, pl, "swift")
@@ -46,11 +53,11 @@ func Swift(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 	sw.perFile = fan != "" && strings.Contains(tmpl, fan)
 	if fan != "" && !sw.perFile && slices.Contains(pl.Emit, "colorsets") {
 		if last := path.Base(strings.TrimSuffix(outPath(p, pl, "colorsets"), "/")); strings.Contains(last, fan) {
-			return nil, fmt.Errorf("the colorset namespace differs per %[1]s; put {%[1]s} in the swift out path", np.FanOut.Name)
+			return nil, nil, fmt.Errorf("the colorset namespace differs per %[1]s; put {%[1]s} in the swift out path", np.FanOut.Name)
 		}
 	}
 	if err := sw.prepare(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := map[string][]byte{}
 	for _, o := range np.Outputs() {
@@ -59,18 +66,18 @@ func Swift(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 			f = strings.ReplaceAll(f, fan, o.FanValue)
 		}
 		if strings.ContainsAny(f, "{}") {
-			return nil, fmt.Errorf("swift out path %s has a placeholder that is not the fan-out axis", tmpl)
+			return nil, nil, fmt.Errorf("swift out path %s has a placeholder that is not the fan-out axis", tmpl)
 		}
 		b, err := sw.file(o)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out[f] = b
 		if !sw.perFile {
 			break // a shared file is written once
 		}
 	}
-	return out, nil
+	return out, sw, nil
 }
 
 // swiftReserved are the type names the generated file uses; a nested
@@ -174,7 +181,7 @@ func (sw *swifter) prepare() error {
 			continue
 		}
 		sw.params = append(sw.params, a)
-		enum, prop := Pascal(a.Name), SwiftIdent(Camel(a.Name))
+		enum, prop := swiftEnum(a), swiftProp(a)
 		if !validSwift(prop) {
 			return fmt.Errorf("axis %s has no Swift property name (%s)", a.Name, prop)
 		}
@@ -189,7 +196,7 @@ func (sw *swifter) prepare() error {
 		}
 		cases := map[string]string{}
 		for _, v := range a.Values {
-			c := SwiftIdent(Camel(v))
+			c := swiftCase(v)
 			if !validSwift(c) {
 				return fmt.Errorf("axis %s value %q has no Swift case name", a.Name, v)
 			}
@@ -201,6 +208,13 @@ func (sw *swifter) prepare() error {
 	}
 	return nil
 }
+
+// swiftEnum, swiftProp and swiftCase name a runtime parameter's nested
+// enum, its stored property (and init label), and the case of one of its
+// values.
+func swiftEnum(a config.Axis) string { return Pascal(a.Name) }
+func swiftProp(a config.Axis) string { return SwiftIdent(Camel(a.Name)) }
+func swiftCase(v string) string      { return SwiftIdent(Camel(v)) }
 
 // axesOf works out the axes t's Swift value switches on: each runtime axis
 // it varies on, and appearance when a non-colour part of it does. With a
@@ -335,9 +349,9 @@ func (sw *swifter) file(o Output) ([]byte, error) {
 	b.WriteString("// " + header(sw.p) + "\n\nimport SwiftUI\n\n")
 	fmt.Fprintf(&b, "public struct %s: Sendable {\n", sw.typ)
 	for _, a := range sw.params {
-		fmt.Fprintf(&b, "    public enum %s: String, CaseIterable, Sendable {\n", Pascal(a.Name))
+		fmt.Fprintf(&b, "    public enum %s: String, CaseIterable, Sendable {\n", swiftEnum(a))
 		for _, v := range a.Values {
-			c := SwiftIdent(Camel(v))
+			c := swiftCase(v)
 			if strings.Trim(c, "`") == v {
 				fmt.Fprintf(&b, "        case %s\n", c)
 			} else {
@@ -350,12 +364,12 @@ func (sw *swifter) file(o Output) ([]byte, error) {
 	if len(sw.params) > 0 {
 		var args []string
 		for _, a := range sw.params {
-			fmt.Fprintf(&b, "    public var %s: %s\n", SwiftIdent(Camel(a.Name)), Pascal(a.Name))
-			args = append(args, fmt.Sprintf("%s: %s = .%s", SwiftIdent(Camel(a.Name)), Pascal(a.Name), SwiftIdent(Camel(base(a)))))
+			fmt.Fprintf(&b, "    public var %s: %s\n", swiftProp(a), swiftEnum(a))
+			args = append(args, fmt.Sprintf("%s: %s = .%s", swiftProp(a), swiftEnum(a), swiftCase(base(a))))
 		}
 		fmt.Fprintf(&b, "\n    public init(%s) {\n", strings.Join(args, ", "))
 		for _, a := range sw.params {
-			p := SwiftIdent(Camel(a.Name))
+			p := swiftProp(a)
 			fmt.Fprintf(&b, "        self.%s = %s\n", strings.Trim(p, "`"), p)
 		}
 		b.WriteString("    }\n")
@@ -437,7 +451,7 @@ func (sw *swifter) member(b *strings.Builder, m swiftMember, o Output) error {
 	}
 	var subject []string
 	for _, a := range m.axes {
-		subject = append(subject, SwiftIdent(Camel(a.Name)))
+		subject = append(subject, swiftProp(a))
 	}
 	fmt.Fprintf(b, "    public var %s: %s {\n", m.name, typ)
 	if len(subject) == 1 {
@@ -452,7 +466,7 @@ func (sw *swifter) member(b *strings.Builder, m swiftMember, o Output) error {
 		}
 		var pats []string
 		for _, a := range m.axes {
-			pats = append(pats, "."+SwiftIdent(Camel(ctx[a.Name])))
+			pats = append(pats, "."+swiftCase(ctx[a.Name]))
 		}
 		pat := pats[0]
 		if len(pats) > 1 {

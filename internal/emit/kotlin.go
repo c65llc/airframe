@@ -35,17 +35,25 @@ import (
 // colorSpace: display-p3, Display P3 components, mapped into gamut by CSS
 // Color 4 or, with gamut: clip, clipped.
 func Kotlin(p *project.Project, pl config.Platform) (map[string][]byte, error) {
+	out, _, err := buildKotlin(p, pl)
+	return out, err
+}
+
+// buildKotlin is Kotlin, also returning the kotliner whose names it wrote
+// (its slots, members and params set), which ReferenceNames reads.
+func buildKotlin(p *project.Project, pl config.Platform) (map[string][]byte, *kotliner, error) {
 	k, err := newKotliner(p, pl)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	slots, err := k.slots()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	k.slotList = slots
 	shared, err := k.sharedDecls(slots)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tmpl := outPath(p, pl, "kotlin")
@@ -56,10 +64,10 @@ func Kotlin(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 	perFile := fan != "" && strings.Contains(tmpl, fan)
 	sharedOut, hasShared := pl.Option("sharedOut")
 	if !hasShared && perFile {
-		return nil, fmt.Errorf("out fans out per %s; set options.sharedOut for the shared DesignTokens file", k.np.FanOut.Name)
+		return nil, nil, fmt.Errorf("out fans out per %s; set options.sharedOut for the shared DesignTokens file", k.np.FanOut.Name)
 	}
 	if hasShared && sharedOut == tmpl {
-		return nil, fmt.Errorf("options.sharedOut and the kotlin out are both %s; the shared file needs a path of its own", sharedOut)
+		return nil, nil, fmt.Errorf("options.sharedOut and the kotlin out are both %s; the shared file needs a path of its own", sharedOut)
 	}
 
 	out := map[string][]byte{}
@@ -70,11 +78,11 @@ func Kotlin(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 			f = strings.ReplaceAll(f, fan, o.FanValue)
 		}
 		if strings.ContainsAny(f, "{}") {
-			return nil, fmt.Errorf("kotlin out path %s has a placeholder that is not the fan-out axis", tmpl)
+			return nil, nil, fmt.Errorf("kotlin out path %s has a placeholder that is not the fan-out axis", tmpl)
 		}
 		values, err := k.values(slots, o)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		var b []byte
 		if hasShared {
@@ -83,18 +91,18 @@ func Kotlin(p *project.Project, pl config.Platform) (map[string][]byte, error) {
 			b = k.file(append(slices.Clone(shared), values...))
 		}
 		if prev, ok := out[f]; ok && !bytes.Equal(prev, b) {
-			return nil, fmt.Errorf("%s differs between %s %s and %s; put {%s} in the kotlin out path",
+			return nil, nil, fmt.Errorf("%s differs between %s %s and %s; put {%s} in the kotlin out path",
 				f, k.np.FanOut.Name, by[f], o.FanValue, k.np.FanOut.Name)
 		}
 		out[f], by[f] = b, o.FanValue
 	}
 	if hasShared {
 		if _, dup := out[sharedOut]; dup {
-			return nil, fmt.Errorf("options.sharedOut %s is also a kotlin out file", sharedOut)
+			return nil, nil, fmt.Errorf("options.sharedOut %s is also a kotlin out file", sharedOut)
 		}
 		out[sharedOut] = k.file(shared)
 	}
-	return out, nil
+	return out, k, nil
 }
 
 // kotlinSlot is one field of <Type>Colors: a colour token, or layer Layer
@@ -115,6 +123,12 @@ type kotliner struct {
 	typ      string // the template's type part, DesignTokens by default
 	space    string // srgb or display-p3
 	gamut    string // css-color-4 or clip
+
+	// Set as the build goes: the colour slots, then the <Type> class's
+	// members and runtime parameters.
+	slotList []kotlinSlot
+	members  []kotlinMember
+	params   []config.Axis
 }
 
 // newKotliner reads pl's kotlin options and checks the template's type.
@@ -339,9 +353,8 @@ func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
 	fmt.Fprintf(&b, "public object %s {\n", k.valuesType())
 	seen := map[string]string{} // val name → appearance value
 	for i, av := range k.appearances() {
-		name := "colors"
+		name := kotlinValuesVal(av)
 		if av != "" {
-			name = KotlinIdent(Camel(av))
 			if !validKotlin(name) {
 				return nil, fmt.Errorf("appearance value %q has no Kotlin name", av)
 			}
@@ -367,6 +380,30 @@ func (k *kotliner) values(slots []kotlinSlot, o Output) ([]kotlinDecl, error) {
 	b.WriteString("}\n")
 	return []kotlinDecl{{imports: imports, body: b.String()}}, nil
 }
+
+// kotlinValuesVal names <Type>ColorValues' <Type>Colors for appearance
+// value av: Camel(av), or colors with no appearance axis (av "").
+func kotlinValuesVal(av string) string {
+	if av == "" {
+		return "colors"
+	}
+	return KotlinIdent(Camel(av))
+}
+
+// kotlinSchemeKind is the Material 3 scheme kind of appearance value av
+// (light for "" and light, dark for dark); ok is false for any other.
+func kotlinSchemeKind(av string) (kind string, ok bool) {
+	switch av {
+	case "", "light":
+		return "light", true
+	case "dark":
+		return "dark", true
+	}
+	return "", false
+}
+
+// kotlinSchemeVal names the ColorScheme val of scheme kind kind.
+func kotlinSchemeVal(kind string) string { return kind + "Scheme" }
 
 const kotlinMaterial3 = "androidx.compose.material3."
 
@@ -403,16 +440,12 @@ func (k *kotliner) schemes(o Output) (string, []string, error) {
 	imports := []string{kotlinMaterial3 + "ColorScheme"}
 	var b strings.Builder
 	for _, av := range k.appearances() {
-		kind := "light"
-		switch av {
-		case "", "light":
-		case "dark":
-			kind = "dark"
-		default:
+		kind, ok := kotlinSchemeKind(av)
+		if !ok {
 			return "", nil, fmt.Errorf("appearance value %q has no Material 3 color scheme; material3Scheme needs appearance values light and dark", av)
 		}
 		imports = append(imports, kotlinMaterial3+kind+"ColorScheme")
-		fmt.Fprintf(&b, "\n    public val %sScheme: ColorScheme = %sColorScheme(\n", kind, kind)
+		fmt.Fprintf(&b, "\n    public val %s: ColorScheme = %sColorScheme(\n", kotlinSchemeVal(kind), kind)
 		full := k.full(config.Context{}, o, av)
 		for _, r := range roles {
 			v, err := k.np.Value(k.p.Tokens, r[1], full)
@@ -585,7 +618,7 @@ func (k *kotliner) prepare(slots []kotlinSlot) ([]kotlinMember, []config.Axis, e
 			continue
 		}
 		params = append(params, a)
-		enum, prop := Pascal(a.Name), KotlinIdent(Camel(a.Name))
+		enum, prop := kotlinEnum(a), kotlinProp(a)
 		if !kotlinIdentRE.MatchString(enum) || slices.Contains(config.KotlinKeywords, enum) {
 			return nil, nil, fmt.Errorf("axis %s would be Kotlin enum %s, which is not a Kotlin type name the file can declare", a.Name, enum)
 		}
@@ -602,7 +635,7 @@ func (k *kotliner) prepare(slots []kotlinSlot) ([]kotlinMember, []config.Axis, e
 		owner[strings.Trim(prop, "`")] = "axis " + a.Name
 		cases := map[string]string{}
 		for _, v := range a.Values {
-			c := KotlinIdent(Pascal(v))
+			c := kotlinConst(v)
 			if !validKotlin(c) {
 				return nil, nil, fmt.Errorf("axis %s value %q has no Kotlin enum constant name", a.Name, v)
 			}
@@ -614,6 +647,13 @@ func (k *kotliner) prepare(slots []kotlinSlot) ([]kotlinMember, []config.Axis, e
 	}
 	return members, params, nil
 }
+
+// kotlinEnum, kotlinProp and kotlinConst name a runtime parameter's
+// nested enum class, its constructor property, and the constant of one of
+// its values.
+func kotlinEnum(a config.Axis) string { return Pascal(a.Name) }
+func kotlinProp(a config.Axis) string { return KotlinIdent(Camel(a.Name)) }
+func kotlinConst(v string) string     { return KotlinIdent(Pascal(v)) }
 
 // axesOf works out the axes t's Kotlin value switches on: each runtime
 // axis it varies on, and appearance when a non-colour part of it does (a
@@ -666,6 +706,7 @@ func (k *kotliner) tokensDecl(slots []kotlinSlot) (kotlinDecl, error) {
 	if err != nil {
 		return kotlinDecl{}, err
 	}
+	k.members, k.params = members, params
 	slotOf := map[string]string{} // slotKey → slot name
 	for _, s := range slots {
 		slotOf[slotKey(s.Token.Name, s.Layer, s.Ctx)] = s.Name
@@ -680,9 +721,9 @@ func (k *kotliner) tokensDecl(slots []kotlinSlot) (kotlinDecl, error) {
 		}
 		var cs []string
 		for _, v := range a.Values {
-			cs = append(cs, KotlinIdent(Pascal(v)))
+			cs = append(cs, kotlinConst(v))
 		}
-		fmt.Fprintf(&enums, "    public enum class %s { %s }\n", Pascal(a.Name), strings.Join(cs, ", "))
+		fmt.Fprintf(&enums, "    public enum class %s { %s }\n", kotlinEnum(a), strings.Join(cs, ", "))
 	}
 	if enums.Len() > 0 {
 		sections = append(sections, enums.String())
@@ -732,7 +773,7 @@ func (k *kotliner) tokensDecl(slots []kotlinSlot) (kotlinDecl, error) {
 		args = append(args, "    public val colors: "+k.colorsType()+",\n")
 	}
 	for _, a := range params {
-		args = append(args, fmt.Sprintf("    public val %s: %s = %[2]s.%s,\n", KotlinIdent(Camel(a.Name)), Pascal(a.Name), KotlinIdent(Pascal(base(a)))))
+		args = append(args, fmt.Sprintf("    public val %s: %s = %[2]s.%s,\n", kotlinProp(a), kotlinEnum(a), kotlinConst(base(a))))
 	}
 	if len(args) > 0 {
 		b.WriteString("(\n" + strings.Join(args, "") + ")")
@@ -773,11 +814,11 @@ func (k *kotliner) when(b *strings.Builder, m kotlinMember, axes []config.Axis, 
 		return nil
 	}
 	a := axes[0]
-	fmt.Fprintf(b, "when (%s) {\n", KotlinIdent(Camel(a.Name)))
+	fmt.Fprintf(b, "when (%s) {\n", kotlinProp(a))
 	for _, v := range a.Values {
 		c := maps.Clone(ctx)
 		c[a.Name] = v
-		fmt.Fprintf(b, "%s    %s.%s -> ", indent, Pascal(a.Name), KotlinIdent(Pascal(v)))
+		fmt.Fprintf(b, "%s    %s.%s -> ", indent, kotlinEnum(a), kotlinConst(v))
 		if err := k.when(b, m, axes[1:], c, indent+"    ", slotOf); err != nil {
 			return err
 		}
