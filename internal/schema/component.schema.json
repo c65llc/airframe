@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "components/<id>.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "description": "must equal the file's basename" },
+    "noun": { "type": "string" },
+    "ruling": { "type": "string" },
+    "tokens": {
+      "type": "array",
+      "description": "the component-tier tokens this component owns",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "owners": {
+      "type": "array",
+      "description": "repo-relative globs of the files allowed to read the owned tokens; required and non-empty unless shared is true",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "shared": { "type": "boolean" },
+    "hostedBy": { "type": ["string", "null"] },
+    "implementations": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

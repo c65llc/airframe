@@ -5,7 +5,7 @@ since: v0.1.0
 
 # not-formatted
 
-A token, config or invariants file differs from what `airframe fmt` would write.
+A token, config, invariants or component file differs from what `airframe fmt` would write.
 
 **Why**
 

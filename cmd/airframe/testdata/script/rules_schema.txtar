@@ -12,3 +12,5 @@ exec airframe schema config
 stdout '"\$schema"'
 exec airframe schema tokens
 exec airframe schema invariants
+exec airframe schema component
+stdout 'components/<id>.yaml'

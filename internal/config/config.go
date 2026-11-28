@@ -74,6 +74,26 @@ type Platform struct {
 	Consumers []string
 	FanOut    string         // name of the build-bound axis the emitters fan out over
 	Options   map[string]any // scalars as string, bool or float64; mappings as map[string]any
+	Wrappers  []Wrapper      // hand-written token wrappers, in file order
+}
+
+// Wrapper declares one hand-written wrapper root on a platform: a read of
+// Root.<member> in a consumer file is a token read. A Generated wrapper's
+// members are the platform's generated names; otherwise Map names a
+// member's token directly and Patterns derive one from the member, Map
+// winning over Patterns.
+type Wrapper struct {
+	Root      string
+	Generated bool
+	Map       map[string]string
+	Patterns  []WrapperPattern // in file order
+}
+
+// WrapperPattern maps every member Match matches to Token, a template whose
+// {1}…{9} are replaced by Match's capture groups.
+type WrapperPattern struct {
+	Match *regexp.Regexp
+	Token string
 }
 
 // Option returns the scalar option key as a string; ok is false when it is
@@ -532,6 +552,13 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 		return p, &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name),
 			path: "platforms." + p.Name + ".options.package", line: key.Line}
 	}
+	if w := field(n, "wrappers"); w != nil {
+		ws, err := buildWrappers(p.Name, w)
+		if err != nil {
+			return p, err
+		}
+		p.Wrappers = ws
+	}
 	if o := field(n, "out"); o != nil {
 		p.Out = map[string]string{}
 		if o.Kind == yaml.ScalarNode {
@@ -828,6 +855,105 @@ func checkXAMLOptions(p Platform, o *yaml.Node) *buildError {
 		}
 	}
 	return nil
+}
+
+var (
+	wrapperRoot  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$`)
+	wrapperGroup = regexp.MustCompile(`\{(\d+)\}`)
+)
+
+// isString is a plain YAML string scalar: not a number, bool, null or
+// timestamp that JSON validation would see as (or turn into) a string.
+func isString(n *yaml.Node) bool { return n.Kind == yaml.ScalarNode && n.ShortTag() == "!!str" }
+
+// buildWrappers reads and checks a platform's wrappers list. The schema has
+// already checked its structure: a list of mappings with known keys of the
+// right JSON types.
+func buildWrappers(platform string, n *yaml.Node) ([]Wrapper, *buildError) {
+	base := "platforms." + platform + ".wrappers."
+	bad := func(at string, line int, format string, a ...any) *buildError {
+		return &buildError{msg: fmt.Sprintf("platform %s: %s", platform, fmt.Sprintf(format, a...)), path: base + at, line: line}
+	}
+	var out []Wrapper
+	roots := map[string]bool{}
+	for i, e := range n.Content {
+		at := fmt.Sprint(i)
+		var w Wrapper
+		rn, gn, mn, pn := field(e, "root"), field(e, "generated"), field(e, "map"), field(e, "patterns")
+		if rn == nil { // the schema requires it
+			return nil, bad(at, e.Line, "wrapper needs a root")
+		}
+		if !isString(rn) {
+			return nil, bad(at+".root", rn.Line, "wrapper root must be a string")
+		}
+		if !wrapperRoot.MatchString(rn.Value) {
+			return nil, bad(at+".root", rn.Line, "wrapper root %q must be dotted identifiers, as in AppTheme.spacing", rn.Value)
+		}
+		if roots[rn.Value] {
+			return nil, bad(at+".root", rn.Line, "wrapper root %s is declared twice", rn.Value)
+		}
+		roots[rn.Value] = true
+		w.Root = rn.Value
+
+		if gn != nil {
+			if gn.Kind != yaml.ScalarNode || gn.ShortTag() != "!!bool" {
+				return nil, bad(at+".generated", gn.Line, "generated must be a boolean")
+			}
+			if gn.Value != "true" {
+				return nil, bad(at+".generated", gn.Line, "generated may only be true; omit it for a wrapper with map or patterns")
+			}
+			w.Generated = true
+		}
+		if w.Generated == (mn != nil || pn != nil) {
+			return nil, bad(at, e.Line, "wrapper %s must have exactly one shape: generated: true, or at least one of map and patterns", w.Root)
+		}
+
+		if mn != nil {
+			ks, vs := mapping(mn)
+			if len(ks) == 0 {
+				return nil, bad(at+".map", mn.Line, "wrapper %s: map has no members", w.Root)
+			}
+			w.Map = map[string]string{}
+			for j, k := range ks {
+				if !isString(vs[j]) || vs[j].Value == "" {
+					return nil, bad(at+".map."+k.Value, vs[j].Line, "wrapper %s: map member %s must be a non-empty string naming a token", w.Root, k.Value)
+				}
+				w.Map[k.Value] = vs[j].Value
+			}
+		}
+
+		if pn != nil {
+			if len(pn.Content) == 0 {
+				return nil, bad(at+".patterns", pn.Line, "wrapper %s: patterns has no entries", w.Root)
+			}
+			for j, pe := range pn.Content {
+				pat := fmt.Sprintf("%s.patterns.%d", at, j)
+				m, tok := field(pe, "match"), field(pe, "token")
+				if m == nil || tok == nil { // the schema requires both
+					return nil, bad(pat, pe.Line, "wrapper %s: a pattern needs match and token", w.Root)
+				}
+				if !isString(m) {
+					return nil, bad(pat+".match", m.Line, "wrapper %s: match must be a string", w.Root)
+				}
+				re, err := regexp.Compile(m.Value)
+				if err != nil {
+					return nil, bad(pat+".match", m.Line, "wrapper %s: match %q does not compile under RE2: %v", w.Root, m.Value, err)
+				}
+				if !isString(tok) || tok.Value == "" {
+					return nil, bad(pat+".token", tok.Line, "wrapper %s: token must be a non-empty string template", w.Root)
+				}
+				for _, g := range wrapperGroup.FindAllStringSubmatch(tok.Value, -1) {
+					if g[1] == "0" || len(g[1]) > 1 || int(g[1][0]-'0') > re.NumSubexp() {
+						return nil, bad(pat+".token", tok.Line, "wrapper %s: token %s uses %s, but match %s has %d capture group(s); {1}…{9} name groups that exist",
+							w.Root, tok.Value, g[0], m.Value, re.NumSubexp())
+					}
+				}
+				w.Patterns = append(w.Patterns, WrapperPattern{Match: re, Token: tok.Value})
+			}
+		}
+		out = append(out, w)
+	}
+	return out, nil
 }
 
 var placeholder = regexp.MustCompile(`\{[^{}]*\}`)

@@ -2,7 +2,8 @@
 // Copyright 2026 C65 LLC
 
 // Package format canonicalises Airframe's source files: DTCG token JSON and
-// the YAML config. Formatting never reorders groups or tokens.
+// the YAML config, invariants and component files. Formatting never
+// reorders groups or tokens.
 package format
 
 import (
@@ -106,10 +107,12 @@ func normalise(b []byte) []byte {
 }
 
 // Paths lists, sorted, the repo-relative files Project formats: airframe.yaml,
-// every token file, and <content>/invariants.yaml when the project has one.
+// every token file, <content>/invariants.yaml when the project has one, and
+// every component file.
 func Paths(p *project.Project) []string {
 	out := []string{config.File}
 	out = append(out, p.TokenFiles...)
+	out = append(out, p.ComponentFiles...)
 	inv := path.Join(p.Config.Content, invariants.File)
 	if _, ok := p.Sources[inv]; ok {
 		out = append(out, inv)

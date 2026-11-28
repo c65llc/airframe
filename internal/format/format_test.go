@@ -99,3 +99,20 @@ func TestProjectReturnsOnlyChanged(t *testing.T) {
 	assert.Contains(t, got, f)
 	var _ fs.FS = p.FS
 }
+
+func TestPathsIncludeComponentFiles(t *testing.T) {
+	p, _, err := project.Load(project.MemFS{
+		"airframe.yaml":                   "version: 1\n",
+		"design-system/c.tokens.json":     `{ "s": { "$type": "dimension", "$value": { "value": 4, "unit": "px" } } }`,
+		"design-system/components/b.yaml": "id: b\nshared: true\n",
+		"design-system/components/a.yaml": "id:    a\nowners:    [x/**]\n",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.Equal(t, []string{"airframe.yaml", "design-system/c.tokens.json",
+		"design-system/components/a.yaml", "design-system/components/b.yaml"}, Paths(p))
+	got := Project(p)
+	assert.Contains(t, got, "design-system/components/a.yaml")
+	assert.Equal(t, "id: a\nowners: [x/**]\n", string(got["design-system/components/a.yaml"]))
+	assert.NotContains(t, got, "design-system/components/b.yaml")
+}
