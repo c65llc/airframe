@@ -1,0 +1,57 @@
+# rename rewrites a token across its token files, the config, the
+# invariants and every platform's consumer files, then rebuilds. --dry-run
+# writes nothing; a reference left to finish by hand refuses the rename
+# unless --allow-manual; a rename that would not build is refused.
+fixture consumers
+mkdir web/src android/src windows/App
+cp app.css web/src/app.css
+cp Screen.kt android/src/Screen.kt
+cp Page.xaml windows/App/Page.xaml
+cp Button.tsx web/src/Button.tsx
+
+exec airframe rename gap spacing --dry-run
+stdout '^would rename gap to spacing \(path gap → spacing\)$'
+stdout '^web/src/app.css:1:18  --gap → --spacing$'
+stdout '^windows/App/Page.xaml:1:32  DesignGapCompact → DesignSpacingCompact$'
+stdout '^android/src/Screen.kt:1:31  gap → spacing$'
+stdout '^design-system/tokens/semantic.tokens.json:17  move gap → spacing$'
+grep 'var\(--gap\)' web/src/app.css
+! grep spacing design-system/tokens/semantic.tokens.json
+
+exec airframe rename gap spacing
+stdout '^wrote web/src/app.css$'
+stdout '^wrote design-system/tokens/semantic.tokens.json$'
+stdout '^wrote web/src/generated/tokens.css$'
+grep 'var\(--spacing\)' web/src/app.css
+grep 'DesignSpacingCompact' windows/App/Page.xaml
+grep 'LocalTokens.current.spacing' android/src/Screen.kt
+grep '"spacing"' design-system/tokens/semantic.tokens.json
+grep 'space4: spacing' airframe.yaml
+exec airframe build --check
+! stdout .
+
+# theme.space.space2 reads space-2 through a pattern: manual.
+exits 1 airframe rename space-2 space-two
+stdout '^web/src/Button.tsx:1  manual: platform web: theme.space.space2 reads space-2'
+stderr 'left to finish by hand'
+! grep space-two airframe.yaml
+exec airframe rename space-2 space-two --allow-manual
+stdout 'reference\(s\) left to finish by hand'
+grep 'small: space-two' airframe.yaml
+grep 'theme.space.space2' web/src/Button.tsx
+
+exits 1 airframe rename spacing space4
+stderr 'the renamed project does not build'
+stderr 'both make XAML key DesignSpace4'
+exits 1 airframe rename nope other
+stderr 'there is no token nope'
+exits 2 airframe rename spacing
+
+-- app.css --
+.a { margin: var(--gap); }
+-- Screen.kt --
+val gap = LocalTokens.current.gap
+-- Page.xaml --
+<Grid Padding="{StaticResource DesignGapCompact}" />
+-- Button.tsx --
+export const b = theme.space.space2;

@@ -19,11 +19,9 @@ import (
 	"io"
 	"io/fs"
 	"maps"
-	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -174,6 +172,7 @@ var Commands = []Command{
 		},
 	},
 	diffCommand,
+	renameCommand,
 	retireCommand,
 	specimenCommand,
 	{
@@ -462,48 +461,15 @@ func (inv *invocation) load() (string, *project.Project, []diag.Diagnostic, erro
 // neither ".." nor a symlink can carry the write outside the project. An
 // existing file keeps its permission bits; a new one gets 0644.
 func writeFile(root *os.Root, rel string, data []byte) error {
-	name := filepath.FromSlash(rel)
-	parent := filepath.Dir(name)
-	if err := root.MkdirAll(parent, 0o755); err != nil {
-		return err
-	}
-	perm := os.FileMode(0o644)
-	if fi, err := root.Stat(name); err == nil {
-		perm = fi.Mode().Perm()
-	} else if !errors.Is(err, fs.ErrNotExist) {
-		return err
-	}
-	var tmp *os.File
-	var tmpName string
-	for range 10 {
-		tmpName = filepath.Join(parent, "."+filepath.Base(name)+".tmp-"+strconv.FormatUint(rand.Uint64(), 36))
-		f, err := root.OpenFile(tmpName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if errors.Is(err, fs.ErrExist) {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		tmp = f
-		break
-	}
-	if tmp == nil {
-		return fmt.Errorf("write %s: no free temporary name", rel)
-	}
-	_, err := tmp.Write(data)
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil {
-		err = root.Chmod(tmpName, perm)
-	}
-	if err == nil {
-		err = root.Rename(tmpName, name)
-	}
+	tmp, err := stageFile(root, rel, data)
 	if err != nil {
-		_ = root.Remove(tmpName)
+		return err
 	}
-	return err
+	if err := root.Rename(tmp, filepath.FromSlash(rel)); err != nil {
+		_ = root.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 // lf is b with CRLF line endings made LF, as the formatter and emitters

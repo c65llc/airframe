@@ -64,6 +64,10 @@ type EditPlan struct {
 	Manual           []Manual
 	Files            map[string][]byte
 	After            *project.Project
+	// Consumers holds the final bytes of every consumer file Codemod
+	// edits, and ConsumerSources the bytes those edits were spliced into;
+	// both are nil from Plan, which leaves consumer files alone.
+	Consumers, ConsumerSources map[string][]byte
 }
 
 // Refusal is a rename the planner will not make: a precondition failed, or
