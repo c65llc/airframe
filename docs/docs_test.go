@@ -123,7 +123,7 @@ func TestRuleUnknown(t *testing.T) {
 
 // TestReadmeMatchesRelease guards the README against drifting from what
 // the release does: it carries the install line, the quick start and the
-// Action usage, describes every emitter as built (XAML as next release),
+// Action usage, describes every emitter as built (XAML new in v0.5.0),
 // and plans no emitter.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
@@ -132,21 +132,21 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, want := range []string{
 		"go install github.com/c65llc/airframe/cmd/airframe@latest",
 		"airframe init", "airframe lint", "airframe build", "airframe fmt",
-		"uses: c65llc/airframe@v0", "version: v0.4.0",
-		"**Planned (not in v0.4.0)**",
+		"uses: c65llc/airframe@v0", "version: v0.5.0",
+		"**Planned (not in v0.5.0)**",
 	} {
 		assert.Contains(t, readme, want)
 	}
-	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.4.0)**")
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.5.0)**")
 	require.True(t, ok)
-	built, _, _ := strings.Cut(readme, "**Planned (not in v0.4.0)**")
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.5.0)**")
 	planned, _, ok = strings.Cut(planned, "\n## ")
 	require.True(t, ok, "the planned list ends at the next section")
 	for _, emitter := range []string{"Swift", "Kotlin", "XAML"} {
 		assert.Contains(t, built, emitter, "a built emitter is described before the planned list")
 		assert.NotContains(t, planned, emitter, "a built emitter is not planned")
 	}
-	assert.Contains(t, built, "**Emits XAML/WinUI** (next release)", "XAML is built, but not in a release yet")
+	assert.Contains(t, built, "**Emits XAML/WinUI** (new in v0.5.0)", "XAML is built and released")
 	assert.Contains(t, built, "(docs/guides/windows.md)")
 	for _, word := range []string{"emitter", "emit-unsupported", "C#"} {
 		assert.NotContains(t, planned, word, "every emitter is built; the planned list names none")

@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and the next release the Windows emitter (§6.7 item 3, done); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters, v0.4.0 the Android emitter and v0.5.0 the Windows emitter (§6.7 item 3, done); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -158,7 +158,7 @@ lint:
   rules: { fallback-literal: error, contrast-below: error }
 ```
 
-Every format `airframe.yaml` accepts is built: v0.4.0 builds the `css`, `json`, `swift`, `colorsets` and `kotlin` formats, and `xaml` (WinUI 3 resource dictionaries) lands in the next release. With nothing left unbuilt, `emit-unsupported` is retired (v0.5.0); its rule page stays.
+Every format `airframe.yaml` accepts is built: v0.5.0 builds the `css`, `json`, `swift`, `colorsets`, `kotlin` and `xaml` (WinUI 3 resource dictionaries) formats. With nothing left unbuilt, `emit-unsupported` is retired (v0.5.0); its rule page stays.
 
 ### 6.3 Records
 
