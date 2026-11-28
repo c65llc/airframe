@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/c65llc/airframe/internal/consumer"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/project"
 	"github.com/c65llc/airframe/internal/tokens"
@@ -30,6 +31,13 @@ type Context struct {
 	resolved map[resolveKey]*tokens.Value
 	// axesOf memoises the axes each token's value can vary on.
 	axesOf map[string]map[string]bool
+	// scan is the run's one consumer scan, read by every consumer rule;
+	// scanNA says why it is nil. See consumerScan.
+	scan    *consumer.Result
+	scanNA  string
+	scanned bool
+	// err is the first I/O failure a rule hit; Run returns it.
+	err error
 }
 
 // Exemption is one finding a token's exempt marker suppressed. File and
@@ -63,13 +71,16 @@ type Options struct {
 
 // Result is a lint run: its sorted diagnostics, one tally per rule in
 // Rules order, the exemptions that suppressed findings, and how many
-// diagnostics are errors and warnings.
+// diagnostics are errors and warnings. Err is an I/O failure a rule hit
+// (reading a consumer file): the run's findings are then incomplete, and
+// the caller fails the run (exit 2) instead of reporting them.
 type Result struct {
 	Diagnostics []diag.Diagnostic
 	Tallies     []diag.Tally
 	Exemptions  []Exemption
 	Errors      int
 	Warnings    int
+	Err         error
 }
 
 // tokensNoun is the Tally noun of every rule that counts tokens.
@@ -103,6 +114,16 @@ var allRules = []Rule{
 		Summary: "A token, config or invariants file differs from what airframe fmt would write."},
 	{ID: "exemption-without-reason", Default: diag.Error, Run: ruleExemptionWithoutReason,
 		Summary: "A token is exempt from a rule but gives no reason."},
+	{ID: "reference-undeclared", Default: diag.Error, Run: ruleReferenceUndeclared,
+		Summary: "A consumer file reads a token name that does not exist, or a platform's consumers glob matches no file."},
+	{ID: "primitive-read-by-consumer", Default: diag.Error, Run: rulePrimitiveRead,
+		Summary: "A consumer file reads a token whose tier consumers may not read, such as a primitive."},
+	{ID: "token-owner-violation", Default: diag.Error, Run: ruleOwnerViolation,
+		Summary: "A consumer file reads a component token but matches none of the component's owners globs."},
+	{ID: "fallback-literal", Default: diag.Warn, Run: ruleFallbackLiteral,
+		Summary: "A consumer var() has a literal fallback, which hides a missing token."},
+	{ID: "wrapper-unmapped", Default: diag.Error, Run: ruleWrapperUnmapped,
+		Summary: "A read through a declared wrapper root maps to no token."},
 }
 
 // loadIDs are the rule IDs reported while loading, parsing, resolving or
@@ -225,6 +246,7 @@ func Run(p *project.Project, loadDiags []diag.Diagnostic, opts Options) Result {
 		res.Diagnostics = append(res.Diagnostics, d)
 	}
 	diag.Sort(res.Diagnostics)
+	res.Err = ctx.err
 	res.Exemptions = sortedExemptions(slices.DeleteFunc(ctx.exemptions, func(e Exemption) bool { return off[e.Rule] }))
 	return res
 }

@@ -31,7 +31,12 @@ var retiredRules = map[string]page{
 
 // laterRules are the lint IDs added after v0.1.0, by the release that
 // added them.
-var laterRules = map[string]string{"emit-axis-fixed": "v0.3.0"}
+var laterRules = map[string]string{
+	"emit-axis-fixed": "v0.3.0",
+	// The consumer rules.
+	"fallback-literal": "v0.6.0", "primitive-read-by-consumer": "v0.6.0", "reference-undeclared": "v0.6.0",
+	"token-owner-violation": "v0.6.0", "wrapper-unmapped": "v0.6.0",
+}
 
 // pages is every documented ID: the lint rules at their default severity,
 // since v0.1.0 unless laterRules says otherwise, and the import findings at

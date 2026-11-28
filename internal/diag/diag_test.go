@@ -170,3 +170,27 @@ func TestWriteTextDoesNotMutateInput(t *testing.T) {
 		t.Fatal("input was reordered")
 	}
 }
+
+// A consumer reference's column is written after its line in every
+// format, and orders findings on the same line.
+func TestColumn(t *testing.T) {
+	ds := []Diagnostic{
+		{Rule: "r", Severity: Error, File: "a.css", Line: 2, Col: 30, Message: "late"},
+		{Rule: "r", Severity: Error, File: "a.css", Line: 2, Col: 5, Message: "early"},
+	}
+	var text, gh, js bytes.Buffer
+	WriteText(&text, ds, nil)
+	if want := "a.css:2:5: error r: early\na.css:2:30: error r: late\n"; text.String() != want {
+		t.Fatalf("text: got %q, want %q", text.String(), want)
+	}
+	WriteGitHub(&gh, ds)
+	if want := "::error file=a.css,line=2,col=5,title=r::early\n::error file=a.css,line=2,col=30,title=r::late\n"; gh.String() != want {
+		t.Fatalf("github: got %q, want %q", gh.String(), want)
+	}
+	if err := WriteJSON(&js, ds[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(js.String(), `"col": 30`) {
+		t.Fatalf("json has no col: %s", js.String())
+	}
+}

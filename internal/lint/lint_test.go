@@ -66,11 +66,16 @@ func TestRulesStableOrder(t *testing.T) {
 	assert.True(t, slices.IsSorted(ids), ids)
 	assert.Equal(t, []string{
 		"accent-flip", "accent-group-partial", "contrast-below", "density-missing", "dimension-below",
-		"emitted-stale", "exemption-without-reason", "hue-reserved", "literal-in-semantic", "not-formatted",
-		"prefix-multiple-hues", "tier-violation", "token-unclassified",
+		"emitted-stale", "exemption-without-reason", "fallback-literal", "hue-reserved", "literal-in-semantic",
+		"not-formatted", "prefix-multiple-hues", "primitive-read-by-consumer", "reference-undeclared",
+		"tier-violation", "token-owner-violation", "token-unclassified", "wrapper-unmapped",
 	}, ids)
 	for _, r := range Rules() {
-		assert.Equal(t, diag.Error, r.Default, r.ID)
+		want := diag.Error
+		if r.ID == "fallback-literal" {
+			want = diag.Warn
+		}
+		assert.Equal(t, want, r.Default, r.ID)
 		assert.NotEmpty(t, r.Summary, r.ID)
 		assert.NotNil(t, r.Run, r.ID)
 	}
@@ -81,6 +86,9 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	var named []string
 	for _, tl := range res.Tallies {
 		named = append(named, tl.Rule)
+		if slices.Contains(consumerRuleIDs, tl.Rule) {
+			continue // flagAll has no consumers; TestConsumerTallies covers them
+		}
 		assert.Positive(t, tl.Items, tl.Rule)
 		switch {
 		case tl.Rule == "emitted-stale":
@@ -100,6 +108,9 @@ func TestTalliesNameEveryRule(t *testing.T) {
 	}
 	assert.Equal(t, ruleIDs(), named)
 	for _, id := range ruleIDs() {
+		if slices.Contains(consumerRuleIDs, id) {
+			continue
+		}
 		assert.NotEmpty(t, byRule(res.Diagnostics, id), "%s should fire on the flag fixture", id)
 	}
 }

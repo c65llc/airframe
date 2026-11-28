@@ -1,0 +1,37 @@
+{
+  "blue": {
+    "$type": "color",
+    "$value": {
+      "colorSpace": "oklch",
+      "components": [
+        0.55,
+        0.2,
+        260
+      ]
+    },
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  },
+  "accent": {
+    "$type": "color",
+    "$value": "{blue}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "semantic"
+      }
+    }
+  },
+  "button-bg": {
+    "$type": "color",
+    "$value": "{accent}",
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "component",
+        "component": "button"
+      }
+    }
+  }
+}

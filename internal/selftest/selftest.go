@@ -127,5 +127,9 @@ func lintDir(fsys fs.FS, dir string) ([]diag.Diagnostic, error) {
 	if p == nil {
 		return ds, nil
 	}
-	return lint.Run(p, ds, lint.Options{}).Diagnostics, nil
+	res := lint.Run(p, ds, lint.Options{})
+	if res.Err != nil {
+		return nil, res.Err
+	}
+	return res.Diagnostics, nil
 }

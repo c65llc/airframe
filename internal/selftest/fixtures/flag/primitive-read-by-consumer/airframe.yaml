@@ -1,0 +1,10 @@
+version: 1
+content: design-system
+platforms:
+  web:
+    emit: [css]
+    out: {css: web/generated/tokens.css}
+    consumers: ["web/src/**/*.css", "web/src/**/*.ts"]
+    wrappers:
+      - root: theme.space
+        map: {accent: accent}

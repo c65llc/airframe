@@ -614,6 +614,9 @@ func runLint(inv *invocation) int {
 		}
 	} else {
 		res = lint.Run(p, ds, lint.Options{Strict: strict})
+		if res.Err != nil { // an I/O failure: the findings are incomplete
+			return inv.fail(res.Err)
+		}
 		files = len(p.Sources)
 	}
 	switch form {

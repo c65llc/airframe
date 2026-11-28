@@ -156,3 +156,33 @@ func TestPageBody(t *testing.T) {
 	assert.Equal(t, "# x\n", pageBody("# x\n"))
 	assert.Equal(t, "Tokens alias each other in a loop, so none of them has a value.", docSummary("---\na: b\n---\n\n# alias-cycle\n\nTokens alias each other in a loop, so none of them has a value.\n"))
 }
+
+// TestLintConsumerReadErrorExits2: a consumer file that cannot be read
+// stops lint with exit 2; it is never reported as clean or as findings.
+func TestLintConsumerReadErrorExits2(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes do not deny reads on Windows")
+	}
+	dir := t.TempDir()
+	files := map[string]string{
+		"airframe.yaml":               "version: 1\ncontent: design-system\nplatforms:\n  web:\n    emit: [css]\n    out: {css: web/generated/tokens.css}\n    consumers: [\"web/**/*.css\"]\n",
+		"design-system/a.tokens.json": `{ "gap": { "$type": "number", "$value": 4, "$extensions": { "com.c65llc.airframe": { "tier": "semantic" } } } }`,
+		"web/a.css":                   ".a { margin: var(--gap); }\n",
+	}
+	for name, body := range files {
+		p := filepath.Join(dir, filepath.FromSlash(name))
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o644))
+	}
+	css := filepath.Join(dir, "web", "a.css")
+	require.NoError(t, os.Chmod(css, 0))
+	t.Cleanup(func() { _ = os.Chmod(css, 0o644) })
+	if f, err := os.Open(css); err == nil {
+		_ = f.Close()
+		t.Skip("running with permission to read a mode-0 file")
+	}
+	code, stdout, stderr := run("--root", dir, "lint")
+	assert.Equal(t, ExitUsage, code, stdout)
+	assert.Contains(t, stderr, "web/a.css")
+	assert.Empty(t, stdout)
+}

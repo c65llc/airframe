@@ -60,6 +60,16 @@ func adapterFor(pl config.Platform, f string) (*adapter, string) {
 	return a, ""
 }
 
+// Format is the emit format whose names consumer file f is read through
+// on pl ("css", "swift", "kotlin" or "xaml"), or "" when no adapter reads
+// it there.
+func Format(pl config.Platform, f string) string {
+	if a, _ := adapterFor(pl, f); a != nil {
+		return a.format
+	}
+	return ""
+}
+
 // ours reports whether name fits the naming template's literal prefix and
 // suffix, so a name the index does not hold is a typo, not a foreign
 // symbol. The name has the prefix, then a non-empty placeholder part, and

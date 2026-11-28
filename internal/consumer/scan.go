@@ -55,7 +55,10 @@ type Result struct {
 	// Files is the number of consumer files scanned per platform: those
 	// its globs match, less generated outputs and the content root. A
 	// platform with no such file, or whose names are unavailable, is absent.
-	Files    map[string]int
+	Files map[string]int
+	// Paths are those files, sorted, per platform. The golden pins Files;
+	// Paths is for the rules, which tally by file type.
+	Paths    map[string][]string `json:"-"`
 	Problems []Problem
 	Exempt   []Exemption
 }
@@ -104,7 +107,7 @@ type Exemption struct {
 // and is not read further. The error is only for an I/O failure.
 func Scan(p *project.Project) (Result, error) {
 	s := &scanner{p: p, names: map[[2]string]map[string]string{}}
-	res := Result{Files: map[string]int{}}
+	res := Result{Files: map[string]int{}, Paths: map[string][]string{}}
 	for _, pl := range p.Config.Platforms {
 		if len(pl.Consumers) == 0 {
 			continue
@@ -290,6 +293,7 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		}
 	}
 	res.Files[pl.Name] = len(files)
+	res.Paths[pl.Name] = slices.Clone(files)
 	for i, f := range loaded {
 		if a := adapted[i]; a != nil {
 			if err := a.scan(r, f); err != nil {

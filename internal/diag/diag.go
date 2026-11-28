@@ -41,13 +41,15 @@ type Fix struct {
 
 // Diagnostic is one finding. File is relative to the project root and uses
 // "/". Path locates the value inside the file. Line is 1-based; 0 means
-// unknown. Docs is the rule's documentation page, DocsURL(Rule).
+// unknown. Col is the 1-based byte column on Line, 0 when the finding has
+// none (only a consumer-file reference has one). Docs is the rule's documentation page, DocsURL(Rule).
 type Diagnostic struct {
 	Rule     string   `json:"rule"`
 	Severity Severity `json:"severity"`
 	File     string   `json:"file"`
 	Path     string   `json:"path"`
 	Line     int      `json:"line,omitempty"`
+	Col      int      `json:"col,omitempty"`
 	Message  string   `json:"message"`
 	Fix      *Fix     `json:"fix,omitempty"`
 	Docs     string   `json:"docs,omitempty"`
@@ -69,12 +71,13 @@ const docsBase = "https://airframe.c65llc.com/rules/"
 // DocsURL is the documentation page of the rule with the given ID.
 func DocsURL(rule string) string { return docsBase + rule + "/" }
 
-// Sort orders ds by File, Line, Rule, then Message.
+// Sort orders ds by File, Line, Col, Rule, then Message.
 func Sort(ds []Diagnostic) {
 	slices.SortStableFunc(ds, func(a, b Diagnostic) int {
 		return cmp.Or(
 			strings.Compare(a.File, b.File),
 			cmp.Compare(a.Line, b.Line),
+			cmp.Compare(a.Col, b.Col),
 			strings.Compare(a.Rule, b.Rule),
 			strings.Compare(a.Message, b.Message),
 		)
@@ -89,7 +92,8 @@ func sorted(ds []Diagnostic) []Diagnostic {
 }
 
 // WriteText writes ds in sorted order, one per line, as
-// "file:line: severity rule: message (path)", then one line per tally:
+// "file:line: severity rule: message (path)" (file:line:col when the
+// finding has a column), then one line per tally:
 // "rule  N noun", or "rule  n/a (reason)" when the tally is not applicable.
 func WriteText(w io.Writer, ds []Diagnostic, tallies []Tally) {
 	var b strings.Builder
@@ -97,6 +101,9 @@ func WriteText(w io.Writer, ds []Diagnostic, tallies []Tally) {
 		b.WriteString(d.File)
 		if d.Line > 0 {
 			fmt.Fprintf(&b, ":%d", d.Line)
+			if d.Col > 0 {
+				fmt.Fprintf(&b, ":%d", d.Col)
+			}
 		}
 		fmt.Fprintf(&b, ": %s %s: %s", d.Severity, d.Rule, d.Message)
 		if d.Path != "" {
@@ -149,7 +156,8 @@ var (
 )
 
 // WriteGitHub writes ds as GitHub Actions workflow commands, one per
-// finding in sorted order: "::error file=F,line=N,title=RULE::message".
+// finding in sorted order: "::error file=F,line=N,title=RULE::message",
+// with ",col=C" after the line when the finding has a column.
 // Findings at Off are dropped.
 func WriteGitHub(w io.Writer, ds []Diagnostic) {
 	var b strings.Builder
@@ -165,6 +173,9 @@ func WriteGitHub(w io.Writer, ds []Diagnostic) {
 		fmt.Fprintf(&b, "::%s file=%s", level, propEscaper.Replace(d.File))
 		if d.Line > 0 {
 			fmt.Fprintf(&b, ",line=%d", d.Line)
+			if d.Col > 0 {
+				fmt.Fprintf(&b, ",col=%d", d.Col)
+			}
 		}
 		fmt.Fprintf(&b, ",title=%s::%s\n", propEscaper.Replace(d.Rule), dataEscaper.Replace(d.Message))
 	}
