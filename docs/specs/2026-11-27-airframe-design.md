@@ -148,8 +148,9 @@ platforms:
     emit: [json]
     out: dist/tokens.json
 naming: { css: "--{name}", swift: "DesignTokens.{camel}", kotlin: "DesignTokens.{camel}", xaml: "Design{Pascal}" }
-# A token may override its spelling on one platform (`$extensions…names.json: "border-divider"`). That is
-# ONE token with a platform spelling, not a second readable name, so the no-alias rule holds.
+# A token may override its spelling on one platform (`$extensions…names.swift: "hairline"`). That is
+# ONE token with a platform spelling, not a second readable name, so the no-alias rule holds. Until their
+# emitters read naming, css, json and colorsets accept only their default spelling (anything else is schema-invalid).
 lint:
   rules: { fallback-literal: error, contrast-below: error }
 ```

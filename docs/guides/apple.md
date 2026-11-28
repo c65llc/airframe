@@ -37,12 +37,15 @@ platforms:
   otherwise the build fails and says which token.
 - **`out`** says where each format is written (repo-relative). Without it
   they go under the content directory, in `generated/apple/`. `{app}` is a
-  placeholder for a value of the `fanOut` axis.
+  placeholder for a value of the `fanOut` axis. The colorsets out is a
+  namespace folder *inside* a catalog, as in `App/Assets.xcassets/Tokens`:
+  a path whose parent is not an `.xcassets` folder (`Tokens`, or the
+  catalog itself) is `emit-failed`.
 - **`fanOut`** names a `binding: build` axis (here, which app is being
   built). The platform writes one output set per value of that axis. With
   `{app}` in the colorsets path you get one catalog per app, each holding
-  that app's colours; a colour that differs per app is how `accent` is teal
-  in one app and green in another.
+  that app's colours; a colour that differs per app is how `accent` is
+  `blue.500` in notes and `green.500` in tasks.
 - **`options`**: `accentColor: <token>` also writes `AccentColor.colorset`
   at the catalog root from that token (an Xcode target's accent colour
   setting reads it), and `gamut` chooses how an out-of-gamut colour reaches
@@ -50,7 +53,12 @@ platforms:
 - **`naming`** (top level) sets spellings. The default for Swift is
   `DesignTokens.{camel}`: the token `button-bg` is `DesignTokens.buttonBg`.
   Change the type part to rename the struct; the member part must stay a
-  case of the token name (`{camel}`).
+  case of the token name (`{camel}`). Only Swift reads `naming` and a
+  token's `names` so far: for `css`, `json` and `colorsets` anything but
+  the default (`--{name}`, `{name}` and `{Pascal}`) is `schema-invalid`
+  ("css does not support custom naming yet; only --{name} is accepted"),
+  rather than silently ignored, and so is a `naming` key that is not an
+  emit format (a typo like `swfit`).
 
 Build it:
 
@@ -163,7 +171,7 @@ be brought in, and the `gamut` option says how:
 | `gamut` | Behaviour |
 | --- | --- |
 | `css-color-4` (default) | CSS Color 4 gamut mapping: reduce chroma until it fits, keeping lightness and hue |
-| `clip-p3` | Clip each channel to the P3 range; clips each channel independently; can shift hue |
+| `clip-p3` | Clip each channel to the P3 range independently; can shift hue |
 
 The same colour mapped the same way is what you get on every build; the
 choice is stated, never implicit.
@@ -175,13 +183,15 @@ Apple emitters fail closed: a value the platform cannot express is an
 still build. The common ones:
 
 - **A third appearance value.** A colorset has a light base and one dark
-  variant only. An `appearance` axis with a third value (say `high-contrast`)
-  that a colour varies on cannot be written: the error names the value and
-  the token.
+  variant only, so an `appearance` axis with a third value (say
+  `high-contrast`) fails the colorsets build even when no colour varies on
+  it: the error names the value, and the first token that varies on
+  appearance when there is one.
 - **Identifier collisions.** Two tokens that map to one Swift identifier
-  or one colorset name, or a token whose name does not make a legal Swift
-  identifier (it starts with a digit), fail with both names. Rename one of
-  the tokens.
+  or one colorset name fail with both names; rename one of the tokens. A
+  name starting with a digit is fine (`2xl` becomes `_2xl`), but a naming
+  template that yields something that is not a Swift identifier, such as a
+  member part of `{name}` (hyphens: `button-bg`), fails naming the token.
 - **A per-app value in a shared Swift file.** If a non-colour token
   (`gutter`) has a different value per app but `out.swift` has no `{app}`,
   one file cannot hold both. Put `{app}` in the Swift path
@@ -201,3 +211,12 @@ airframe build --check        # exit 1, naming each generated file that is stale
 
 Commit the generated outputs; `emitted-stale` and `build --check` name any
 file that no longer matches the tokens.
+
+**Renamed or removed colours leave their colorset behind.** `airframe
+build` never deletes anything, so after a rename the old
+`Vivid.colorset` stays in the catalog and Xcode still compiles it. In a
+catalog folder airframe wrote (its `Contents.json` says
+`"author": "airframe"`), a `.colorset` that no token makes any more is
+reported: `build` warns, and `build --check` and `emitted-stale` fail
+naming it. Delete it by hand. A folder airframe did not write is never
+scanned, so your own colorsets are safe there.
