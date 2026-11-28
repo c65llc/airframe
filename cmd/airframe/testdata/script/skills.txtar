@@ -1,0 +1,162 @@
+# skills list names the skills this release carries; skills install
+# detects the project's agents, installs every skill for each, and records
+# what it wrote in .airframe/skills.lock.json.
+exec airframe skills list
+stdout '^airframe  '
+stdout '^airframe-add-token  '
+stdout '^airframe-adopt  '
+stdout '^airframe-component  '
+
+# A dry run lists what it would write, and writes nothing.
+exec airframe skills install --dry-run
+stdout '^agents: claude-code, codex \(detected\)$'
+stdout '^would write .claude/skills/airframe/SKILL.md$'
+stdout '^would write .claude/skills/airframe-add-token/SKILL.md$'
+stdout '^would write AGENTS.md$'
+stdout '^5 written, 0 unchanged, 0 staged \(dry run\)$'
+! exists .claude/skills
+! exists .airframe
+cmp AGENTS.md before-AGENTS.md
+
+# The real install, for the two agents it detects.
+exec airframe skills install
+stdout '^agents: claude-code, codex \(detected\)$'
+stdout '^wrote .claude/skills/airframe-component/SKILL.md$'
+stdout '^wrote AGENTS.md$'
+stdout '^5 written, 0 unchanged, 0 staged$'
+! stderr .
+grep '^name: airframe-adopt$' .claude/skills/airframe-adopt/SKILL.md
+grep '^# Our agents$' AGENTS.md
+grep -count=1 '^<!-- airframe:skills:start -->$' AGENTS.md
+grep -count=1 '^<!-- airframe:skills:end -->$' AGENTS.md
+grep '^### airframe-add-token$' AGENTS.md
+grep '"AGENTS.md": "[0-9a-f]{64}"' .airframe/skills.lock.json
+grep '".claude/skills/airframe/SKILL.md": ' .airframe/skills.lock.json
+
+# A second install with nothing changed writes nothing, not even the lock.
+cp .airframe/skills.lock.json lock-before.json
+cp AGENTS.md agents-before.md
+exec airframe skills install
+! stdout '^wrote'
+stdout '^0 written, 5 unchanged, 0 staged$'
+! stderr .
+cmp .airframe/skills.lock.json lock-before.json
+cmp AGENTS.md agents-before.md
+
+# A file that exists and is not Airframe's is kept, and the new version
+# staged under .airframe/pending/, with a warning and exit 0. Here the
+# person edited the Claude Code copy.
+cp mine.md .claude/skills/airframe/SKILL.md
+exec airframe skills install --agent claude-code
+stdout '^staged .claude/skills/airframe/SKILL.md as .airframe/pending/.claude/skills/airframe/SKILL.md$'
+stdout '^0 written, 3 unchanged, 1 staged$'
+stderr '^warning: 1 file was edited or not installed by Airframe, so it was kept; merge its new version from .airframe/pending/ by hand$'
+cmp .claude/skills/airframe/SKILL.md mine.md
+grep '^name: airframe$' .airframe/pending/.claude/skills/airframe/SKILL.md
+
+# Taking the staged version makes the file Airframe's again.
+cp .airframe/pending/.claude/skills/airframe/SKILL.md .claude/skills/airframe/SKILL.md
+exec airframe skills install --agent claude-code
+stdout '^0 written, 4 unchanged, 0 staged$'
+! stderr .
+
+# skills hooks prints configuration and edits nothing. Claude Code's hook
+# runs the hidden hook command.
+exec airframe skills hooks claude-code
+stdout '"matcher": "Edit\|Write\|MultiEdit"'
+stdout '"command": "airframe hook claude-code"'
+stderr '\.claude/settings\.json'
+! exists .claude/settings.json
+exec airframe skills hooks pre-commit
+stdout '^airframe fmt --check && airframe lint$'
+exec airframe skills hooks codex
+stdout '^`airframe fmt`, `airframe build` and `airframe lint --json`, in that order'
+stderr 'AGENTS\.md'
+
+# The hook itself: quiet and 0 for a clean file lint checks, or any other
+# file; findings on stderr and 2 for a broken one.
+exec airframe help
+! stdout 'hook claude-code'
+exec airframe fmt
+exec airframe build
+exec airframe lint
+stdin edit-tokens.json
+exec airframe hook claude-code
+! stdout .
+! stderr .
+cp design-system/tokens/color.tokens.json good.tokens.json
+cp broken.tokens.json design-system/tokens/color.tokens.json
+stdin edit-notes.json
+exec airframe hook claude-code
+! stderr .
+stdin edit-tokens.json
+exits 2 airframe hook claude-code
+! stdout .
+stderr '^airframe fmt reported problems after this edit; fix them:$'
+stderr '^design-system/tokens/color.tokens.json: '
+cp good.tokens.json design-system/tokens/color.tokens.json
+stdin edit-tokens.json
+exec airframe hook claude-code
+! stderr .
+
+# skills mcp prints the MCP client configuration that starts airframe mcp.
+exec airframe skills mcp claude-code
+cmp stdout claude-code.json
+stderr '\.mcp\.json'
+! exists .mcp.json
+exec airframe skills mcp --read-only codex
+cmp stdout codex.toml
+stderr '~/\.codex/config\.toml'
+exits 2 airframe skills mcp aider
+stderr 'aider has no MCP client'
+
+-- airframe.yaml --
+version: 1
+content: design-system
+platforms:
+  web: {emit: css}
+-- design-system/tokens/color.tokens.json --
+{
+  "ink": {
+    "$type": "color",
+    "$value": {"colorSpace": "oklch", "components": [0.2, 0.01, 250]},
+    "$extensions": {
+      "com.c65llc.airframe": {
+        "tier": "primitive"
+      }
+    }
+  }
+}
+-- broken.tokens.json --
+{"ink": [
+-- .claude/keep --
+-- AGENTS.md --
+# Our agents
+
+Be kind.
+-- before-AGENTS.md --
+# Our agents
+
+Be kind.
+-- mine.md --
+my own version
+-- edit-tokens.json --
+{"tool_name":"Edit","tool_input":{"file_path":"design-system/tokens/color.tokens.json"}}
+-- edit-notes.json --
+{"tool_name":"Write","tool_input":{"file_path":"notes/todo.md"}}
+-- claude-code.json --
+{
+  "mcpServers": {
+    "airframe": {
+      "type": "stdio",
+      "command": "airframe",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
+-- codex.toml --
+[mcp_servers.airframe]
+command = "airframe"
+args = ["mcp", "--read-only"]

@@ -6,9 +6,9 @@ Airframe is a Go CLI. It is a sibling of Starboard (screens and flows) and Gantr
 
 ## Status
 
-v0.9.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, the consumer rules, components and retired treatments, and every reference command (find, usages, diff, rename, retire and specimen). Nothing here is stable yet.
+v0.10.0 is the current release: the core, the CSS importer, the Apple, Android and Windows emitters, the consumer rules, components and retired treatments, every reference command (find, usages, diff, rename, retire and specimen), and agent skills with an MCP server. Nothing here is stable yet.
 
-**What v0.9.0 does**
+**What v0.10.0 does**
 
 - **Emits CSS and JSON.** `airframe build` writes CSS custom properties with one scope per mode (media queries, `:root` selectors and data attributes, as `airframe.yaml` spells them) and a neutral JSON contract of every token's resolved value per mode key. Output is byte-stable.
 - **Emits Apple outputs** (since v0.3.0). The `apple` platform writes an asset catalog of Display P3 colorsets (light and dark, one catalog per app target) and a SwiftUI `DesignTokens` file naming every token as a typed member. See [Apple: Swift and asset catalogs](docs/guides/apple.md).
@@ -25,13 +25,14 @@ v0.9.0 is the current release: the core, the CSS importer, the Apple, Android an
 - **Inventories components** (since v0.7.0). Each `components/<id>.yaml` names the Gantry ruling the component answers to and where each platform builds it: `component-unruled` (no ruling, or, when a `gantry.yaml` is present, one that does not exist or is not `ruled`; a superseded ruling names its replacement) and `component-incomplete` (a platform with consumers and no implementation, a file that does not exist, an `n/a` with no reason, an unknown host or a `hostedBy` cycle). `airframe show <component>` prints the inventory, the ruling's status and the files that read the component's tokens. See [Components and retired treatments](docs/guides/components.md).
 - **Retires treatments** (since v0.7.0). A token marked `retired: true` is still emitted but may not be read, and `retired.yaml` holds treatments with no token to delete by their spellings on every platform: `retired-used` reports a read of a retired token, a direct alias to one and a retired spelling in consumer code. An audited use is escaped by the treatment's marker with a reason, inside a comment, and listed in the gate. See [Components and retired treatments](docs/guides/components.md). A v0.6.0 project with components fails lint on upgrade until each component has a `ruling` and an `implementations` entry for every platform with consumers (`n/a: <reason>` is accepted); see [Upgrading from v0.6.0](docs/guides/components.md#upgrading-from-v060).
 - **Finds, lists usages of and diffs tokens** (since v0.8.0). `airframe find <words>` ranks the tokens by the words of their names, descriptions and components, with role synonyms (`muted` finds `subtle`), and `--file` keeps only the ones that file may read, saying why. `airframe usages <token>` lists every consumer read of a token on every platform, marking owners, and every token that aliases it. `airframe diff <ref-a> [<ref-b>]` shows the tokens added, removed, possibly renamed and changed between two git refs, or a ref and the working tree, as text, JSON or Markdown for a pull request's job summary; it reads git and writes nothing. See [The reference commands](docs/guides/reference.md).
-- **Renames, retires and draws tokens** (new in v0.9.0). `airframe rename <old> <new>` is a codemod: it renames a token in its token files, `airframe.yaml`, components and invariants and in every platform's consumer code, suffixed and slot names included, then rebuilds; a rename that would not load or build, or would leave a reference reading the old name, is refused, and `--dry-run` prints the plan. Renames ship with a codemod, never with compatibility aliases. What it cannot rewrite safely (a wrapper pattern, an invariant glob) is left as a manual item, which refuses the rename unless `--allow-manual`. `airframe retire <token>` marks a token retired and lists the reads and aliases lint will then report; with `--treatment` it records a retired treatment and its spellings in `retired.yaml`. `airframe specimen` writes colour, type and spacing sheets as SVG, one set per fan-out value. Each works out its edits before it writes any; `rename` then rebuilds the outputs from what it wrote. See [The reference commands](docs/guides/reference.md).
+- **Renames, retires and draws tokens** (since v0.9.0). `airframe rename <old> <new>` is a codemod: it renames a token in its token files, `airframe.yaml`, components and invariants and in every platform's consumer code, suffixed and slot names included, then rebuilds; a rename that would not load or build, or would leave a reference reading the old name, is refused, and `--dry-run` prints the plan. Renames ship with a codemod, never with compatibility aliases. What it cannot rewrite safely (a wrapper pattern, an invariant glob) is left as a manual item, which refuses the rename unless `--allow-manual`. `airframe retire <token>` marks a token retired and lists the reads and aliases lint will then report; with `--treatment` it records a retired treatment and its spellings in `retired.yaml`. `airframe specimen` writes colour, type and spacing sheets as SVG, one set per fan-out value. Each works out its edits before it writes any; `rename` then rebuilds the outputs from what it wrote. See [The reference commands](docs/guides/reference.md).
+- **Works with coding agents** (new in v0.10.0). `airframe skills install` installs four agent skills (`airframe`, `airframe-add-token`, `airframe-component` and `airframe-adopt`) for Claude Code, Cursor, Copilot, Codex, Gemini and Aider, detecting which the project uses; a file you have edited is kept and the new version staged under `.airframe/pending/`. `airframe skills hooks` prints the configuration that checks every agent edit with `fmt` and `lint`, and `airframe skills mcp` the client configuration for `airframe mcp`, an MCP server whose tools find, show and check tokens, lint, diff and draw the project, and edit tokens and components with a preview, record versions that refuse a conflicting edit, and the outputs rebuilt; `--read-only` offers only the reads. See [Working with coding agents](docs/guides/agents.md).
 
-**Planned (not in v0.9.0)**
+**Planned (not in v0.10.0)**
 
-- The surfaces for asking which token to use and whether a file may read it where you work: AI skills, an MCP server, the PWA, the VS Code extension and the Tauri desktop app.
+- The surfaces for asking which token to use and whether a file may read it where you work: the PWA, the VS Code extension and the Tauri desktop app.
 
-These land in later plans (7 and 8); until then, no part of this README describes them as working.
+These land in a later plan (8); until then, no part of this README describes them as working.
 
 ## Install
 
@@ -70,7 +71,7 @@ A mode key never names a base value (`mode-base-value`), and lint checks the bas
 ```yaml
 - uses: c65llc/airframe@v0
   with:
-    version: v0.9.0
+    version: v0.10.0
     args: lint --format gate
 ```
 

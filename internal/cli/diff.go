@@ -6,15 +6,12 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"slices"
 	"strings"
 
-	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
-	"github.com/c65llc/airframe/internal/gitfs"
-	"github.com/c65llc/airframe/internal/project"
+	"github.com/c65llc/airframe/internal/report"
 	"github.com/c65llc/airframe/internal/tokendiff"
 )
 
@@ -59,116 +56,28 @@ func runDiff(inv *invocation) int {
 	if err != nil {
 		return inv.fail(err)
 	}
-	repo, err := gitfs.Open(dir)
+	c, err := report.Diff(dir, os.DirFS(dir), inv.args, func(note string) {
+		_, _ = fmt.Fprintf(inv.stderr, "airframe diff: %s\n", note)
+	})
+	var notLoaded *report.NotLoadedError
+	if errors.As(err, &notLoaded) {
+		_, _ = fmt.Fprintf(inv.stderr, "airframe diff: the project does not load at %s:\n", notLoaded.Where)
+		diag.WriteText(inv.stderr, notLoaded.Diagnostics, nil)
+		return ExitFindings
+	}
 	if err != nil {
-		if errors.Is(err, gitfs.ErrNotWorkTree) {
-			return inv.fail(fmt.Errorf("the project at %s is not inside a git work tree", dir))
-		}
 		return inv.fail(err)
 	}
-	// Resolve every ref before reading anything, so a bad second ref is
-	// reported without loading the first.
-	sides := make([]tokendiff.Side, len(inv.args))
-	for i, ref := range inv.args {
-		sha, err := repo.Resolve(ref)
-		if err != nil {
-			return inv.fail(err)
-		}
-		sides[i] = tokendiff.Side{Ref: ref, Commit: sha}
-	}
-	if len(sides) == 1 {
-		sides = append(sides, tokendiff.Side{})
-	}
-
-	// Open every side, and find the refs with no airframe.yaml (from
-	// before the project was adopted), before loading anything.
-	fsyss := make([]fs.FS, 2)
-	missing := 0
-	for i, s := range sides {
-		if s.Commit == "" {
-			fsyss[i] = os.DirFS(dir)
-			continue
-		}
-		gfs, err := repo.FS(s.Commit)
-		if err != nil {
-			return inv.fail(err)
-		}
-		defer gfs.Close()
-		fsyss[i] = gfs
-		if _, err := fs.Stat(gfs, config.File); errors.Is(err, fs.ErrNotExist) {
-			sides[i].Missing, sides[i].Prefix = true, repo.Prefix
-			missing++
-		}
-	}
-	if missing == 2 {
-		// Two empty sides say nothing: the root is likely wrong.
-		return inv.fail(fmt.Errorf("neither %s nor %s has %s at %s; is the project root right? (--root)",
-			sides[0].Ref, sides[1].Ref, config.File, prefixName(repo.Prefix)))
-	}
-
-	projects := make([]*project.Project, 2)
-	load := func(i int) int {
-		s := sides[i]
-		p, ds, err := project.Load(fsyss[i])
-		if err != nil {
-			return inv.fail(fmt.Errorf("%s: %w", s.Label(), err))
-		}
-		if p == nil || hasErrors(ds) {
-			_, _ = fmt.Fprintf(inv.stderr, "airframe diff: the project does not load at %s:\n", where(s))
-			diag.WriteText(inv.stderr, ds, nil)
-			return ExitFindings
-		}
-		projects[i] = p
-		return ExitOK
-	}
-	// The working tree loads first, so a ref's empty-side note is never
-	// printed above the working tree's own failure.
-	if sides[1].Commit == "" {
-		if code := load(1); code != ExitOK {
-			return code
-		}
-	}
-	for i, s := range sides {
-		switch {
-		case s.Missing:
-			_, _ = fmt.Fprintf(inv.stderr, "airframe diff: %s has no %s at %s; comparing against an empty token set\n",
-				s.Ref, config.File, prefixName(repo.Prefix))
-		case s.Commit != "":
-			if code := load(i); code != ExitOK {
-				return code
-			}
-		}
-	}
-
-	d := tokendiff.Compare(projects[0], projects[1])
 	switch format {
 	case "md":
-		_ = tokendiff.WriteMarkdown(inv.stdout, d, sides[0], sides[1])
+		_ = tokendiff.WriteMarkdown(inv.stdout, c.Diff, c.From, c.To)
 	case "json":
-		_ = tokendiff.WriteJSON(inv.stdout, d, sides[0], sides[1])
+		_ = tokendiff.WriteJSON(inv.stdout, c.Diff, c.From, c.To)
 	default:
-		_ = tokendiff.WriteText(inv.stdout, d, sides[0], sides[1])
+		_ = tokendiff.WriteText(inv.stdout, c.Diff, c.From, c.To)
 	} // a write error is Main's to report
-	if *inv.bools["exit-code"] && !d.Empty() {
+	if *inv.bools["exit-code"] && !c.Diff.Empty() {
 		return ExitFindings
 	}
 	return ExitOK
-}
-
-// where names a side for a message: the ref and its short commit, or the
-// working tree.
-func where(s tokendiff.Side) string {
-	if s.Commit == "" {
-		return s.Label()
-	}
-	return fmt.Sprintf("%s (%s)", s.Ref, s.Commit[:min(12, len(s.Commit))])
-}
-
-// prefixName is the project directory inside the repository, as the
-// missing-side note names it.
-func prefixName(prefix string) string {
-	if prefix == "" {
-		return "the repository root"
-	}
-	return prefix
 }
