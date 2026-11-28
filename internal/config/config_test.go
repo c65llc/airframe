@@ -444,7 +444,8 @@ func TestPlatformFanOutParsed(t *testing.T) {
 	assert.Equal(t, "", got["web"])
 	for _, p := range c.Platforms {
 		if p.Name == "android" {
-			assert.Equal(t, true, p.Options["material3Scheme"])
+			assert.Equal(t, "com.example.design", p.KotlinPackage())
+			assert.Equal(t, [][2]string{{"primary", "accent"}, {"onPrimary", "accent-contrast"}, {"primaryContainer", "accent-soft"}}, p.Material3Roles())
 			v, ok := p.Option("sharedOut")
 			assert.True(t, ok)
 			assert.Equal(t, "android/shared/src/main/kotlin/DesignTokens.kt", v)
@@ -476,6 +477,34 @@ func TestAppleOptions(t *testing.T) {
 	d = loadErr(t, pre+"{ bogus: 1 }\n")
 	assert.Equal(t, "platforms.apple.options.bogus", d.Path)
 	loadErr(t, pre+"{ accentColor: \"\" }\n")
+}
+
+func TestKotlinOptions(t *testing.T) {
+	pre := fanOutBase + "platforms:\n  droid:\n    emit: [kotlin]\n    out: x.kt\n    fanOut: app\n    options: "
+	for _, tc := range []struct{ name, opts, path, msg string }{
+		{"missing package", "{ gamut: clip }", "platforms.droid.options.package", "package"},
+		{"digit segment", "{ package: com.2x.app }", "platforms.droid.options.package", "2x"},
+		{"keyword segment", "{ package: com.in.app }", "platforms.droid.options.package", "in"},
+		{"unknown key", "{ package: a.b, bogus: 1 }", "platforms.droid.options.bogus", "bogus"},
+		{"colorSpace", "{ package: a.b, colorSpace: cmyk }", "platforms.droid.options.colorSpace", "cmyk"},
+		{"gamut", "{ package: a.b, gamut: clip-p3 }", "platforms.droid.options.gamut", "clip-p3"},
+		{"sharedOut fans out", "{ package: a.b, sharedOut: \"android/{app}/x.kt\" }", "platforms.droid.options.sharedOut", "sharedOut"},
+		{"scalar scheme", "{ package: a.b, material3Scheme: true }", "platforms.droid.options.material3Scheme", "maps Material 3 roles to tokens, as in { primary: accent }"},
+		{"unknown role", "{ package: a.b, material3Scheme: { primry: accent } }", "platforms.droid.options.material3Scheme.primry", "primry"},
+		{"empty token", "{ package: a.b, material3Scheme: { primary: \"\" } }", "platforms.droid.options.material3Scheme.primary", "primary"},
+	} {
+		d := loadErr(t, pre+tc.opts+"\n")
+		assert.Equal(t, tc.path, d.Path, tc.name)
+		assert.Contains(t, d.Message, tc.msg, tc.name)
+	}
+	c := mustLoad(t, pre+"{ package: com.example.design, sharedOut: android/shared/DesignTokens.kt, colorSpace: display-p3, gamut: clip, material3Scheme: { onPrimary: b, primary: a, surfaceDim: c } }\n")
+	p := c.Platforms[0]
+	assert.Equal(t, "com.example.design", p.KotlinPackage())
+	assert.Equal(t, [][2]string{{"primary", "a"}, {"onPrimary", "b"}, {"surfaceDim", "c"}}, p.Material3Roles())
+	assert.Nil(t, mustLoad(t, pre+"{ package: a.b }\n").Platforms[0].Material3Roles())
+	assert.Equal(t, "DesignTokens.{camel}", c.NamingFor("kotlin"))
+	// Other platforms' kotlin-ish options are not checked.
+	mustLoad(t, "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    options: { package: 1 }\n")
 }
 
 func TestNamingTemplates(t *testing.T) {

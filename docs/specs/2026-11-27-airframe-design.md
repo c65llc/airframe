@@ -136,7 +136,10 @@ platforms:
     emit: [kotlin]
     out: { kotlin: "android/{app}/src/main/kotlin/DesignColorValues.kt" }   # out keys are emit formats
     fanOut: app
-    options: { material3Scheme: true, sharedOut: android/shared/src/main/kotlin/DesignTokens.kt }   # emit the M3 ColorScheme mapping; the shared object's path
+    options:                             # package is required; sharedOut is the shared DesignTokens file's path
+      package: com.example.design
+      sharedOut: android/shared/src/main/kotlin/DesignTokens.kt
+      material3Scheme: { primary: accent, onPrimary: accent-contrast, primaryContainer: accent-soft }   # maps Material 3 ColorScheme roles to tokens; emits a light and dark scheme per appearance
     consumers: ["android/**/*.kt"]
   windows:
     emit: [xaml]

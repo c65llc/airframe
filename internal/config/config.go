@@ -505,6 +505,11 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 				return p, err
 			}
 		}
+		if slices.Contains(p.Emit, "kotlin") {
+			if err := checkKotlinOptions(p, o); err != nil {
+				return p, err
+			}
+		}
 	}
 	if o := field(n, "out"); o != nil {
 		p.Out = map[string]string{}
@@ -598,6 +603,123 @@ func checkAppleOptions(o *yaml.Node) *buildError {
 		default:
 			return &buildError{msg: fmt.Sprintf("platform apple: unknown option %s; known: gamut, accentColor", k.Value), path: at, line: k.Line}
 		}
+	}
+	return nil
+}
+
+// KotlinKeywords are Kotlin's hard keywords: a package segment may not be
+// one, and an emitted member that is one is wrapped in backticks.
+var KotlinKeywords = []string{
+	"as", "break", "class", "continue", "do", "else", "false", "for", "fun", "if", "in",
+	"interface", "is", "null", "object", "package", "return", "super", "this", "throw",
+	"true", "try", "typealias", "typeof", "val", "var", "when", "while",
+}
+
+// Material3Roles is the parameter list of material3 1.3's lightColorScheme,
+// in declaration order: the order Platform.Material3Roles and the emitter use.
+var Material3Roles = []string{
+	"primary", "onPrimary", "primaryContainer", "onPrimaryContainer", "inversePrimary",
+	"secondary", "onSecondary", "secondaryContainer", "onSecondaryContainer",
+	"tertiary", "onTertiary", "tertiaryContainer", "onTertiaryContainer",
+	"background", "onBackground", "surface", "onSurface", "surfaceVariant", "onSurfaceVariant",
+	"surfaceTint", "inverseSurface", "inverseOnSurface", "error", "onError",
+	"errorContainer", "onErrorContainer", "outline", "outlineVariant", "scrim",
+	"surfaceBright", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest",
+	"surfaceContainerLow", "surfaceContainerLowest", "surfaceDim",
+}
+
+// KotlinPackage is the kotlin package option ("" when unset).
+func (p Platform) KotlinPackage() string {
+	s, _ := p.Options["package"].(string)
+	return s
+}
+
+// Material3Roles returns the material3Scheme mapping as (role, token) pairs
+// in Material3Roles order; nil when the option is unset.
+func (p Platform) Material3Roles() [][2]string {
+	m, ok := p.Options["material3Scheme"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var out [][2]string
+	for _, role := range Material3Roles {
+		if tok, ok := m[role].(string); ok {
+			out = append(out, [2]string{role, tok})
+		}
+	}
+	return out
+}
+
+var (
+	kotlinColorSpaces = []string{"srgb", "display-p3"}
+	kotlinGamuts      = []string{"css-color-4", "clip"}
+	kotlinIdent       = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+)
+
+// checkKotlinOptions validates the options of a platform that emits kotlin.
+func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
+	base := "platforms." + p.Name + ".options."
+	bad := func(key string, line int, format string, a ...any) *buildError {
+		return &buildError{msg: fmt.Sprintf("platform %s: %s", p.Name, fmt.Sprintf(format, a...)), path: base + key, line: line}
+	}
+	ks, vs := mapping(o)
+	hasPkg := false
+	for i, k := range ks {
+		v := vs[i]
+		switch k.Value {
+		case "package":
+			hasPkg = true
+			if v.Kind != yaml.ScalarNode || v.Value == "" {
+				return bad("package", v.Line, "package must be a non-empty dotted Kotlin package")
+			}
+			for _, seg := range strings.Split(v.Value, ".") {
+				if !kotlinIdent.MatchString(seg) {
+					return bad("package", v.Line, "package %s: segment %q is not a valid identifier", v.Value, seg)
+				}
+				if slices.Contains(KotlinKeywords, seg) {
+					return bad("package", v.Line, "package %s: segment %q is a Kotlin keyword", v.Value, seg)
+				}
+			}
+		case "sharedOut":
+			if v.Kind != yaml.ScalarNode || v.Value == "" {
+				return bad("sharedOut", v.Line, "sharedOut must be a non-empty path")
+			}
+			if _, err := underRoot("sharedOut", v.Value, base+"sharedOut", v.Line); err != nil {
+				return err
+			}
+			if p.FanOut != "" && strings.Contains(v.Value, "{"+p.FanOut+"}") {
+				return bad("sharedOut", v.Line, "sharedOut %s contains {%s}; the shared file is written once, so it cannot fan out", v.Value, p.FanOut)
+			}
+		case "colorSpace":
+			if v.Kind != yaml.ScalarNode || !slices.Contains(kotlinColorSpaces, v.Value) {
+				return bad("colorSpace", v.Line, "colorSpace %s is not one of %s", v.Value, strings.Join(kotlinColorSpaces, ", "))
+			}
+		case "gamut":
+			if v.Kind != yaml.ScalarNode || !slices.Contains(kotlinGamuts, v.Value) {
+				return bad("gamut", v.Line, "gamut %s is not one of %s", v.Value, strings.Join(kotlinGamuts, ", "))
+			}
+		case "material3Scheme":
+			if v.Kind != yaml.MappingNode {
+				return bad("material3Scheme", v.Line, "material3Scheme maps Material 3 roles to tokens, as in { primary: accent }")
+			}
+			rks, rvs := mapping(v)
+			if len(rks) == 0 {
+				return bad("material3Scheme", v.Line, "material3Scheme maps Material 3 roles to tokens, as in { primary: accent }; it has no roles")
+			}
+			for j, rk := range rks {
+				if !slices.Contains(Material3Roles, rk.Value) {
+					return bad("material3Scheme."+rk.Value, rk.Line, "material3Scheme role %s is not a Material 3 ColorScheme role", rk.Value)
+				}
+				if rvs[j].Kind != yaml.ScalarNode || rvs[j].Value == "" {
+					return bad("material3Scheme."+rk.Value, rvs[j].Line, "material3Scheme role %s must name a token", rk.Value)
+				}
+			}
+		default:
+			return bad(k.Value, k.Line, "unknown option %s; known: package, sharedOut, colorSpace, gamut, material3Scheme", k.Value)
+		}
+	}
+	if !hasPkg {
+		return &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name), path: base + "package", line: o.Line}
 	}
 	return nil
 }
