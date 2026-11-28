@@ -34,6 +34,21 @@ func TestParseColourSpellings(t *testing.T) {
 			t.Errorf("%s: got %+v", tc.in, c)
 		}
 	}
+	// Non-zero hues, with OKLCH computed independently of the converter.
+	for in, want := range map[string]color.OKLCH{
+		"hsl(120deg 100% 25%)":     {L: 0.518287, C: 0.176360, H: 142.4953, Alpha: 1},
+		"hsl(240, 100%, 50%)":      {L: 0.452014, C: 0.313214, H: 264.0520, Alpha: 1},
+		"hsl(0.6667turn 100% 50%)": {L: 0.452014, C: 0.313214, H: 264.0520, Alpha: 1},
+	} {
+		typ, v, _, err := Parse("c", in)
+		if err != nil || typ != "color" {
+			t.Fatalf("%s: typ %q err %v", in, typ, err)
+		}
+		c := v.Lit.(color.OKLCH)
+		if math.Abs(c.L-want.L) > 1e-3 || math.Abs(c.C-want.C) > 1e-3 || math.Abs(c.H-want.H) > 0.1 || c.Alpha != want.Alpha {
+			t.Errorf("%s: got %+v, want %+v", in, c, want)
+		}
+	}
 	_, v, _, err := Parse("c", "transparent")
 	if err != nil || v.Lit.(color.OKLCH) != (color.OKLCH{}) {
 		t.Errorf("transparent: %+v %v", v, err)
