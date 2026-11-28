@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
@@ -21,28 +22,75 @@ import (
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
-// Fixed layout, in px.
+// Layout, in px. Rows are fixed; columns are sized from what they hold
+// (see colWidth), between a floor and, for names, a cap.
 const (
 	margin     = 24
 	titleH     = 56
 	headH      = 28 // a column header row
 	groupH     = 40
-	nameColW   = 264
-	swatchColW = 152
+	nameMin    = 264 // the name column's floor
+	nameCap    = 480 // and its cap: a longer name is cut with "…"
+	swatchMin  = 152 // a swatch column's floor
 	swatchW    = 128
 	swatchH    = 40
 	colorRowH  = 92
 	spacingRow = 40
 	barMax     = 480 // the longest a spacing bar is drawn
 	barH       = 16
-	spacingLbl = 256
-	typeNameW  = 264
-	typeSampW  = 640
+	valueMin   = 200 // the spacing value column's floor
+	typeSampW  = 640 // the type sample column's floor
 	typeMinRow = 56
 	typeMaxPx  = 72 // a sample is never set larger than this
 	sample     = "The quick brown fox jumps over the lazy dog"
 	rootSize   = 16 // px in a rem
+	colPad     = 24 // the gap a column keeps after its widest text
+	nameSize   = 13 // a token name's font size
 )
+
+// Text is measured, with no font to hand, by an average advance per
+// character: a monospace face's is 0.6em; sansEm is a generous average for
+// the system sans faces, so a sample is never wider than measured.
+const (
+	monoEm = 0.6
+	sansEm = 0.55
+)
+
+// textW is the estimated width of s set at size px with em per character.
+func textW(s string, size, em float64) float64 {
+	return em * size * float64(utf8.RuneCountInString(s))
+}
+
+// colWidth is the column width that fits each text (its width plus
+// colPad), no less than floor.
+func colWidth(floor int, widths ...float64) int {
+	w := float64(floor)
+	for _, x := range widths {
+		w = math.Max(w, x+colPad)
+	}
+	return int(math.Ceil(w))
+}
+
+// nameLabel is a token's name as the sheets print it.
+func nameLabel(t *tokens.Token) string {
+	if t.Retired {
+		return t.Name + " (retired)"
+	}
+	return t.Name
+}
+
+// nameCol is the width of a name column holding toks' names and any
+// further mono labels at size 11, capped at nameCap.
+func nameCol(toks []*tokens.Token, labels ...string) int {
+	var ws []float64
+	for _, t := range toks {
+		ws = append(ws, textW(nameLabel(t), nameSize, monoEm))
+	}
+	for _, l := range labels {
+		ws = append(ws, textW(l, 11, monoEm))
+	}
+	return min(nameCap, colWidth(nameMin, ws...))
+}
 
 const (
 	bg      = "#ffffff"
@@ -165,15 +213,24 @@ func (d *doc) text(x, y int, size int, fill, fam, weight, s string) {
 		x, y, esc(fam), size, weight, fill, esc(s))
 }
 
-// name writes a token's name, with its description as a tooltip.
-func (d *doc) name(x, y int, t *tokens.Token) {
-	label := t.Name
-	if t.Retired {
-		label += " (retired)"
+// name writes a token's name in a column colW wide, with its description
+// as a tooltip. A name too long for the column is cut with "…", and the
+// tooltip then carries the whole name.
+func (d *doc) name(x, y, colW int, t *tokens.Token) {
+	label, tip := nameLabel(t), t.Description
+	if textW(label, nameSize, monoEm) > float64(colW-colPad) {
+		full := label
+		r := []rune(label)
+		n := int(float64(colW-colPad)/(monoEm*nameSize)) - 1
+		label = string(r[:max(1, n)]) + "…"
+		tip = full
+		if t.Description != "" {
+			tip += ": " + t.Description
+		}
 	}
-	d.f("<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"13\" font-weight=\"400\" fill=\"%s\">", x, y, esc(monoFam), ink)
-	if t.Description != "" {
-		d.f("<title>%s</title>", esc(t.Description))
+	d.f("<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%d\" font-weight=\"400\" fill=\"%s\">", x, y, esc(monoFam), nameSize, ink)
+	if tip != "" {
+		d.f("<title>%s</title>", esc(tip))
 	}
 	d.f("%s</text>\n", esc(label))
 }
@@ -244,7 +301,28 @@ func ordered(p *project.Project, keep func(*tokens.Token) bool) []*tokens.Token 
 func colors(p *project.Project, c context, title string) []byte {
 	apps := c.appearances()
 	all := ordered(p, func(t *tokens.Token) bool { return t.Type == "color" })
-	w := margin*2 + nameColW + swatchColW*len(apps)
+	// Resolve every swatch first: its labels size the columns.
+	type swatch struct {
+		lit color.OKLCH
+		ok  bool
+	}
+	cells := map[*tokens.Token][]swatch{}
+	var ws []float64
+	for _, a := range apps {
+		ws = append(ws, swatchW, textW(a, 12, sansEm))
+	}
+	for _, t := range all {
+		for _, a := range apps {
+			v, err := c.plan.Value(p.Tokens, t.Name, c.ctxFor(a))
+			lit, ok := valueColor(v, err)
+			cells[t] = append(cells[t], swatch{lit, ok})
+			if ok {
+				ws = append(ws, textW(hex(lit), 12, monoEm), textW(oklchText(lit), 11, monoEm))
+			}
+		}
+	}
+	nameW, colW := nameCol(all), colWidth(swatchMin, ws...)
+	w := margin*2 + nameW + colW*len(apps)
 	h := margin + titleH + headH
 	groups := map[string][]*tokens.Token{}
 	for _, t := range all {
@@ -267,7 +345,7 @@ func colors(p *project.Project, c context, title string) []byte {
 	y = margin + titleH + 16
 	for i, a := range apps {
 		if a != "" {
-			d.text(margin+nameColW+i*swatchColW, y, 12, muted, sansFam, "600", a)
+			d.text(margin+nameW+i*colW, y, 12, muted, sansFam, "600", a)
 		}
 	}
 	y = margin + titleH + headH
@@ -280,19 +358,17 @@ func colors(p *project.Project, c context, title string) []byte {
 		d.f("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"%s\"/>\n", margin, y+32, w-margin, y+32, rule)
 		y += groupH
 		for _, t := range g {
-			d.name(margin, y+24, t)
-			for i, a := range apps {
-				x := margin + nameColW + i*swatchColW
-				v, err := c.plan.Value(p.Tokens, t.Name, c.ctxFor(a))
-				lit, ok := valueColor(v, err)
-				if !ok {
+			d.name(margin, y+24, nameW, t)
+			for i, sw := range cells[t] {
+				x := margin + nameW + i*colW
+				if !sw.ok {
 					d.text(x, y+24, 12, muted, sansFam, "400", "unresolved")
 					continue
 				}
 				d.f("<rect x=\"%d\" y=\"%d\" width=\"%d\" height=\"%d\" rx=\"4\" fill=\"%s\" fill-opacity=\"%s\" stroke=\"%s\"/>\n",
-					x, y+8, swatchW, swatchH, hex(lit), num(lit.Alpha), rule)
-				d.text(x, y+swatchH+26, 12, ink, monoFam, "400", hex(lit))
-				d.text(x, y+swatchH+42, 11, muted, monoFam, "400", oklchText(lit))
+					x, y+8, swatchW, swatchH, hex(sw.lit), num(sw.lit.Alpha), rule)
+				d.text(x, y+swatchH+26, 12, ink, monoFam, "400", hex(sw.lit))
+				d.text(x, y+swatchH+42, 11, muted, monoFam, "400", oklchText(sw.lit))
 			}
 			y += colorRowH
 		}
@@ -378,14 +454,22 @@ func typeSheet(p *project.Project, c context, title string) []byte {
 		h += r.h
 	}
 	h += margin
-	w := margin*2 + typeNameW + typeSampW
+	var labels []string
+	largest := 0.0
+	for _, r := range rows {
+		labels = append(labels, r.label)
+		largest = math.Max(largest, r.size)
+	}
+	nameW := nameCol(toks, labels...)
+	// The sample column fits the largest sample, which typeMaxPx caps.
+	w := margin*2 + nameW + colWidth(typeSampW, textW(sample, largest, sansEm))
 	var d doc
 	d.open(w, h, title+" · type")
 	d.text(margin, margin+28, 20, ink, sansFam, "700", title+" · type")
 	y := margin + titleH
 	for _, r := range rows {
 		d.f("<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke=\"%s\"/>\n", margin, y, w-margin, y, rule)
-		d.name(margin, y+22, r.tok)
+		d.name(margin, y+22, nameW, r.tok)
 		d.text(margin, y+40, 11, muted, monoFam, "400", r.label)
 		lh := r.lineH
 		if lh == 0 {
@@ -393,7 +477,7 @@ func typeSheet(p *project.Project, c context, title string) []byte {
 		}
 		base := y + 12 + int(math.Round(lh*0.8))
 		d.f("<text x=\"%d\" y=\"%d\" font-family=\"%s\" font-size=\"%s\" font-weight=\"%s\" fill=\"%s\">%s</text>\n",
-			margin+typeNameW, base, esc(r.family), num(r.size), r.weight, ink, esc(sample))
+			margin+nameW, base, esc(r.family), num(r.size), r.weight, ink, esc(sample))
 		y += r.h
 	}
 	return d.close()
@@ -423,27 +507,35 @@ func fontList(fams []string) string {
 
 func spacing(p *project.Project, c context, title string) []byte {
 	toks := ordered(p, func(t *tokens.Token) bool { return t.Type == "dimension" && !isTypeDim(t) })
+	dims := make([]*tokens.Dim, len(toks))
+	var vw []float64
+	for i, t := range toks {
+		v, err := c.plan.Value(p.Tokens, t.Name, c.ctxFor(""))
+		if err == nil && v != nil {
+			if dim, ok := v.Lit.(tokens.Dim); ok {
+				dims[i] = &dim
+				vw = append(vw, textW(dimText(dim), 12, monoEm))
+			}
+		}
+	}
+	nameW := nameCol(toks)
 	h := margin + titleH + spacingRow*len(toks) + margin
-	w := margin*2 + spacingLbl + barMax + 16 + 200
+	w := margin*2 + nameW + barMax + 16 + colWidth(valueMin, vw...)
 	var d doc
 	d.open(w, h, title+" · spacing")
 	d.text(margin, margin+28, 20, ink, sansFam, "700", title+" · spacing")
 	y := margin + titleH
-	for _, t := range toks {
-		d.name(margin, y+25, t)
-		v, err := c.plan.Value(p.Tokens, t.Name, c.ctxFor(""))
-		dim, ok := tokens.Dim{}, false
-		if err == nil && v != nil {
-			dim, ok = v.Lit.(tokens.Dim)
-		}
-		if !ok {
-			d.text(margin+spacingLbl, y+25, 12, muted, sansFam, "400", "unresolved")
+	for i, t := range toks {
+		d.name(margin, y+25, nameW, t)
+		dim := dims[i]
+		if dim == nil {
+			d.text(margin+nameW, y+25, 12, muted, sansFam, "400", "unresolved")
 			y += spacingRow
 			continue
 		}
-		bar := math.Min(barMax, math.Max(0, px(dim)))
-		d.f("<rect x=\"%d\" y=\"%d\" width=\"%s\" height=\"%d\" fill=\"%s\"/>\n", margin+spacingLbl, y+(spacingRow-barH)/2, num(bar), barH, "#3b6fd4")
-		d.text(margin+spacingLbl+barMax+16, y+25, 12, muted, monoFam, "400", dimText(dim))
+		bar := math.Min(barMax, math.Max(0, px(*dim)))
+		d.f("<rect x=\"%d\" y=\"%d\" width=\"%s\" height=\"%d\" fill=\"%s\"/>\n", margin+nameW, y+(spacingRow-barH)/2, num(bar), barH, "#3b6fd4")
+		d.text(margin+nameW+barMax+16, y+25, 12, muted, monoFam, "400", dimText(*dim))
 		y += spacingRow
 	}
 	return d.close()

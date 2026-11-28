@@ -1,111 +1,111 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="616" height="1540" viewBox="0 0 616 1540">
+<svg xmlns="http://www.w3.org/2000/svg" width="638" height="1540" viewBox="0 0 638 1540">
 <title>design-system · app=tasks · colors</title>
-<rect width="616" height="1540" fill="#ffffff"/>
+<rect width="638" height="1540" fill="#ffffff"/>
 <text x="24" y="52" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="20" font-weight="700" fill="#1a1a1a">design-system · app=tasks · colors</text>
 <text x="288" y="96" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b6b6b">light</text>
-<text x="440" y="96" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b6b6b">dark</text>
+<text x="451" y="96" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="12" font-weight="600" fill="#6b6b6b">dark</text>
 <text x="24" y="134" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="14" font-weight="700" fill="#1a1a1a">semantic</text>
-<line x1="24" y1="140" x2="592" y2="140" stroke="#d9d9d9"/>
+<line x1="24" y1="140" x2="614" y2="140" stroke="#d9d9d9"/>
 <text x="24" y="172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">surface</text>
 <rect x="288" y="156" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
 <text x="288" y="230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
-<rect x="440" y="156" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
-<text x="440" y="230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
+<rect x="451" y="156" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
+<text x="451" y="230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
 <text x="24" y="264" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">ink</text>
 <rect x="288" y="248" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
 <text x="288" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
-<rect x="440" y="248" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
-<text x="440" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
+<rect x="451" y="248" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
+<text x="451" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
 <text x="24" y="356" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">accent</text>
 <rect x="288" y="340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
 <text x="288" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
-<rect x="440" y="340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
-<text x="440" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
+<rect x="451" y="340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
+<text x="451" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
 <text x="24" y="448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">highlight</text>
 <rect x="288" y="432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
 <text x="288" y="506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
-<rect x="440" y="432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
-<text x="440" y="506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
+<rect x="451" y="432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
+<text x="451" y="506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
 <text x="24" y="540" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">banner</text>
 <rect x="288" y="524" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="582" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
 <text x="288" y="598" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
-<rect x="440" y="524" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="582" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
-<text x="440" y="598" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
+<rect x="451" y="524" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="582" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
+<text x="451" y="598" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
 <text x="24" y="634" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="14" font-weight="700" fill="#1a1a1a">component</text>
-<line x1="24" y1="640" x2="592" y2="640" stroke="#d9d9d9"/>
+<line x1="24" y1="640" x2="614" y2="640" stroke="#d9d9d9"/>
 <text x="24" y="672" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">button-bg</text>
 <rect x="288" y="656" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="714" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
 <text x="288" y="730" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
-<rect x="440" y="656" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="714" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
-<text x="440" y="730" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
+<rect x="451" y="656" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="714" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
+<text x="451" y="730" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
 <text x="24" y="764" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">button-ink</text>
 <rect x="288" y="748" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="806" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
 <text x="288" y="822" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
-<rect x="440" y="748" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="806" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
-<text x="440" y="822" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
+<rect x="451" y="748" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="806" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
+<text x="451" y="822" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
 <text x="24" y="858" font-family="system-ui, -apple-system, &apos;Segoe UI&apos;, Roboto, &apos;Helvetica Neue&apos;, Arial, sans-serif" font-size="14" font-weight="700" fill="#1a1a1a">primitive</text>
-<line x1="24" y1="864" x2="592" y2="864" stroke="#d9d9d9"/>
+<line x1="24" y1="864" x2="614" y2="864" stroke="#d9d9d9"/>
 <text x="24" y="896" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">gray-50</text>
 <rect x="288" y="880" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="938" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
 <text x="288" y="954" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
-<rect x="440" y="880" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="938" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
-<text x="440" y="954" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
+<rect x="451" y="880" width="128" height="40" rx="4" fill="#f6f9fb" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="938" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#f6f9fb</text>
+<text x="451" y="954" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.98 0.004 250)</text>
 <text x="24" y="988" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">gray-200</text>
 <rect x="288" y="972" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1030" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
 <text x="288" y="1046" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
-<rect x="440" y="972" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1030" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
-<text x="440" y="1046" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
+<rect x="451" y="972" width="128" height="40" rx="4" fill="#dadee3" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1030" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#dadee3</text>
+<text x="451" y="1046" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.9 0.008 250)</text>
 <text x="24" y="1080" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">gray-800</text>
 <rect x="288" y="1064" width="128" height="40" rx="4" fill="#2a2e33" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1122" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#2a2e33</text>
 <text x="288" y="1138" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.3 0.01 250)</text>
-<rect x="440" y="1064" width="128" height="40" rx="4" fill="#2a2e33" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1122" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#2a2e33</text>
-<text x="440" y="1138" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.3 0.01 250)</text>
+<rect x="451" y="1064" width="128" height="40" rx="4" fill="#2a2e33" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1122" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#2a2e33</text>
+<text x="451" y="1138" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.3 0.01 250)</text>
 <text x="24" y="1172" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">gray-900</text>
 <rect x="288" y="1156" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
 <text x="288" y="1230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
-<rect x="440" y="1156" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
-<text x="440" y="1230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
+<rect x="451" y="1156" width="128" height="40" rx="4" fill="#12171b" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1214" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#12171b</text>
+<text x="451" y="1230" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.2 0.012 250)</text>
 <text x="24" y="1264" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">blue-500</text>
 <rect x="288" y="1248" width="128" height="40" rx="4" fill="#3a81d7" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3a81d7</text>
 <text x="288" y="1322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.6 0.15 255)</text>
-<rect x="440" y="1248" width="128" height="40" rx="4" fill="#3a81d7" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3a81d7</text>
-<text x="440" y="1322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.6 0.15 255)</text>
+<rect x="451" y="1248" width="128" height="40" rx="4" fill="#3a81d7" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1306" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3a81d7</text>
+<text x="451" y="1322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.6 0.15 255)</text>
 <text x="24" y="1356" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">green-500</text>
 <rect x="288" y="1340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
 <text x="288" y="1414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
-<rect x="440" y="1340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
-<text x="440" y="1414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
+<rect x="451" y="1340" width="128" height="40" rx="4" fill="#3aa85b" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1398" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#3aa85b</text>
+<text x="451" y="1414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.65 0.15 150)</text>
 <text x="24" y="1448" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1a1a1a">vivid</text>
 <rect x="288" y="1432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
 <text x="288" y="1490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
 <text x="288" y="1506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
-<rect x="440" y="1432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
-<text x="440" y="1490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
-<text x="440" y="1506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
+<rect x="451" y="1432" width="128" height="40" rx="4" fill="#00c300" fill-opacity="1" stroke="#d9d9d9"/>
+<text x="451" y="1490" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1a1a1a">#00c300</text>
+<text x="451" y="1506" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#6b6b6b">oklch(0.7 0.4 145)</text>
 </svg>

@@ -38,6 +38,9 @@ func runSpecimen(inv *invocation) int {
 	}
 	out := path.Join(p.Config.Content, "generated", "specimen")
 	if v := inv.value("out"); v != "" {
+		if len(v) >= 2 && v[1] == ':' && (v[0] >= 'A' && v[0] <= 'Z' || v[0] >= 'a' && v[0] <= 'z') {
+			return inv.usageError("--out %s has a drive letter; give a directory inside the project", v)
+		}
 		out = path.Clean(strings.ReplaceAll(v, "\\", "/"))
 	}
 	sheets, err := specimen.Render(p)

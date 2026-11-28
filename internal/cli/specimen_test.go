@@ -44,6 +44,17 @@ func TestSpecimenCommand(t *testing.T) {
 	assert.NotEmpty(t, stderr)
 	assert.NoDirExists(t, filepath.Join(filepath.Dir(dir), "escape"))
 
+	// So is a drive letter, which on a Unix host would otherwise become a
+	// directory named "C:" inside the project.
+	for _, out := range []string{`C:\x`, "c:/x", "D:"} {
+		code, stdout, stderr = run("--root", dir, "specimen", "--out", out)
+		assert.Equal(t, ExitUsage, code, out)
+		assert.Empty(t, stdout, out)
+		assert.Contains(t, stderr, "drive letter", out)
+	}
+	assert.NoDirExists(t, filepath.Join(dir, "C:"))
+	assert.NoDirExists(t, filepath.Join(dir, "c:"))
+
 	code, _, _ = run("--root", dir, "specimen", "extra")
 	assert.Equal(t, ExitUsage, code)
 }
