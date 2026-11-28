@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -399,6 +400,29 @@ func TestKotlinSharedOut(t *testing.T) {
 	shared := string(androidKotlin(t)[sharedKotlin])
 	assert.Contains(t, s, shared[strings.Index(shared, "public class DesignTokens"):], "the shared part is the same declarations")
 	assert.Less(t, strings.Index(s, "public class DesignTokens("), strings.Index(s, "public data class DesignColors("))
+}
+
+// TestKotlinSharedOutCleanedCollides: a sharedOut spelled with ./ or ..
+// is written at its cleaned path, so the cross-platform collision check
+// catches another platform's out that names the same file.
+func TestKotlinSharedOutCleanedCollides(t *testing.T) {
+	for _, spelling := range []string{"./" + sharedKotlin, "android/x/../shared/src/main/kotlin/DesignTokens.kt"} {
+		fsys := androidFS(t, func(y string) string {
+			y = strings.Replace(y, "sharedOut: "+sharedKotlin, "sharedOut: "+spelling, 1)
+			return strings.Replace(y, "platforms:\n", "platforms:\n  data: {emit: json, out: "+sharedKotlin+"}\n", 1)
+		})
+		out, ds := Build(loadFS(t, fsys), nil)
+		var msgs []string
+		for _, d := range ds {
+			if d.Severity == diag.Error {
+				msgs = append(msgs, d.Message)
+			}
+		}
+		assert.Equal(t, []string{"data.json and android.kotlin both write " + sharedKotlin}, msgs, spelling)
+		for f := range out {
+			assert.True(t, path.Clean(f) == f, "%s: output path %q is not clean", spelling, f)
+		}
+	}
 }
 
 // TestKotlinOnePerAppFileMustNotVary: a per-app out without {app} would

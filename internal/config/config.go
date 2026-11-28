@@ -461,6 +461,19 @@ func underRoot(key, v, at string, line int) (string, *buildError) {
 	return clean, nil
 }
 
+// outUnderRoot is underRoot for format's out. Every format but colorsets
+// (a catalog folder) writes one file, so its out may not end in "/".
+func outUnderRoot(format, v, at string, line int) (string, *buildError) {
+	clean, err := underRoot("out", v, at, line)
+	if err != nil {
+		return "", err
+	}
+	if format != "colorsets" && strings.HasSuffix(clean, "/") {
+		return "", &buildError{msg: fmt.Sprintf("out %s must name a file, not a directory; %s writes one file", v, format), path: at, line: line}
+	}
+	return clean, nil
+}
+
 // Formats are the emit formats airframe.yaml may name: css, json, swift,
 // colorsets and kotlin are built now; xaml is accepted so a config can
 // declare it, and is reported as not yet built until its emitter lands.
@@ -523,7 +536,7 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 					path: "platforms." + p.Name + ".out", line: o.Line,
 				}
 			}
-			clean, err := underRoot("out", o.Value, "platforms."+p.Name+".out", o.Line)
+			clean, err := outUnderRoot(p.Emit[0], o.Value, "platforms."+p.Name+".out", o.Line)
 			if err != nil {
 				return p, err
 			}
@@ -538,7 +551,7 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 						path: "platforms." + p.Name + ".out." + k.Value, line: k.Line,
 					}
 				}
-				clean, err := underRoot("out", vs[i].Value, "platforms."+p.Name+".out."+k.Value, vs[i].Line)
+				clean, err := outUnderRoot(k.Value, vs[i].Value, "platforms."+p.Name+".out."+k.Value, vs[i].Line)
 				if err != nil {
 					return p, err
 				}
@@ -687,12 +700,24 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" || v.Value == "" {
 				return bad("sharedOut", v.Line, "sharedOut must be a string: a non-empty path")
 			}
-			if _, err := underRoot("sharedOut", v.Value, base+"sharedOut", v.Line); err != nil {
+			clean, err := underRoot("sharedOut", v.Value, base+"sharedOut", v.Line)
+			if err != nil {
 				return err
 			}
-			if p.FanOut != "" && strings.Contains(v.Value, "{"+p.FanOut+"}") {
+			switch {
+			case clean == ".":
+				return bad("sharedOut", v.Line, "sharedOut %q must name a file under the root", v.Value)
+			case strings.HasSuffix(clean, "/"):
+				return bad("sharedOut", v.Line, "sharedOut %s must name a file, not a directory", v.Value)
+			case p.FanOut != "" && strings.Contains(v.Value, "{"+p.FanOut+"}"):
 				return bad("sharedOut", v.Line, "sharedOut %s contains {%s}; the shared file is written once, so it cannot fan out", v.Value, p.FanOut)
+			case strings.ContainsAny(v.Value, "{}"):
+				return bad("sharedOut", v.Line, "sharedOut %s may not contain { or }; the shared file is written once, to a literal path", v.Value)
 			}
+			// Store the cleaned path (p.Options is buildPlatform's map):
+			// the emitter writes it, and Build's cross-platform collision
+			// check compares it with every other output path.
+			p.Options["sharedOut"] = clean
 		case "colorSpace":
 			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" {
 				return bad("colorSpace", v.Line, "colorSpace must be a string, one of %s", strings.Join(kotlinColorSpaces, ", "))
