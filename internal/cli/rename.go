@@ -174,7 +174,8 @@ func removeColorset(root *os.Root, dir string) error {
 }
 
 // writePlan prints a plan: one line per edit, file:line:col  old → new;
-// then each move, file:line  move from → to; then each manual item,
+// then each move, file:line  move from → to, noting a move that changes
+// the emitted order; then each manual item,
 // file:line  manual: message.
 func writePlan(w io.Writer, pl *rename.EditPlan) {
 	var b strings.Builder
@@ -182,7 +183,11 @@ func writePlan(w io.Writer, pl *rename.EditPlan) {
 		fmt.Fprintf(&b, "%s:%d:%d  %s → %s\n", e.File, e.Line, e.Col, e.Old, e.New)
 	}
 	for _, m := range pl.Moves {
-		fmt.Fprintf(&b, "%s:%d  move %s → %s\n", m.File, m.Line, m.From, m.To)
+		note := ""
+		if m.Reordered {
+			note = " (appended to its new group: the emitted order changes)"
+		}
+		fmt.Fprintf(&b, "%s:%d  move %s → %s%s\n", m.File, m.Line, m.From, m.To, note)
 	}
 	for _, m := range pl.Manual {
 		fmt.Fprintf(&b, "%s:%d  manual: %s\n", m.File, m.Line, m.Message)

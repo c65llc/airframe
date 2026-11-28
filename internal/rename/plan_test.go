@@ -182,6 +182,7 @@ func TestPlanTokenMove(t *testing.T) {
 	// A same-parent move keeps the token's place in its group.
 	base := string(pl.Files["design-system/tokens/base.tokens.json"])
 	assert.Less(t, strings.Index(base, `"canvas"`), strings.Index(base, `"ink"`))
+	assert.False(t, pl.Moves[0].Reordered)
 
 	// Every file in the plan is already formatted.
 	for f, b := range pl.Files {
@@ -199,7 +200,21 @@ func TestPlanTokenMove(t *testing.T) {
 	base = string(pl.Files["design-system/tokens/base.tokens.json"])
 	assert.NotContains(t, base, `"text"`, "the emptied group is gone")
 
+	assert.False(t, pl.Moves[0].Reordered, "text-muted was last and stays last")
+
+	// The order is declaration order, dark.tokens.json's first: color-surface
+	// moving to the end of it puts it after color-ink.
+	pl = plan(t, fixture(), "color-surface", "canvas", "")
+	require.Len(t, pl.Moves, 2)
+	for _, m := range pl.Moves {
+		assert.True(t, m.Reordered, "%+v", m)
+	}
+	assert.Equal(t, []string{"color-ink", "canvas"}, pl.After.Tokens.Order[:2])
+	// color-ink moves to the end of both files too, but stays second.
 	pl = plan(t, fixture(), "color-ink", "ink", "")
+	for _, m := range pl.Moves {
+		assert.False(t, m.Reordered, "%+v", m)
+	}
 	ink := pl.After.Tokens.Tokens["ink"]
 	require.NotNil(t, ink)
 	assert.Equal(t, "color", ink.Type, "the group's $type is written onto the moved token")

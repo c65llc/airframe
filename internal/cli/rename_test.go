@@ -51,6 +51,12 @@ func TestRenameDryRun(t *testing.T) {
 	golden(t, "rename.dryrun.golden", stdout)
 	assert.Equal(t, before, treeHash(t, dir), "a dry run writes nothing")
 
+	// button-bg leaves the button group for a new bg group, appended after
+	// it: it is emitted after button-ink now.
+	code, stdout, stderr = run("--root", dir, "rename", "button-bg", "bg-button", "--dry-run")
+	require.Equal(t, ExitOK, code, stderr)
+	assert.Contains(t, stdout, "  move button.bg → bg.button (appended to its new group: the emitted order changes)\n")
+
 	// A dry run with manual items still exits 0: the plan was printed.
 	code, stdout, stderr = run("--root", dir, "rename", "space-2", "space-two", "--dry-run")
 	require.Equal(t, ExitOK, code, stderr)

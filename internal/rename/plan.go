@@ -38,11 +38,15 @@ type Edit struct {
 }
 
 // Move is a token node moved from DTCG path From to To in File (dotted
-// paths); Line is the node's line in File as it was.
+// paths); Line is the node's line in File as it was. Reordered is a move to
+// another group, which appends the token there, that changes the order the
+// tokens are emitted in.
 type Move struct {
-	File     string
-	Line     int
-	From, To string
+	File      string
+	Line      int
+	From, To  string
+	Reordered bool
+	appended  bool
 }
 
 // Manual is a reference the planner cannot rewrite and leaves to the user.
@@ -140,6 +144,17 @@ func Plan(p *project.Project, old, new, dotted string) (*EditPlan, error) {
 		return nil, &Refusal{Msg: fmt.Sprintf("rename: the renamed project does not load (%d problem(s))", len(ds)), Diagnostics: ds}
 	}
 	pl.After = after
+	// The order is the files' declaration order: a cross-group move appends
+	// the token to its new group, which may move it among the others.
+	want := slices.Clone(before.Tokens.Order)
+	if i := slices.Index(want, old); i >= 0 {
+		want[i] = new
+	}
+	if !slices.Equal(want, after.Tokens.Order) {
+		for i := range pl.Moves {
+			pl.Moves[i].Reordered = pl.Moves[i].appended
+		}
+	}
 	return pl, nil
 }
 
@@ -526,6 +541,7 @@ func (r *renamer) move(file string, root *ojson.Node, from []string) error {
 	}
 	g.Keys = append(g.Keys, to[len(to)-1])
 	g.Fields[to[len(to)-1]] = node
+	r.pl.Moves[len(r.pl.Moves)-1].appended = true
 
 	if _, own := node.Fields["$type"]; !own && typeAt(root, to) != oldType {
 		node.Keys = append([]string{"$type"}, node.Keys...)
