@@ -125,7 +125,7 @@ func TestParseCommentAttachment(t *testing.T) {
   /* first */ /* second */
   --a: 1;
   --b: 2 /* inside value */;
-  --c: 3; /* trailing, attaches to d */ --d: 4;
+  --c: 3; /* trailing, attaches to c */ --d: 4;
 }`)
 	ds := s.Rules[0].Decls
 	got := map[string]string{}
@@ -135,11 +135,11 @@ func TestParseCommentAttachment(t *testing.T) {
 	if got["--a"] != "/* second */" {
 		t.Errorf("--a Comment = %q", got["--a"])
 	}
-	if got["--b"] != "" || got["--c"] != "" {
-		t.Errorf("--b/--c Comments = %q / %q", got["--b"], got["--c"])
+	if got["--b"] != "" || got["--d"] != "" {
+		t.Errorf("--b/--d Comments = %q / %q", got["--b"], got["--d"])
 	}
-	if !strings.Contains(got["--d"], "trailing") {
-		t.Errorf("--d Comment = %q", got["--d"])
+	if !strings.Contains(got["--c"], "trailing") {
+		t.Errorf("--c Comment = %q", got["--c"])
 	}
 	if ds[1].Value != "2" {
 		t.Errorf("--b Value = %q", ds[1].Value)
@@ -328,5 +328,48 @@ func TestParseMediaDepthCap(t *testing.T) {
 	src = strings.Repeat("@media (x: y) {", 1_000_000) + strings.Repeat("}", 1_000_000)
 	if _, ds := Parse("tokens.css", []byte(src)); len(ds) != 1 {
 		t.Errorf("diagnostics = %d, want 1", len(ds))
+	}
+}
+
+// TestParseTrailingComment holds a comment that starts on the line of a
+// declaration's ';' to that declaration: it describes the one before it,
+// never the next one.
+func TestParseTrailingComment(t *testing.T) {
+	cases := []struct {
+		name, src string
+		want      map[string]string
+	}{
+		{"own line after", ":root {\n  --a: 1px; /* about a */\n  --b: 2px;\n}",
+			map[string]string{"--a": "/* about a */", "--b": ""}},
+		{"same line as next", ":root { --a: 1px; /* about a */ --b: 2px; }",
+			map[string]string{"--a": "/* about a */", "--b": ""}},
+		{"before the closing brace", ":root { --a: 1px; /* about a */ }",
+			map[string]string{"--a": "/* about a */"}},
+		{"multi-line trailing", ":root {\n  --a: 1px; /* about\n a */\n  --b: 2px;\n}",
+			map[string]string{"--a": "/* about\n a */", "--b": ""}},
+		{"previous already described", ":root {\n  /* lead */ --a: 1px; /* discarded */\n  --b: 2px;\n}",
+			map[string]string{"--a": "/* lead */", "--b": ""}},
+		{"after a non-custom declaration", ":root {\n  color: red; /* discarded */\n  --b: 2px;\n}",
+			map[string]string{"--b": ""}},
+		{"own line before next", ":root {\n  --a: 1px;\n  /* about b */\n  --b: 2px;\n}",
+			map[string]string{"--a": "", "--b": "/* about b */"}},
+		{"trailing then own line", ":root {\n  --a: 1px; /* about a */\n  /* about b */\n  --b: 2px;\n}",
+			map[string]string{"--a": "/* about a */", "--b": "/* about b */"}},
+	}
+	for _, c := range cases {
+		s := mustParse(t, c.src)
+		got := map[string]string{}
+		for _, d := range s.Rules[0].Decls {
+			got[d.Name] = d.Comment
+		}
+		if len(got) != len(c.want) {
+			t.Errorf("%s: Decls = %+v", c.name, s.Rules[0].Decls)
+			continue
+		}
+		for n, w := range c.want {
+			if got[n] != w {
+				t.Errorf("%s: %s Comment = %q, want %q", c.name, n, got[n], w)
+			}
+		}
 	}
 }

@@ -37,8 +37,12 @@ type Rule struct {
 // Decl is one custom-property declaration. Name includes the leading "--"
 // and Value is trimmed, with comments removed. Comment is the raw text,
 // delimiters included, of the last comment in the same block that is
-// followed only by whitespace before Name, or "". Order is the 0-based index
-// of the declaration among all stored declarations in the sheet.
+// followed only by whitespace before Name; failing that, of a trailing
+// comment: one that starts on the line of the declaration's terminating
+// ';' with only whitespace between. Otherwise it is "". A trailing comment
+// never describes the next declaration, and one after a declaration that
+// already has a comment is discarded. Order is the 0-based index of the
+// declaration among all stored declarations in the sheet.
 type Decl struct {
 	Name, Value, Comment string
 	Line, Order          int
@@ -166,18 +170,32 @@ func (p *parser) str() (string, bool) {
 // skipSpace skips whitespace and comments and returns the raw text of the
 // last comment, provided only whitespace follows it.
 func (p *parser) skipSpace() string {
-	last := ""
+	_, last := p.skipSpaceAfter(0)
+	return last
+}
+
+// skipSpaceAfter is skipSpace after a declaration's ';' on line term
+// (0 for none). A comment that starts on line term, before any newline, is
+// trailing: the first is returned as trailing and none is ever last.
+func (p *parser) skipSpaceAfter(term int) (trailing, last string) {
 	for !p.eof() && !p.dead {
 		switch c := p.peek(0); {
 		case isSpace(c):
 			p.advance()
 		case c == '/' && p.peek(1) == '*':
-			last, _ = p.comment()
+			onTerm := term > 0 && p.line == term
+			text, _ := p.comment()
+			switch {
+			case !onTerm:
+				last = text
+			case trailing == "":
+				trailing = text
+			}
 		default:
-			return last
+			return trailing, last
 		}
 	}
-	return last
+	return trailing, last
 }
 
 // scanUntil reads up to the first byte of stops that is outside strings,
@@ -350,8 +368,13 @@ func (p *parser) rule(media []string, line int) {
 // body parses declarations through the closing '}' of a rule opened on
 // line open.
 func (p *parser) body(r *Rule, open int) {
+	term, prev := 0, -1 // the line of the last declaration's ';', and its index in r.Decls
 	for !p.dead {
-		comment := p.skipSpace()
+		trailing, comment := p.skipSpaceAfter(term)
+		if trailing != "" && prev >= 0 && r.Decls[prev].Comment == "" {
+			r.Decls[prev].Comment = trailing
+		}
+		term, prev = 0, -1
 		if p.dead {
 			return
 		}
@@ -387,25 +410,36 @@ func (p *parser) body(r *Rule, open int) {
 			p.fail(open, "unclosed '{'")
 			return
 		}
-		p.decl(r, text, comment, line)
+		stored := p.decl(r, text, comment, line)
+		if stop == ';' {
+			// The ';' ends the declaration; a comment after it on its
+			// line is the declaration's own. A '}' is left for the loop.
+			term = p.line
+			p.advance()
+			if stored {
+				prev = len(r.Decls) - 1
+			}
+		}
 	}
 }
 
-func (p *parser) decl(r *Rule, text, comment string, line int) {
+// decl parses one declaration's text and stores it in r if it is a valid
+// custom property, reporting whether it did.
+func (p *parser) decl(r *Rule, text, comment string, line int) bool {
 	name, value, ok := strings.Cut(text, ":")
 	name = strings.TrimSpace(name)
 	if !strings.HasPrefix(name, "--") {
 		p.sheet.Ignored++
-		return
+		return false
 	}
 	if !ok {
 		p.report(RuleSyntax, line, "the declaration %s has no ':'", name)
-		return
+		return false
 	}
 	value = strings.TrimSpace(value)
 	if isImportant(value) {
 		p.report(RuleUnsupportedValue, line, "!important is not supported: Airframe never emits it")
-		return
+		return false
 	}
 	r.Decls = append(r.Decls, Decl{
 		Name:    name,
@@ -415,6 +449,7 @@ func (p *parser) decl(r *Rule, text, comment string, line int) {
 		Order:   p.order,
 	})
 	p.order++
+	return true
 }
 
 // splitTop splits a selector list on commas outside strings, parentheses
