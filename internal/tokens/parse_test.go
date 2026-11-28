@@ -434,6 +434,6 @@ func TestTokenNamesOnOverrideRejected(t *testing.T) {
 	})
 	d := only(t, ds, "schema-invalid")
 	assert.Equal(t, `only $value, modes and density may appear on an override of "x"`, d.Message)
-	assert.Equal(t, 4, d.Line)
+	assert.Equal(t, 3, d.Line)
 	assert.Nil(t, s.Tokens["x"].Names)
 }
