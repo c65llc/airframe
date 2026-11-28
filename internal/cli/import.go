@@ -112,29 +112,41 @@ func runImport(inv *invocation) int {
 	}
 
 	outs := slices.Sorted(maps.Keys(res.Files))
+	// The existing-output check runs before --dry-run returns, so a dry
+	// run predicts the refusal.
+	var existing []string
+	for _, t := range importTargets {
+		name := path.Join(cfg.Content, t)
+		_, err := root.Lstat(filepath.FromSlash(name))
+		switch {
+		case err == nil:
+			existing = append(existing, name)
+		case !errors.Is(err, fs.ErrNotExist):
+			return inv.fail(err)
+		}
+	}
+	if len(existing) > 0 && !*inv.bools["force"] {
+		_, _ = fmt.Fprintf(inv.stderr, "airframe import: already exist; use --force to overwrite: %s\n",
+			strings.Join(existing, ", "))
+		return ExitUsage
+	}
+	// Under --force, an existing target this run does not produce is left
+	// over from an earlier import: it is removed, so the project on disk is
+	// what the equivalence check proved.
+	var stale []string
+	for _, name := range existing {
+		if _, ok := res.Files[name]; !ok {
+			stale = append(stale, name)
+		}
+	}
 	if *inv.bools["dry-run"] {
 		for _, name := range outs {
 			_, _ = fmt.Fprintln(inv.stdout, "would write", name)
 		}
+		for _, name := range stale {
+			_, _ = fmt.Fprintln(inv.stdout, "would remove", name)
+		}
 		return ExitOK
-	}
-	if !*inv.bools["force"] {
-		var existing []string
-		for _, t := range importTargets {
-			name := path.Join(cfg.Content, t)
-			_, err := root.Lstat(filepath.FromSlash(name))
-			switch {
-			case err == nil:
-				existing = append(existing, name)
-			case !errors.Is(err, fs.ErrNotExist):
-				return inv.fail(err)
-			}
-		}
-		if len(existing) > 0 {
-			_, _ = fmt.Fprintf(inv.stderr, "airframe import: already exist; use --force to overwrite: %s\n",
-				strings.Join(existing, ", "))
-			return ExitUsage
-		}
 	}
 	for _, name := range outs {
 		if err := writeFile(root, name, res.Files[name]); err != nil {
@@ -142,10 +154,7 @@ func runImport(inv *invocation) int {
 		}
 		_, _ = fmt.Fprintln(inv.stdout, "wrote", name)
 	}
-	// Under --force, a target this run did not produce is left over from
-	// an earlier import: remove it, so the project on disk is what the
-	// equivalence check proved.
-	for _, name := range staleTargets(cfg.Content, res.Files) {
+	for _, name := range stale {
 		err := root.Remove(filepath.FromSlash(name))
 		switch {
 		case err == nil:
@@ -155,19 +164,6 @@ func runImport(inv *invocation) int {
 		}
 	}
 	return ExitOK
-}
-
-// staleTargets lists, in order, the import targets under content that
-// files does not hold.
-func staleTargets(content string, files map[string][]byte) []string {
-	var out []string
-	for _, t := range importTargets {
-		name := path.Join(content, t)
-		if _, ok := files[name]; !ok {
-			out = append(out, name)
-		}
-	}
-	return out
 }
 
 // projectPath is name, a path relative to the working directory or

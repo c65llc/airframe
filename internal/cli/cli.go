@@ -140,7 +140,7 @@ var Commands = []Command{
 		Summary: "Turn stylesheets of CSS custom properties into token files, proving the generated CSS equivalent.",
 		Flags: []Flag{
 			{Name: "dry-run", Summary: "check the import, print what it would write, and write nothing"},
-			{Name: "force", Summary: "overwrite existing token files"},
+			{Name: "force", Summary: "overwrite existing token files, removing one the import no longer produces"},
 		},
 	},
 	{

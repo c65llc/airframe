@@ -1,0 +1,27 @@
+# --dry-run predicts the refusal: with an import target already present and
+# no --force, it exits 2 with the same message and writes nothing.
+exits 2 airframe import css --dry-run theme.css
+stderr 'already exist; use --force to overwrite: design-system/tokens/semantic.tokens.json$'
+! stdout 'would write'
+cmp design-system/tokens/semantic.tokens.json mine.json
+
+# With --force it says what it would write and what it would remove.
+exec airframe import css --dry-run --force theme.css
+stdout '^would write design-system/tokens/primitive.tokens.json$'
+stdout '^would remove design-system/tokens/semantic.tokens.json$'
+cmp design-system/tokens/semantic.tokens.json mine.json
+! exists design-system/tokens/primitive.tokens.json
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- theme.css --
+:root { --gap: 4px; }
+-- design-system/tokens/semantic.tokens.json --
+{"mine": true}
+-- mine.json --
+{"mine": true}
