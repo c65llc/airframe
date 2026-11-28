@@ -175,6 +175,7 @@ var Commands = []Command{
 	},
 	diffCommand,
 	retireCommand,
+	specimenCommand,
 	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",
