@@ -67,6 +67,10 @@ implementations: { web: web/src/tabstrip/TabStrip.tsx, android: "n/a: phone only
 		{"owner absolute", "id: tabstrip\nowners: [/x/**]\n", "owners.0", "repo-relative glob"},
 		{"owner backslash", "id: tabstrip\nowners: ['x\\y']\n", "owners.0", "repo-relative glob"},
 		{"owner bad glob", "id: tabstrip\nowners: ['x/[a']\n", "owners.0", "not a valid glob"},
+		{"owner dot-slash", "id: tabstrip\nowners: [./x/**]\n", "owners.0", "not a clean path (x/**)"},
+		{"owner double slash", "id: tabstrip\nowners: ['x//y/**']\n", "owners.0", "not a clean path (x/y/**)"},
+		{"owner trailing slash", "id: tabstrip\nowners: [x/]\n", "owners.0", "not a clean path (x)"},
+		{"owner dot-dot inside", "id: tabstrip\nowners: [x/../y/**]\n", "owners.0", "not a clean path (y/**)"},
 		{"empty file", "", "", "object"},
 		{"a list", "- id: tabstrip\n", "", "object"},
 	} {

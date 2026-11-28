@@ -163,7 +163,12 @@ func kotlinColorPrefix(typ string) string {
 }
 
 func (k *kotliner) colorsType() string { return kotlinColorPrefix(k.typ) + "Colors" }
-func (k *kotliner) valuesType() string { return kotlinColorPrefix(k.typ) + "ColorValues" }
+func (k *kotliner) valuesType() string { return KotlinColorValuesType(k.typ) }
+
+// KotlinColorValuesType is the name of the per-appearance values object the
+// kotlin emitter declares beside type typ, the naming template's type part
+// (DesignTokens gives DesignColorValues).
+func KotlinColorValuesType(typ string) string { return kotlinColorPrefix(typ) + "ColorValues" }
 
 // kotlinIdentRE is an identifier Kotlin accepts without backticks, kept to
 // ASCII as for Swift.

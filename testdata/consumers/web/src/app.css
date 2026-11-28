@@ -1,0 +1,14 @@
+:root {
+  --sidebar-w: 240px;
+}
+.app {
+  width: var(--sidebar-w);
+  padding: var(--card-pad);
+  color: var(--ink);
+  background: var(--surface, #fff);
+  border-color: var(--accnet);
+  /* airframe-exempt fallback-literal: legacy theme until the v2 migration */
+  outline-width: var(--hairline, 1px);
+  margin: var(--gap, var(--hairline, 4px));
+  box-shadow: 0 0 0 1px var(--accent, rgb(0 0 0 / 0.5)); /* airframe-exempt fallback-literal */
+}

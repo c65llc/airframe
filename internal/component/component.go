@@ -166,6 +166,11 @@ func ownerProblem(g string) string {
 	if !doublestar.ValidatePattern(g) {
 		return "is not a valid glob"
 	}
+	// Consumer paths are clean, so a glob that is not (./a, a//b, a/)
+	// would match no file and silently own nothing.
+	if clean != g {
+		return fmt.Sprintf("is not a clean path (%s); it would never match a repo-relative file", clean)
+	}
 	return ""
 }
 

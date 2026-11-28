@@ -1,0 +1,2 @@
+/* under the content root, which is never scanned */
+.x { color: var(--not-scanned); }

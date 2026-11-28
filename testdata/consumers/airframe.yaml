@@ -1,0 +1,38 @@
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ":root[data-theme='dark']"}}
+  density: {values: [compact, standard], base: standard, binding: runtime, web: {attr: data-density}}
+platforms:
+  web:
+    emit: [css]
+    out: {css: web/src/generated/tokens.css}
+    consumers: ["web/src/**/*.css", "web/src/**/*.tsx", "design-system/**/*.css"]
+    wrappers:
+      - root: theme.space
+        map: {small: space-2, hairlineStrong: hairline, space4: gap}
+        patterns: [{match: '^space(\d+)$', token: 'space-{1}'}]
+      - root: tokens
+        generated: true
+  apple:
+    emit: [swift, colorsets]
+    out: {swift: apple/Generated/DesignTokens.swift, colorsets: apple/Generated/Assets.xcassets/Tokens/}
+    consumers: ["apple/**/*.swift"]
+    wrappers:
+      - root: AppTheme.spacing
+        map: {small: space-2, hairlineStrong: hairline}
+        patterns: [{match: '^space(\d+)$', token: 'space-{1}'}]
+      - root: Theme
+        generated: true
+  android:
+    emit: [kotlin]
+    out: {kotlin: android/generated/DesignTokens.kt}
+    consumers: ["android/src/**/*.kt"]
+    options: {package: com.example.design}
+    wrappers:
+      - root: LocalTokens.current
+        generated: true
+  windows:
+    emit: [xaml]
+    out: {xaml: windows/Generated/DesignTokens.xaml}
+    consumers: ["windows/App/**/*.xaml", "windows/App/**/*.cs"]

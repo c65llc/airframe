@@ -1,0 +1,2 @@
+/* stands in for the generated file, which is never scanned */
+:root { --nope: var(--also-nope, 1px); }
