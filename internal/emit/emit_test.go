@@ -198,18 +198,65 @@ func TestEmitListSkipsFormat(t *testing.T) {
 // the built formats still build.
 func TestBuildReportsUnsupported(t *testing.T) {
 	fsys := memFS(t, minimalDir)
-	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}", 1)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin]}", 1)
 	out, ds := Build(loadFS(t, fsys), nil)
-	require.Len(t, ds, 2)
-	for i, f := range []string{"swift", "colorsets"} {
+	require.Len(t, ds, 1, "%v", ds)
+	for i, f := range []string{"kotlin"} {
 		assert.Equal(t, "emit-unsupported", ds[i].Rule)
 		assert.Equal(t, diag.Warn, ds[i].Severity)
 		assert.Equal(t, "airframe.yaml", ds[i].File)
-		assert.Equal(t, "platforms.apple.emit", ds[i].Path)
-		assert.Equal(t, "platform apple: format "+f+" is not built until a later release", ds[i].Message)
+		assert.Equal(t, "platforms.android.emit", ds[i].Path)
+		assert.Equal(t, "platform android: format "+f+" is not built until a later release", ds[i].Message)
 	}
 	assert.Contains(t, out, minimalCSS)
+	assert.Contains(t, out, "design-system/generated/apple/Assets.xcassets/Tokens/Contents.json", "colorsets is built, at its default out")
+	assert.Contains(t, out, "design-system/generated/apple/DesignTokens.swift", "swift is built, at its default out")
 
 	_, ds = Build(loadFS(t, fsys), []string{"css"})
 	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")
+}
+
+// TestAppleDeterministic: the apple fixture builds the same bytes twice
+// and with its token files read in reverse order, for every output path,
+// Swift and colorsets alike. The per-app Swift variant is held to the
+// same standard.
+func TestAppleDeterministic(t *testing.T) {
+	for name, p := range map[string]*project.Project{
+		"fixture": loadFS(t, os.DirFS(appleDir)),
+		"per-app": loadFS(t, perAppFS(t)),
+	} {
+		t.Run(name, func(t *testing.T) {
+			first, _ := Build(p, nil)
+			require.NotEmpty(t, first)
+			var swift, colorsets int
+			for path := range first {
+				if strings.HasSuffix(path, ".swift") {
+					swift++
+				}
+				if strings.HasSuffix(path, ".colorset/Contents.json") {
+					colorsets++
+				}
+			}
+			assert.Positive(t, swift)
+			if name == "fixture" {
+				assert.Positive(t, colorsets)
+			}
+			again, _ := Build(p, nil)
+			assert.Equal(t, first, again)
+
+			slices.Reverse(p.TokenFiles)
+			files := map[string][]byte{}
+			for _, f := range p.TokenFiles {
+				files[f] = p.Sources[f]
+			}
+			set, tds := tokens.Parse(p.Config, files)
+			require.Empty(t, tds)
+			p.Tokens = set
+			reversed, _ := Build(p, nil)
+			require.Equal(t, slices.Sorted(maps.Keys(first)), slices.Sorted(maps.Keys(reversed)))
+			for path := range first {
+				assert.Equal(t, string(first[path]), string(reversed[path]), path)
+			}
+		})
+	}
 }

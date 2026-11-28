@@ -18,7 +18,9 @@ import (
 // a missing file or different bytes is stale. It uses the outputs the
 // caller generated (Options.Generated) so lint and build cannot disagree,
 // and builds them itself only when none were given. CRLF line endings on
-// disk do not count as a difference. A build failure is reported, never
+// disk do not count as a difference. A colorset left in an airframe
+// catalog folder that no token makes any more is stale as well
+// (emit.StaleColorsets). A build failure is reported, never
 // read as clean.
 func ruleEmittedStale(p *project.Project, c *Context) ([]diag.Diagnostic, diag.Tally) {
 	const id = "emitted-stale"
@@ -49,5 +51,23 @@ func ruleEmittedStale(p *project.Project, c *Context) ([]diag.Diagnostic, diag.T
 			Message: path + " is stale — run `airframe build`", Docs: diag.DocsURL(id),
 		})
 	}
+	// A colorset no token makes any more is stale too; build does not
+	// remove it, so the message says to delete it.
+	stale, err := emit.StaleColorsets(p.FS, gen)
+	if err != nil {
+		out = append(out, diag.Diagnostic{
+			Rule: id, Severity: diag.Error, Message: "cannot scan for stale colorsets: " + err.Error(), Docs: diag.DocsURL(id),
+		})
+	}
+	for _, path := range stale {
+		out = append(out, diag.Diagnostic{
+			Rule: id, Severity: diag.Error, File: path, Message: StaleColorsetMessage(path), Docs: diag.DocsURL(id),
+		})
+	}
 	return out, tally
+}
+
+// StaleColorsetMessage says what to do about a colorset no token makes.
+func StaleColorsetMessage(path string) string {
+	return path + " is stale: no token makes this colorset — delete it (airframe build does not remove it)"
 }

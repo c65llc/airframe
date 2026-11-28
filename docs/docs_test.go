@@ -21,13 +21,21 @@ import (
 // page is what a rule ID's docs page must declare in its front matter.
 type page struct{ severity, since string }
 
+// laterRules are the lint IDs added after v0.1.0, by the release that
+// added them.
+var laterRules = map[string]string{"emit-axis-fixed": "v0.3.0"}
+
 // pages is every documented ID: the lint rules at their default severity,
-// since v0.1.0, and the import findings at the severity an import reports
-// them, since v0.2.0.
+// since v0.1.0 unless laterRules says otherwise, and the import findings at
+// the severity an import reports them, since v0.2.0.
 func pages() map[string]page {
 	out := map[string]page{}
 	for _, id := range lint.AllIDs() {
-		out[id] = page{string(lint.DefaultSeverity(id)), "v0.1.0"}
+		since := "v0.1.0"
+		if v, ok := laterRules[id]; ok {
+			since = v
+		}
+		out[id] = page{string(lint.DefaultSeverity(id)), since}
 	}
 	for _, id := range importer.IDs() {
 		out[id] = page{string(importer.Severity(id)), "v0.2.0"}
@@ -96,16 +104,18 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, want := range []string{
 		"go install github.com/c65llc/airframe/cmd/airframe@latest",
 		"airframe init", "airframe lint", "airframe build", "airframe fmt",
-		"uses: c65llc/airframe@v0", "version: v0.2.0",
-		"**Planned (not in v0.2.0)**",
+		"uses: c65llc/airframe@v0", "version: v0.3.0",
+		"**Planned (not in v0.3.0)**",
 	} {
 		assert.Contains(t, readme, want)
 	}
-	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.2.0)**")
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.3.0)**")
 	require.True(t, ok)
-	built, _, _ := strings.Cut(readme, "**Planned (not in v0.2.0)**")
-	for _, unbuilt := range []string{"Swift", "Kotlin", "XAML"} {
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.3.0)**")
+	for _, unbuilt := range []string{"Kotlin", "XAML"} {
 		assert.NotContains(t, built, unbuilt, "an unbuilt emitter is described before the planned list")
 		assert.Contains(t, planned, unbuilt)
 	}
+	assert.Contains(t, built, "Swift", "the Apple emitters are built and described before the planned list")
+	assert.NotContains(t, planned, "Swift", "a built emitter is not planned")
 }

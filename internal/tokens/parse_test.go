@@ -398,3 +398,64 @@ func TestDensityShorthandBaseDiffers(t *testing.T) {
   "$extensions": { "com.c65llc.airframe": { "modes": { "density:standard": 1 } } } } }`)})
 	only(t, ds, "mode-base-value")
 }
+
+func TestTokenNamesParsed(t *testing.T) {
+	s := mustParse(t, map[string]string{
+		"a.tokens.json": `{ "x": { "$type": "number", "$value": 1,
+  "$extensions": { "com.c65llc.airframe": { "names": { "swift": "spacingXs", "kotlin": "SpacingXs" } } } } }`,
+	})
+	assert.Equal(t, map[string]string{"swift": "spacingXs", "kotlin": "SpacingXs"}, s.Tokens["x"].Names)
+}
+
+func TestTokenNamesBadValue(t *testing.T) {
+	for name, names := range map[string]string{
+		"empty":   `{ "swift": "" }`,
+		"number":  `{ "swift": 3 }`,
+		"unknown": `{ "swfit": "x" }`,
+		"notobj":  `["swift"]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, ds := parse(t, map[string]string{
+				"a.tokens.json": "{ \"x\": { \"$type\": \"number\", \"$value\": 1,\n  \"$extensions\": { \"com.c65llc.airframe\": { \"names\": " + names + " } } } }",
+			})
+			d := only(t, ds, "schema-invalid")
+			assert.Equal(t, 2, d.Line)
+			assert.Empty(t, s.Tokens["x"].Names)
+		})
+	}
+}
+
+func TestTokenNamesOnOverrideRejected(t *testing.T) {
+	s, ds := parse(t, map[string]string{
+		"base.tokens.json": `{ "x": { "$type": "number", "$value": 1 } }`,
+		"themes/dark.tokens.json": `{ "$extensions": { "com.c65llc.airframe": { "mode": "appearance:dark" } },
+  "x": { "$value": 2,
+    "$extensions": { "com.c65llc.airframe": { "names": { "swift": "x2" } } } } }`,
+	})
+	d := only(t, ds, "schema-invalid")
+	assert.Equal(t, `only $value, modes and density may appear on an override of "x"`, d.Message)
+	assert.Equal(t, 3, d.Line)
+	assert.Nil(t, s.Tokens["x"].Names)
+}
+
+// TestTokenNamesFixedFormats: css, json and colorsets do not read names
+// yet, so a spelling other than the format's default is schema-invalid;
+// the default spelling is accepted.
+func TestTokenNamesFixedFormats(t *testing.T) {
+	tok := func(names string) map[string]string {
+		return map[string]string{"a.tokens.json": "{ \"my-ink\": { \"$type\": \"number\", \"$value\": 1,\n  \"$extensions\": { \"com.c65llc.airframe\": { \"names\": " + names + " } } } }"}
+	}
+	s, ds := parse(t, tok(`{ "css": "--brand-ink" }`))
+	d := only(t, ds, "schema-invalid")
+	assert.Equal(t, "my-ink.$extensions.com.c65llc.airframe.names.css", d.Path)
+	assert.Equal(t, `names.css: css does not support custom naming yet; only "--my-ink" is accepted`, d.Message)
+	assert.Equal(t, 2, d.Line)
+	assert.Empty(t, s.Tokens["my-ink"].Names)
+
+	for _, bad := range []string{`{ "json": "ink" }`, `{ "colorsets": "myInk" }`} {
+		_, ds := parse(t, tok(bad))
+		assert.Contains(t, only(t, ds, "schema-invalid").Message, "does not support custom naming yet", bad)
+	}
+	s = mustParse(t, tok(`{ "css": "--my-ink", "json": "my-ink", "colorsets": "MyInk", "swift": "ink" }`))
+	assert.Equal(t, map[string]string{"css": "--my-ink", "json": "my-ink", "colorsets": "MyInk", "swift": "ink"}, s.Tokens["my-ink"].Names)
+}

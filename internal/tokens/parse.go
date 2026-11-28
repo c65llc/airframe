@@ -10,6 +10,7 @@ import (
 	"maps"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/c65llc/airframe/internal/config"
@@ -243,13 +244,14 @@ type ext struct {
 	shared, retired         bool
 	emit                    []string
 	exempt                  map[string]string
+	names                   map[string]string
 	modes                   *ojson.Node
 	density                 *ojson.Node
 }
 
 // readExt reads a token's $extensions[Namespace], reporting bad fields and
 // skipping them.
-func (p *parser) readExt(file, at string, n *ojson.Node) ext {
+func (p *parser) readExt(file, at, name string, n *ojson.Node) ext {
 	var e ext
 	if n.Kind != ojson.Object {
 		p.invalid(file, at, n.Line, "%s must be an object", Namespace)
@@ -318,6 +320,31 @@ func (p *parser) readExt(file, at string, n *ojson.Node) ext {
 					e.exempt = map[string]string{}
 				}
 				e.exempt[rule] = r.Str
+			}
+		case "names":
+			o := object(k, v)
+			if o == nil {
+				continue
+			}
+			for _, f := range o.Keys {
+				nv := o.Fields[f]
+				if !slices.Contains(config.Formats, f) {
+					p.invalid(file, at+".names."+f, nv.Line, "names key %q is not an emit format; known: %s", f, strings.Join(config.Formats, ", "))
+					continue
+				}
+				if nv.Kind != ojson.String || nv.Str == "" {
+					p.invalid(file, at+".names."+f, nv.Line, "names.%s must be a non-empty string", f)
+					continue
+				}
+				want := config.DefaultName(f, name)
+				if msg := config.FixedNamingError(f, nv.Str, want, strconv.Quote(want)); msg != "" {
+					p.invalid(file, at+".names."+f, nv.Line, "names.%s: %s", f, msg)
+					continue
+				}
+				if e.names == nil {
+					e.names = map[string]string{}
+				}
+				e.names[f] = nv.Str
 			}
 		case "modes":
 			e.modes = object(k, v)
@@ -391,7 +418,7 @@ func (p *parser) merge(d decl) {
 			if v.Kind != ojson.Object {
 				p.invalid(d.file, at+".$extensions", v.Line, "$extensions must be an object")
 			} else if x, ok := v.Fields[Namespace]; ok {
-				e = p.readExt(d.file, at+".$extensions."+Namespace, x)
+				e = p.readExt(d.file, at+".$extensions."+Namespace, d.name, x)
 			}
 		default:
 			p.invalid(d.file, at+"."+k, v.Line, "unknown key %q in a token (a token cannot contain other tokens)", k)
@@ -402,7 +429,7 @@ func (p *parser) merge(d decl) {
 		tok = &Token{
 			Name: d.name, Path: d.path, Type: typ, Tier: e.tier, Component: e.component,
 			Chrome: e.chrome, Shared: e.shared, Retired: e.retired, Exempt: e.exempt,
-			Emit: e.emit, File: d.file, Line: d.node.Line, Modes: map[config.ModeKey]*Value{},
+			Emit: e.emit, Names: e.names, File: d.file, Line: d.node.Line, Modes: map[config.ModeKey]*Value{},
 		}
 		if desc, ok := d.node.Fields["$description"]; ok && desc.Kind == ojson.String {
 			tok.Description = desc.Str
@@ -475,7 +502,7 @@ func (p *parser) merge(d decl) {
 
 // metaKeys are the extension fields that describe a token rather than
 // give it a value; only its first declaration may set them.
-var metaKeys = []string{"tier", "component", "chrome", "shared", "retired", "emit", "exempt"}
+var metaKeys = []string{"tier", "component", "chrome", "shared", "retired", "emit", "exempt", "names"}
 
 // overrideOnly reports each descriptive field on a later declaration of a
 // token that already exists: those fields would otherwise be dropped.

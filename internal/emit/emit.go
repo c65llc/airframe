@@ -2,7 +2,8 @@
 // Copyright 2026 C65 LLC
 
 // Package emit turns a loaded project into its generated outputs: CSS
-// custom properties with mode scopes, and a neutral JSON contract. Every
+// custom properties with mode scopes, a neutral JSON contract, and for
+// apple asset-catalog colorsets and a SwiftUI DesignTokens file. Every
 // output is deterministic and byte-stable (LF, final newline, sorted).
 package emit
 
@@ -26,13 +27,16 @@ import (
 type Emitter func(p *project.Project, pl config.Platform) (map[string][]byte, error)
 
 // Emitters maps each emit format to its emitter.
-var Emitters = map[string]Emitter{"css": CSS, "json": JSON}
+var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON, "swift": Swift}
 
 // defaultOut is where a format is written, under the content directory,
 // when its platform sets no out.
 var defaultOut = map[string]string{
-	"css":  "generated/css/tokens.css",
-	"json": "generated/json/tokens.json",
+	"css":   "generated/css/tokens.css",
+	"json":  "generated/json/tokens.json",
+	"swift": "generated/apple/DesignTokens.swift",
+	// colorsets is a catalog folder, not a file.
+	"colorsets": "generated/apple/Assets.xcassets/Tokens",
 }
 
 // configError is airframe.yaml spelling something an emitter cannot use.
@@ -45,8 +49,10 @@ func (e *configError) Error() string { return e.msg }
 // repo-relative path. A filter entry selects a platform by name (all its
 // formats) or a format by name (on every platform); an empty filter selects
 // everything. A format with no emitter yet is reported as emit-unsupported
-// (a warning) and skipped. A failing format is reported and left out; the
-// others still build.
+// (a warning) and skipped. A native platform selected by the filter also
+// reports each build-bound axis it resolves at its base value
+// (emit-axis-fixed, a warning). A failing format is reported and left out;
+// the others still build.
 func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagnostic) {
 	out := map[string][]byte{}
 	var ds []diag.Diagnostic
@@ -55,10 +61,12 @@ func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagn
 	}
 	written := map[string]string{} // path → the platform.format that wrote it
 	for _, pl := range p.Config.Platforms {
+		native := false
 		for _, format := range pl.Emit {
 			if len(filter) > 0 && !slices.Contains(filter, pl.Name) && !slices.Contains(filter, format) {
 				continue
 			}
+			native = native || slices.Contains(nativeFormats, format)
 			em, ok := Emitters[format]
 			if !ok {
 				// config.Load accepts only known formats, so this is
@@ -90,6 +98,9 @@ func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagn
 				written[f] = by
 				out[f] = files[f]
 			}
+		}
+		if native {
+			ds = append(ds, PlanNative(p.Config, pl).FixedWarnings(p)...)
 		}
 	}
 	return out, ds
@@ -133,6 +144,60 @@ func emitted(p *project.Project, format string) []*tokens.Token {
 		}
 	}
 	return out
+}
+
+// modeKeys lists the keys that can change t's value: every mode key of a
+// token reachable from t through aliases, closed under compatible unions,
+// sorted by (pair count, key).
+func modeKeys(s *tokens.Set, t *tokens.Token) []config.ModeKey {
+	keys := map[config.ModeKey]bool{}
+	seen := map[string]bool{t.Name: true}
+	for queue := []string{t.Name}; len(queue) > 0; queue = queue[1:] {
+		u := s.Tokens[queue[0]]
+		if u == nil {
+			continue
+		}
+		vals := []*tokens.Value{u.Default}
+		for k, v := range u.Modes {
+			keys[k] = true
+			vals = append(vals, v)
+		}
+		for _, v := range vals {
+			if v != nil && v.Alias != "" && !seen[v.Alias] {
+				seen[v.Alias] = true
+				queue = append(queue, v.Alias)
+			}
+		}
+	}
+	for grown := true; grown; {
+		grown = false
+		sorted := slices.SortedFunc(maps.Keys(keys), compareKeys)
+		for i, a := range sorted {
+			for _, b := range sorted[i+1:] {
+				if u, ok := unionKey(a, b); ok && !keys[u] {
+					keys[u], grown = true, true
+				}
+			}
+		}
+	}
+	return slices.SortedFunc(maps.Keys(keys), compareKeys)
+}
+
+// unionKey joins two mode keys; ok is false when they set one axis to
+// different values.
+func unionKey(a, b config.ModeKey) (config.ModeKey, bool) {
+	vals := map[string]string{}
+	for _, pr := range slices.Concat(pairsOf(a), pairsOf(b)) {
+		if prev, ok := vals[pr[0]]; ok && prev != pr[1] {
+			return "", false
+		}
+		vals[pr[0]] = pr[1]
+	}
+	parts := make([]string, 0, len(vals))
+	for _, axis := range slices.Sorted(maps.Keys(vals)) {
+		parts = append(parts, axis+":"+vals[axis])
+	}
+	return config.ModeKey(strings.Join(parts, "+")), true
 }
 
 // compareKeys orders mode keys by pair count, then as strings.

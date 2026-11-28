@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -27,7 +28,7 @@ func TestScripts(t *testing.T) {
 	testscript.Run(t, testscript.Params{
 		Dir:                 "testdata/script",
 		RequireExplicitExec: true,
-		Cmds:                map[string]func(*testscript.TestScript, bool, []string){"exits": exits, "crlf": crlf},
+		Cmds:                map[string]func(*testscript.TestScript, bool, []string){"exits": exits, "crlf": crlf, "fixture": fixture, "replace": replace},
 	})
 }
 
@@ -89,4 +90,57 @@ func TestImportScriptUsesFixture(t *testing.T) {
 	if seen != 2 {
 		t.Errorf("import_ok.txtar carries %d fixture files, want airframe.yaml and theme.css", seen)
 	}
+}
+
+// fixture copies a repository fixture's airframe.yaml and design-system
+// into the script's directory: "fixture apple". The fixture's committed
+// outputs are left behind, so the script builds them itself.
+func fixture(ts *testscript.TestScript, neg bool, args []string) {
+	if neg || len(args) != 1 {
+		ts.Fatalf("usage: fixture name")
+	}
+	if !filepath.IsLocal(args[0]) {
+		ts.Fatalf("fixture: %q is not a local name", args[0])
+	}
+	src := filepath.Join("..", "..", "testdata", args[0])
+	for _, name := range []string{"airframe.yaml", "design-system"} {
+		ts.Check(copyTree(filepath.Join(src, name), ts.MkAbs(name)))
+	}
+}
+
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, p)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, b, 0o644)
+	})
+}
+
+// replace edits a file in place: "replace file old new" swaps every old
+// for new and fails when old is not there.
+func replace(ts *testscript.TestScript, neg bool, args []string) {
+	if neg || len(args) != 3 {
+		ts.Fatalf("usage: replace file old new")
+	}
+	if !filepath.IsLocal(args[0]) {
+		ts.Fatalf("replace: %q is not a local path", args[0])
+	}
+	data := ts.ReadFile(args[0])
+	if !strings.Contains(data, args[1]) {
+		ts.Fatalf("replace: %q not found in %s", args[1], args[0])
+	}
+	ts.Check(os.WriteFile(ts.MkAbs(args[0]), []byte(strings.ReplaceAll(data, args[1], args[2])), 0o644))
 }

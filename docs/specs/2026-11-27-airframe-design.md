@@ -148,13 +148,14 @@ platforms:
     emit: [json]
     out: dist/tokens.json
 naming: { css: "--{name}", swift: "DesignTokens.{camel}", kotlin: "DesignTokens.{camel}", xaml: "Design{Pascal}" }
-# A token may override its spelling on one platform (`$extensions…names.json: "border-divider"`). That is
-# ONE token with a platform spelling, not a second readable name, so the no-alias rule holds.
+# A token may override its spelling on one platform (`$extensions…names.swift: "hairline"`). That is
+# ONE token with a platform spelling, not a second readable name, so the no-alias rule holds. Until their
+# emitters read naming, css, json and colorsets accept only their default spelling (anything else is schema-invalid).
 lint:
   rules: { fallback-literal: error, contrast-below: error }
 ```
 
-v0.1.2 builds the `css` and `json` formats. It accepts `swift`, `colorsets`, `kotlin` and `xaml` and reports each as `emit-unsupported` (a warning) until the native emitters land.
+v0.2.0 builds the `css` and `json` formats; the next release also builds `swift` and `colorsets`. It accepts `kotlin` and `xaml` and reports each as `emit-unsupported` (a warning) until the native emitters land.
 
 ### 6.3 Records
 
@@ -278,7 +279,7 @@ All surfaces share the Go core through its wasm build.
 
 1. **Core** (v0.1.2): DTCG parsing, modes, source and invariant lint, `fmt`, CSS and JSON `build`, the gate protocol with self-test, the GitHub Action.
 2. **Importer** (v0.2.0): `airframe import css`, with a semantic-equivalence check: for every mode combination, each custom property resolves to the same value in the old and generated CSS.
-3. **Native emitters:** Swift and asset-catalog colorsets, Kotlin/Compose with an optional Material 3 scheme, C#/XAML, including per-app fan-out and gamut handling.
+3. **Native emitters:** Swift and asset-catalog colorsets (done: Apple, with per-app fan-out and gamut handling; see `docs/guides/apple.md`), then Kotlin/Compose with an optional Material 3 scheme and C#/XAML (Android and Windows next).
 4. **Consumer rules,** with the wrapper map.
 5. **Components and retired treatments:** the inventory, `component-unruled`, `retired-used`.
 6. **Reference commands:** `find`, `usages`, `diff`, `rename`, `retire`, `specimen`.

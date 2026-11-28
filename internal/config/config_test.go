@@ -97,7 +97,7 @@ func TestDefaults(t *testing.T) {
 }
 
 func TestPlatformOutMapAndEmitList(t *testing.T) {
-	c := mustLoad(t, "version: 1\nplatforms:\n  apple:\n    emit: [swift, colorsets]\n    out: { swift: a.swift, colorsets: dir/ }\n    fanOut: app\n")
+	c := mustLoad(t, "version: 1\nmodes:\n  app: { values: [a], base: a, binding: build }\nplatforms:\n  apple:\n    emit: [swift, colorsets]\n    out: { swift: a.swift, colorsets: dir/ }\n    fanOut: app\n")
 	p := c.Platforms[0]
 	assert.Equal(t, []string{"swift", "colorsets"}, p.Emit)
 	assert.Equal(t, map[string]string{"swift": "a.swift", "colorsets": "dir/"}, p.Out)
@@ -421,4 +421,111 @@ func TestOutMustNameAPath(t *testing.T) {
 			assert.Contains(t, d.Message, "out must name a file or directory under the root", src)
 		}
 	}
+}
+
+const fanOutBase = `version: 1
+modes:
+  density: { values: [compact, standard], base: standard, binding: runtime }
+  app: { values: [a, b], base: a, binding: build }
+`
+
+func TestPlatformFanOutParsed(t *testing.T) {
+	data, err := os.ReadFile("../../docs/specs/2026-11-27-airframe-design.md")
+	require.NoError(t, err)
+	_, after, _ := strings.Cut(string(data), "### 6.2 ")
+	_, after, _ = strings.Cut(after, "```yaml\n")
+	block, _, _ := strings.Cut(after, "```")
+	c := mustLoad(t, block)
+	got := map[string]string{}
+	for _, p := range c.Platforms {
+		got[p.Name] = p.FanOut
+	}
+	assert.Equal(t, "app", got["apple"])
+	assert.Equal(t, "", got["web"])
+	for _, p := range c.Platforms {
+		if p.Name == "android" {
+			assert.Equal(t, true, p.Options["material3Scheme"])
+			v, ok := p.Option("sharedOut")
+			assert.True(t, ok)
+			assert.Equal(t, "android/shared/src/main/kotlin/DesignTokens.kt", v)
+		}
+	}
+}
+
+func TestFanOutMustBeBuildAxis(t *testing.T) {
+	d := loadErr(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: density\n")
+	assert.Equal(t, "platforms.apple.fanOut", d.Path)
+	assert.Contains(t, d.Message, "density")
+	assert.Contains(t, d.Message, "build")
+	d = loadErr(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: nope\n")
+	assert.Contains(t, d.Message, "nope")
+	mustLoad(t, fanOutBase+"platforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    fanOut: app\n")
+}
+
+func TestAppleOptions(t *testing.T) {
+	pre := "version: 1\nplatforms:\n  apple:\n    emit: [swift]\n    out: x.swift\n    options: "
+	c := mustLoad(t, pre+"{ gamut: clip-p3, accentColor: AccentColor }\n")
+	v, ok := c.Platforms[0].Option("gamut")
+	assert.True(t, ok)
+	assert.Equal(t, "clip-p3", v)
+	_, ok = c.Platforms[0].Option("missing")
+	assert.False(t, ok)
+	d := loadErr(t, pre+"{ gamut: wide }\n")
+	assert.Equal(t, "platforms.apple.options.gamut", d.Path)
+	assert.Equal(t, 6, d.Line)
+	d = loadErr(t, pre+"{ bogus: 1 }\n")
+	assert.Equal(t, "platforms.apple.options.bogus", d.Path)
+	loadErr(t, pre+"{ accentColor: \"\" }\n")
+}
+
+func TestNamingTemplates(t *testing.T) {
+	c := mustLoad(t, "version: 1\nnaming: { swift: \"Tokens.{camel}\" }\n")
+	assert.Equal(t, "Tokens.{camel}", c.NamingFor("swift"))
+	assert.Equal(t, "DesignTokens.{camel}", mustLoad(t, "version: 1\n").NamingFor("swift"))
+	assert.Equal(t, "DesignTokens.{camel}", mustLoad(t, "version: 1\n").NamingFor("kotlin"))
+	assert.Equal(t, "--{name}", mustLoad(t, "version: 1\n").NamingFor("css"))
+	for _, bad := range []string{"{weird}", "plain", "{name}{camel}", "{name}-{Pascal}", "{camel}{x}"} {
+		d := loadErr(t, "version: 1\nnaming: { swift: \""+bad+"\" }\n")
+		assert.Equal(t, "naming.swift", d.Path, bad)
+	}
+}
+
+// TestNamingUnknownFormat: a naming key that is not an emit format is
+// schema-invalid at its path, so a typo is not silently ignored.
+func TestNamingUnknownFormat(t *testing.T) {
+	d := loadErr(t, "version: 1\nnaming: { swfit: \"X.{camel}\" }\n")
+	assert.Equal(t, "naming.swfit", d.Path)
+	assert.Contains(t, d.Message, `"swfit"`)
+	assert.Equal(t, 2, d.Line)
+}
+
+// TestNamingFixedFormats: css, json and colorsets do not read naming yet,
+// so a template other than their default is schema-invalid; the default
+// itself is accepted.
+func TestNamingFixedFormats(t *testing.T) {
+	d := loadErr(t, "version: 1\nnaming: { css: \"--brand-{name}\" }\n")
+	assert.Equal(t, "naming.css", d.Path)
+	assert.Equal(t, "naming css: css does not support custom naming yet; only --{name} is accepted", d.Message)
+	for format, def := range map[string]string{"css": "--{name}", "json": "{name}", "colorsets": "{Pascal}"} {
+		assert.Equal(t, def, mustLoad(t, "version: 1\nnaming: { "+format+": \""+def+"\" }\n").NamingFor(format), format)
+	}
+	for _, format := range []string{"json", "colorsets"} {
+		d := loadErr(t, "version: 1\nnaming: { "+format+": \"x{camel}\" }\n")
+		assert.Equal(t, "naming."+format, d.Path)
+		assert.Contains(t, d.Message, format+" does not support custom naming yet")
+	}
+	mustLoad(t, "version: 1\nnaming: { kotlin: \"K.{Pascal}\", xaml: \"X{camel}\" }\n")
+}
+
+// TestNamingProblemsAllReported: every bad naming entry is reported, not
+// just the first.
+func TestNamingProblemsAllReported(t *testing.T) {
+	c, ds := Load([]byte("version: 1\nnaming: {css: \"--brand-{name}\", swfit: \"X.{camel}\", colorsets: \"{camel}\"}\n"))
+	assert.Nil(t, c)
+	var paths []string
+	for _, d := range ds {
+		assert.Equal(t, "schema-invalid", d.Rule)
+		paths = append(paths, d.Path)
+	}
+	assert.Equal(t, []string{"naming.css", "naming.swfit", "naming.colorsets"}, paths)
 }

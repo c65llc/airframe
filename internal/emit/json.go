@@ -7,9 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"maps"
-	"slices"
-	"strings"
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
@@ -97,60 +94,6 @@ func resolved(s *tokens.Set, name string, key config.ModeKey) (any, error) {
 		return nil, err
 	}
 	return DTCGValue(v.Lit), nil
-}
-
-// modeKeys lists the keys that can change t's value: every mode key of a
-// token reachable from t through aliases, closed under compatible unions,
-// sorted by (pair count, key).
-func modeKeys(s *tokens.Set, t *tokens.Token) []config.ModeKey {
-	keys := map[config.ModeKey]bool{}
-	seen := map[string]bool{t.Name: true}
-	for queue := []string{t.Name}; len(queue) > 0; queue = queue[1:] {
-		u := s.Tokens[queue[0]]
-		if u == nil {
-			continue
-		}
-		vals := []*tokens.Value{u.Default}
-		for k, v := range u.Modes {
-			keys[k] = true
-			vals = append(vals, v)
-		}
-		for _, v := range vals {
-			if v != nil && v.Alias != "" && !seen[v.Alias] {
-				seen[v.Alias] = true
-				queue = append(queue, v.Alias)
-			}
-		}
-	}
-	for grown := true; grown; {
-		grown = false
-		sorted := slices.SortedFunc(maps.Keys(keys), compareKeys)
-		for i, a := range sorted {
-			for _, b := range sorted[i+1:] {
-				if u, ok := unionKey(a, b); ok && !keys[u] {
-					keys[u], grown = true, true
-				}
-			}
-		}
-	}
-	return slices.SortedFunc(maps.Keys(keys), compareKeys)
-}
-
-// unionKey joins two mode keys; ok is false when they set one axis to
-// different values.
-func unionKey(a, b config.ModeKey) (config.ModeKey, bool) {
-	vals := map[string]string{}
-	for _, pr := range slices.Concat(pairsOf(a), pairsOf(b)) {
-		if prev, ok := vals[pr[0]]; ok && prev != pr[1] {
-			return "", false
-		}
-		vals[pr[0]] = pr[1]
-	}
-	parts := make([]string, 0, len(vals))
-	for _, axis := range slices.Sorted(maps.Keys(vals)) {
-		parts = append(parts, axis+":"+vals[axis])
-	}
-	return config.ModeKey(strings.Join(parts, "+")), true
 }
 
 // DTCGValue is a literal in its DTCG JSON form, the encoding the json

@@ -1,0 +1,20 @@
+{
+  "colors": [
+    {
+      "color": {
+        "color-space": "display-p3",
+        "components": {
+          "alpha": "1.0000",
+          "blue": "0.8189",
+          "green": "0.4986",
+          "red": "0.2996"
+        }
+      },
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "airframe",
+    "version": 1
+  }
+}
