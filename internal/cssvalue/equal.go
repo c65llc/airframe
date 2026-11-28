@@ -15,7 +15,7 @@ import (
 
 const (
 	colourEps = 1e-4
-	numberEps = 5e-5
+	numberEps = 5e-5 + 1e-9
 )
 
 // Equal reports whether two resolved values of the custom property name
@@ -44,7 +44,7 @@ func normalise(s string) string {
 	return strings.ReplaceAll(strings.Join(strings.Fields(s), " "), "'", `"`)
 }
 
-func close(a, b float64) bool { return math.Abs(a-b) <= numberEps }
+func near(a, b float64) bool { return math.Abs(a-b) <= numberEps }
 
 func litEqual(a, b any) bool {
 	switch x := a.(type) {
@@ -56,10 +56,10 @@ func litEqual(a, b any) bool {
 		return ok && dimEqual(x, y)
 	case tokens.Duration:
 		y, ok := b.(tokens.Duration)
-		return ok && x.Unit == y.Unit && close(x.V, y.V)
+		return ok && x.Unit == y.Unit && near(x.V, y.V)
 	case float64:
 		y, ok := b.(float64)
-		return ok && close(x, y)
+		return ok && near(x, y)
 	case []string:
 		y, ok := b.([]string)
 		return ok && slices.Equal(x, y)
@@ -69,7 +69,7 @@ func litEqual(a, b any) bool {
 			return false
 		}
 		for i := range x {
-			if !close(x[i], y[i]) {
+			if !near(x[i], y[i]) {
 				return false
 			}
 		}
@@ -91,17 +91,29 @@ func litEqual(a, b any) bool {
 	return false
 }
 
-func dimEqual(a, b tokens.Dim) bool { return a.Unit == b.Unit && close(a.V, b.V) }
+// dimEqual compares dimensions by unit and value, except that any two
+// zeros are equal: CSS writes a zero length without its unit.
+func dimEqual(a, b tokens.Dim) bool {
+	if near(a.V, 0) && near(b.V, 0) {
+		return true
+	}
+	return a.Unit == b.Unit && near(a.V, b.V)
+}
 
-// colourEqual compares in OKLab, where an achromatic colour's hue drops
-// out of the distance by itself.
+// colourEqual compares in OKLab; when both chromas are below the
+// tolerance the hue is meaningless and only L, C and alpha are compared.
 func colourEqual(a, b color.OKLCH) bool {
 	lab := func(c color.OKLCH) (l, x, y float64) {
 		h := c.H * math.Pi / 180
 		return c.L, c.C * math.Cos(h), c.C * math.Sin(h)
 	}
+	if math.Abs(a.Alpha-b.Alpha) > colourEps {
+		return false
+	}
+	if a.C < colourEps && b.C < colourEps {
+		return math.Abs(a.L-b.L) <= colourEps && math.Abs(a.C-b.C) <= colourEps
+	}
 	l1, a1, b1 := lab(a)
 	l2, a2, b2 := lab(b)
-	return math.Sqrt((l1-l2)*(l1-l2)+(a1-a2)*(a1-a2)+(b1-b2)*(b1-b2)) <= colourEps &&
-		math.Abs(a.Alpha-b.Alpha) <= colourEps
+	return math.Sqrt((l1-l2)*(l1-l2)+(a1-a2)*(a1-a2)+(b1-b2)*(b1-b2)) <= colourEps
 }

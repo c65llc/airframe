@@ -12,7 +12,7 @@ import (
 	"github.com/c65llc/airframe/internal/tokens"
 )
 
-func near(a, b float64) bool { return math.Abs(a-b) < 2e-3 }
+func approx(a, b float64) bool { return math.Abs(a-b) < 2e-3 }
 
 func TestParseColourSpellings(t *testing.T) {
 	red := color.OKLCH{L: 0.628, C: 0.2577, H: 29.23, Alpha: 1}
@@ -30,7 +30,7 @@ func TestParseColourSpellings(t *testing.T) {
 			t.Fatalf("%s: typ %q err %v", tc.in, typ, err)
 		}
 		c := v.Lit.(color.OKLCH)
-		if !near(c.L, red.L) || !near(c.C, red.C) || math.Abs(c.H-red.H) > 0.3 || !near(c.Alpha, tc.alpha) {
+		if !approx(c.L, red.L) || !approx(c.C, red.C) || math.Abs(c.H-red.H) > 0.3 || !approx(c.Alpha, tc.alpha) {
 			t.Errorf("%s: got %+v", tc.in, c)
 		}
 	}
@@ -90,7 +90,7 @@ func TestParseShadow(t *testing.T) {
 	}
 	l := v.Lit.([]tokens.Shadow)
 	if len(l) != 2 || l[0].Inset || !l[1].Inset || l[0].Blur != (tokens.Dim{V: 2, Unit: "px"}) ||
-		l[1].Spread != (tokens.Dim{V: 1, Unit: "px"}) || !near(l[0].Color.Alpha, 0.2) {
+		l[1].Spread != (tokens.Dim{V: 1, Unit: "px"}) || !approx(l[0].Color.Alpha, 0.2) {
 		t.Errorf("%+v", l)
 	}
 	_, v, _, err = Parse("elev", "#000 0 1px")
