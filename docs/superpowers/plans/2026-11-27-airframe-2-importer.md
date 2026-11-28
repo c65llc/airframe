@@ -67,7 +67,7 @@
 - **Duplicates.** The same token and mode key declared twice: the later one wins, with the warning `import-duplicate` naming both lines.
 - **Descriptions.** A comment that immediately precedes a `:root` declaration, with only whitespace between them, becomes `$description`. It is trimmed, a leading `*` on each line is stripped, and whitespace runs collapse to one space.
 - **Output.** `<content>/tokens/primitive.tokens.json` and `<content>/tokens/semantic.tokens.json`, flat keys in first-appearance order, each run through `format.File` so they are canonical. Mode values go in `$extensions["com.c65llc.airframe"].modes`. If either file exists, exit 2 unless `--force`. With any error-severity diagnostic, nothing is written (exit 1). `--dry-run` never writes.
-- **New IDs** (all error severity unless marked): `import-unsupported-selector`, `import-unsupported-at-rule`, `import-unsupported-media`, `import-unmapped-scope`, `import-unsupported-value`, `import-name-invalid`, `import-type-conflict`, `import-no-base`, `import-duplicate` (warn), `import-fallback-dropped` (warn), `import-not-equivalent`, `import-too-many-environments`, `import-nothing`. `importer.IDs()` returns them, sorted. They are command findings, not lint rules: they are not in `lint.AllIDs()` and are not self-tested. The ID-scan test and the docs test learn about `importer.IDs()` (Task 9).
+- **New IDs** (all error severity unless marked): `import-css-syntax`, `import-unsupported-selector`, `import-unsupported-at-rule`, `import-unsupported-media`, `import-unmapped-scope`, `import-unsupported-value`, `import-name-invalid`, `import-type-conflict`, `import-no-base`, `import-duplicate` (warn), `import-fallback-dropped` (warn), `import-not-equivalent`, `import-too-many-environments`, `import-nothing`. `importer.IDs()` returns them, sorted. They are command findings, not lint rules: they are not in `lint.AllIDs()` and are not self-tested. The ID-scan test and the docs test learn about `importer.IDs()` (Task 9).
 
 ## Review Focus
 
@@ -206,7 +206,7 @@ Resolve takes every declaration whose rule's media and any selector in its list 
 **Interfaces:** Consumes Tasks 2, 3, 5 and 6, `config.Config`, `format.File`. Produces:
 - `type Result struct{ Files map[string][]byte; Tokens, Declarations, Ignored int; Diagnostics []diag.Diagnostic }`, where Files maps repo-relative paths to canonical bytes;
 - `func Import(cfg *config.Config, sheets []*css.Sheet) Result`;
-- `func IDs() []string`, the 13 IDs from the plan, sorted.
+- `func IDs() []string`, the 14 IDs from the plan, sorted.
 
 The index (`index.go`) builds `map[scopeKey]config.ModeKey` over every key of the loaded axes (each axis absent or one non-base value; deferred axes skipped) via `emit.Scopes`. Here scopeKey = `css.MediaKey(atoms) + "|" + selector.Key()`. Deterministic.
 
