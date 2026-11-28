@@ -1,0 +1,62 @@
+== web/button/Button.tsx
+accent-bg  semantic  color  var(--blue-600)  — Accent fill.
+  semantic: consumers may read
+accent-ink  semantic  color  var(--blue-600)  — Text on accent fills.
+  semantic: consumers may read
+gap  semantic  dimension  var(--space-2)  — Standard spacing between related items.
+  semantic: consumers may read
+text-muted  semantic  color  var(--gray-500)  — Secondary text on surfaces.
+  semantic: consumers may read
+button-gap  component  dimension  var(--gap)
+  component button: owners include web/button/**
+danger-bg  semantic  color  var(--red-600)  — Fill of destructive actions.
+  semantic: consumers may read
+surface-card  semantic  color  var(--gray-500)  — Background of cards.
+  semantic: consumers may read
+surface-page  semantic  color  var(--gray-500)  — Background of the page.
+  semantic: consumers may read
+text-primary  semantic  color  var(--gray-500)  — Default body text.
+  semantic: consumers may read
+button-bg  component  color  var(--accent-bg)
+  component button: owners include web/button/**
+
+== web/card/Card.tsx
+accent-bg  semantic  color  var(--blue-600)  — Accent fill.
+  semantic: consumers may read
+accent-ink  semantic  color  var(--blue-600)  — Text on accent fills.
+  semantic: consumers may read
+gap  semantic  dimension  var(--space-2)  — Standard spacing between related items.
+  semantic: consumers may read
+text-muted  semantic  color  var(--gray-500)  — Secondary text on surfaces.
+  semantic: consumers may read
+card-gap  component  dimension  var(--gap-large)
+  component card: owners include web/card/**
+danger-bg  semantic  color  var(--red-600)  — Fill of destructive actions.
+  semantic: consumers may read
+surface-card  semantic  color  var(--gray-500)  — Background of cards.
+  semantic: consumers may read
+surface-page  semantic  color  var(--gray-500)  — Background of the page.
+  semantic: consumers may read
+text-primary  semantic  color  var(--gray-500)  — Default body text.
+  semantic: consumers may read
+card-bg  component  color  var(--surface-card)
+  component card: owners include web/card/**
+
+== web/other/Page.tsx
+accent-bg  semantic  color  var(--blue-600)  — Accent fill.
+  semantic: consumers may read
+accent-ink  semantic  color  var(--blue-600)  — Text on accent fills.
+  semantic: consumers may read
+gap  semantic  dimension  var(--space-2)  — Standard spacing between related items.
+  semantic: consumers may read
+text-muted  semantic  color  var(--gray-500)  — Secondary text on surfaces.
+  semantic: consumers may read
+danger-bg  semantic  color  var(--red-600)  — Fill of destructive actions.
+  semantic: consumers may read
+surface-card  semantic  color  var(--gray-500)  — Background of cards.
+  semantic: consumers may read
+surface-page  semantic  color  var(--gray-500)  — Background of the page.
+  semantic: consumers may read
+text-primary  semantic  color  var(--gray-500)  — Default body text.
+  semantic: consumers may read
+

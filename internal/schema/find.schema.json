@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "airframe find --json",
+  "description": "The hits of airframe find, best first.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["name", "tier", "type", "value", "description", "score"],
+    "properties": {
+      "name": { "type": "string", "minLength": 1, "description": "the token's name, its DTCG path joined with -" },
+      "tier": { "type": "string", "description": "the token's tier; empty when it has none" },
+      "type": { "type": "string", "description": "the DTCG type; empty when the token has none" },
+      "value": { "type": "string", "description": "the base value in CSS spelling (an alias is var(--target)); empty when the token has no base value" },
+      "description": { "type": "string" },
+      "score": { "type": "integer", "minimum": 1 },
+      "why": { "type": "string", "description": "with --file, why that file may read the token" }
+    }
+  }
+}
