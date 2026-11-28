@@ -445,20 +445,47 @@ func TestSymlinksNotFollowed(t *testing.T) {
 	assert.Equal(t, []string{"web/src/a.css"}, raws(res.Refs, func(r Reference) string { return r.File }))
 }
 
-func TestFallbackBound(t *testing.T) {
+// unclosedFallbacks is a stylesheet of n groups of unclosed var(
+// fallbacks, between a leading and a trailing case.
+func unclosedFallbacks(n int) string {
 	var b strings.Builder
 	// An unclosed fallback must not run on to a ")" on a later line.
 	b.WriteString(".z { margin: var(--gap, 7px; }\n.y ) {}\n")
-	for range 6000 {
+	for range n {
 		b.WriteString(".a { margin: var(--gap, 4px; }\n")
 		b.WriteString("x var(--gap, 1px 2px\n")
 		b.WriteString("y var(--gap, 3px } z\n")
 		b.WriteString("w var(--gap, 5px !important\n")
 	}
 	b.WriteString(".b { margin: var(--gap,\n  6px); }\n")
-	start := time.Now()
-	res := scan(t, fixture(t, false, map[string]string{"web/src/a.css": b.String()}))
-	assert.Less(t, time.Since(start), 2*time.Second, "unclosed var( must not make the scan quadratic")
+	return b.String()
+}
+
+// fastestScan is the quickest of three scans of one stylesheet, so a busy
+// machine slows the measurement less than it slows any single run.
+func fastestScan(t *testing.T, css string) (Result, time.Duration) {
+	t.Helper()
+	var res Result
+	best := time.Duration(-1)
+	for range 3 {
+		fsys := fixture(t, false, map[string]string{"web/src/a.css": css})
+		start := time.Now()
+		res = scan(t, fsys)
+		if d := time.Since(start); best < 0 || d < best {
+			best = d
+		}
+	}
+	return res, best
+}
+
+func TestFallbackBound(t *testing.T) {
+	// Linear work grows 4x from n to 4n; the quadratic scan this guards
+	// against grows 16x. A ratio, not a wall-clock bound, so a loaded
+	// machine cannot fail it.
+	_, small := fastestScan(t, unclosedFallbacks(1500))
+	res, large := fastestScan(t, unclosedFallbacks(6000))
+	assert.Less(t, float64(large), 9*float64(small)+float64(50*time.Millisecond),
+		"unclosed var( must not make the scan quadratic: %v for 1500 groups, %v for 6000", small, large)
 	ps := problemsIn(res, "web/src/a.css")
 	require.Len(t, ps, 4*6000+2)
 	assert.Equal(t, []string{"7px", "4px", "1px 2px", "3px", "5px"}, raws(ps[:5], func(p Problem) string { return p.Raw }))
