@@ -423,6 +423,15 @@
       "Detail": "AppTheme.spacing.large: wrapper AppTheme.spacing maps no member large: no map entry, no pattern matches; reads are always declared, never inferred"
     },
     {
+      "Kind": "empty-scan",
+      "Platform": "web",
+      "File": "airframe.yaml",
+      "Line": 1,
+      "Col": 1,
+      "Raw": "design-system/**/*.css",
+      "Detail": "platform web: consumers glob \"design-system/**/*.css\" matches no file (generated outputs and the design-system/ content root are not scanned); a declared input that is never scanned is a failure, not a pass"
+    },
+    {
       "Kind": "fallback-literal",
       "Platform": "web",
       "File": "web/src/app.css",

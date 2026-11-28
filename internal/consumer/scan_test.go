@@ -328,16 +328,76 @@ func TestEmptyScan(t *testing.T) {
 	for _, p := range res.Problems {
 		kinds[p.Platform] = append(kinds[p.Platform], p.Kind+": "+p.Raw)
 	}
-	assert.Equal(t, []string{`schema-invalid: web/[bad`}, kinds["web"], "web still scans a.css")
+	// A dead glob is reported even when another glob on the platform
+	// matches; the design-system glob matches only excluded files.
+	assert.Equal(t, []string{
+		`empty-scan: design-system/**/*.css`, `empty-scan: web/src/**/*.tssx`, `schema-invalid: web/[bad`,
+	}, kinds["web"], "web still scans a.css")
 	assert.Equal(t, []string{`empty-scan: apple/**/*.swift`}, kinds["apple"])
 	assert.Equal(t, []string{`empty-scan: android/src/**/*.kt`}, kinds["android"])
-	assert.Equal(t, []string{`empty-scan: windows/App/**/*.xaml, windows/App/**/*.cs`}, kinds["windows"])
+	assert.Equal(t, []string{`empty-scan: windows/App/**/*.cs`, `empty-scan: windows/App/**/*.xaml`}, kinds["windows"],
+		"a platform matching no file gets one problem per glob")
 	assert.Equal(t, map[string]int{"web": 1}, res.Files)
+	assert.Len(t, refsIn(res, "web/src/a.css"), 1)
 	for _, p := range res.Problems {
 		if p.Kind == EmptyScan && p.Platform == "apple" {
-			assert.Equal(t, `platform apple: consumers ["apple/**/*.swift"] match no file (generated outputs and the design-system/ content root are not scanned); a declared input that is never scanned is a failure, not a pass`, p.Detail)
+			assert.Equal(t, "airframe.yaml", p.File)
+			assert.Equal(t, `platform apple: consumers glob "apple/**/*.swift" matches no file (generated outputs and the design-system/ content root are not scanned); a declared input that is never scanned is a failure, not a pass`, p.Detail)
 		}
 	}
+}
+
+func TestDeadGlobBesideLiveOne(t *testing.T) {
+	m := fixture(t, false, map[string]string{
+		"web/src/a.css": ".a { color: var(--accent); }\n",
+		"web/src/b.css": ".b { color: var(--ink); }\n",
+	})
+	m["airframe.yaml"] = strings.Replace(m["airframe.yaml"],
+		`consumers: ["web/src/**/*.css", "web/src/**/*.tsx", "design-system/**/*.css"]`,
+		`consumers: ["web/src/**/*.css", "web/src/b.css", "web/**/*.tssx"]`, 1)
+	res := scan(t, m)
+	var web []string
+	for _, p := range res.Problems {
+		if p.Platform == "web" {
+			web = append(web, p.Kind+": "+p.Raw)
+		}
+	}
+	// web/src/b.css is also matched by the first glob, but it matches a
+	// file, so it is not dead.
+	assert.Equal(t, []string{"empty-scan: web/**/*.tssx"}, web)
+	assert.Equal(t, 2, res.Files["web"])
+}
+
+func TestNamesUnavailable(t *testing.T) {
+	m := fixture(t, false, map[string]string{
+		"web/src/a.css":         ".a { color: var(--accent); }\n",
+		"apple/Sources/A.swift": "let a = DesignTokens.accent\nlet b = AppTheme.spacing.small\n",
+		"android/src/A.kt":      "val a = DesignTokens.accent\n",
+	})
+	// Swift colours read colorsets: without them the swift emitter fails.
+	m["airframe.yaml"] = strings.Replace(m["airframe.yaml"], "emit: [swift, colorsets]", "emit: [swift]", 1)
+	m["airframe.yaml"] = strings.Replace(m["airframe.yaml"], ", colorsets: apple/Generated/Assets.xcassets/Tokens/", "", 1)
+	p, ds, err := project.Load(m)
+	require.NoError(t, err)
+	require.Empty(t, ds)
+	res, err := Scan(p)
+	require.NoError(t, err, "an emitter failure is a problem, not an error")
+	var apple []Problem
+	for _, pr := range res.Problems {
+		if pr.Platform == "apple" {
+			apple = append(apple, pr)
+		}
+	}
+	require.Len(t, apple, 1)
+	assert.Equal(t, NamesUnavailable, apple[0].Kind)
+	assert.Equal(t, "airframe.yaml", apple[0].File)
+	assert.Equal(t, "swift", apple[0].Raw)
+	assert.Contains(t, apple[0].Detail, "add colorsets to platform apple's emit")
+	assert.Contains(t, apple[0].Detail, "cannot be checked")
+	assert.Empty(t, refsIn(res, "apple/Sources/A.swift"), "no adapter or wrapper reads the platform")
+	assert.NotContains(t, res.Files, "apple")
+	assert.Len(t, refsIn(res, "web/src/a.css"), 1, "other platforms carry on")
+	assert.Len(t, refsIn(res, "android/src/A.kt"), 1)
 }
 
 // reversedFS lists every directory in reverse order.

@@ -29,14 +29,19 @@ import (
 )
 
 // Problem kinds. Undeclared, WrapperUnmapped and FallbackLiteral locate a
-// reference; EmptyScan and SchemaInvalid are about a platform's consumers
-// list (File is airframe.yaml, at platforms.<platform>.consumers).
+// reference. EmptyScan (one per glob that matches no file, Raw the glob),
+// SchemaInvalid and NamesUnavailable (Raw the format) are about a
+// platform's config: File is airframe.yaml, and for the first two the path
+// is platforms.<platform>.consumers.
 const (
 	Undeclared      = "undeclared"
 	WrapperUnmapped = "wrapper-unmapped"
 	FallbackLiteral = "fallback-literal"
 	EmptyScan       = "empty-scan"
 	SchemaInvalid   = "schema-invalid"
+	// NamesUnavailable is a platform whose emitter failed while rendering
+	// the names its scan needs: none of its references were read.
+	NamesUnavailable = "names-unavailable"
 )
 
 // Direct is the Via of a reference an adapter found; a wrapper read's Via
@@ -48,7 +53,8 @@ const Direct = "direct"
 type Result struct {
 	Refs []Reference
 	// Files is the number of consumer files scanned per platform: those
-	// its globs match, less generated outputs and the content root.
+	// its globs match, less generated outputs and the content root. A
+	// platform with no such file, or whose names are unavailable, is absent.
 	Files    map[string]int
 	Problems []Problem
 	Exempt   []Exemption
@@ -90,11 +96,12 @@ type Exemption struct {
 }
 
 // Scan scans every platform's consumer files. A platform that declares no
-// consumers is skipped; one whose globs match no file gets an EmptyScan
-// problem. A file whose extension has no adapter, or whose adapter's format
+// consumers is skipped; each of its globs that matches no file gets an
+// EmptyScan problem, even when another glob matches. A file whose extension has no adapter, or whose adapter's format
 // the platform does not emit, is listed in one SchemaInvalid problem per
-// platform, and still scanned for wrapper reads. The error is for an I/O
-// failure or an emitter that fails to render the names a scan needs.
+// platform, and still scanned for wrapper reads. A platform whose emitter
+// fails to render the names its scan needs gets a NamesUnavailable problem
+// and is not read further. The error is only for an I/O failure.
 func Scan(p *project.Project) (Result, error) {
 	s := &scanner{p: p, names: map[[2]string]map[string]string{}}
 	res := Result{Files: map[string]int{}}
@@ -197,7 +204,7 @@ func (r *platformRun) claim(f *file, off int) {
 func (r *platformRun) claimed(f *file, off int) bool { return r.taken[f.path][off] }
 
 func (s *scanner) platform(pl config.Platform, res *Result) error {
-	files, bad, err := s.consumerFiles(pl)
+	files, bad, dead, err := s.consumerFiles(pl)
 	if err != nil {
 		return err
 	}
@@ -207,13 +214,14 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		r.problem(cfgFile, 0, SchemaInvalid, g, fmt.Sprintf(
 			"platform %s: consumers glob %q is not a valid glob (platforms.%s.consumers)", pl.Name, g, pl.Name))
 	}
+	for _, g := range dead {
+		r.problem(cfgFile, 0, EmptyScan, g, fmt.Sprintf(
+			"platform %s: consumers glob %q matches no file (generated outputs and the %s/ content root are not scanned); a declared input that is never scanned is a failure, not a pass",
+			pl.Name, g, s.p.Config.Content))
+	}
 	if len(files) == 0 {
-		r.problem(cfgFile, 0, EmptyScan, strings.Join(pl.Consumers, ", "), fmt.Sprintf(
-			"platform %s: consumers %s match no file (generated outputs and the %s/ content root are not scanned); a declared input that is never scanned is a failure, not a pass",
-			pl.Name, quoteList(pl.Consumers), s.p.Config.Content))
 		return nil
 	}
-	res.Files[pl.Name] = len(files)
 
 	loaded := make([]*file, 0, len(files))
 	for _, fp := range files {
@@ -228,15 +236,40 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 		}
 	}
 
+	// Render every name set the scan needs before reading any reference: a
+	// platform whose emitter fails is reported and skipped, never half read.
 	var unadapted []string
-	for _, f := range loaded {
+	adapted := make([]*adapter, len(loaded))
+	need := map[string]bool{}
+	for i, f := range loaded {
 		a, why := adapterFor(pl, f.path)
 		if a == nil {
 			unadapted = append(unadapted, f.path+" ("+why+")")
 			continue
 		}
-		if err := a.scan(r, f); err != nil {
-			return err
+		adapted[i] = a
+		need[a.format] = true
+	}
+	if slices.ContainsFunc(pl.Wrappers, func(w config.Wrapper) bool { return w.Generated }) {
+		for _, f := range append(slices.Clone(nativeFormats), "css") {
+			if slices.Contains(pl.Emit, f) {
+				need[f] = true
+			}
+		}
+	}
+	for _, format := range slices.Sorted(maps.Keys(need)) {
+		if _, err := s.refNames(pl, format); err != nil {
+			r.problem(cfgFile, 0, NamesUnavailable, format, fmt.Sprintf(
+				"%v; the references in platform %s's consumer files cannot be checked until it builds", err, pl.Name))
+			return nil
+		}
+	}
+	res.Files[pl.Name] = len(files)
+	for i, f := range loaded {
+		if a := adapted[i]; a != nil {
+			if err := a.scan(r, f); err != nil {
+				return err
+			}
 		}
 	}
 	if len(unadapted) > 0 {
@@ -251,14 +284,6 @@ func (s *scanner) platform(pl config.Platform, res *Result) error {
 	}
 	r.exemptions(loaded)
 	return nil
-}
-
-func quoteList(ss []string) string {
-	q := make([]string, len(ss))
-	for i, s := range ss {
-		q[i] = fmt.Sprintf("%q", s)
-	}
-	return "[" + strings.Join(q, ", ") + "]"
 }
 
 // placeholderRE is an out path's {axis} placeholder.
@@ -307,8 +332,9 @@ func (s *scanner) excluded(f string) bool {
 }
 
 // consumerFiles are the sorted, distinct files pl's consumers globs match,
-// less the excluded ones; bad lists the globs that are not valid.
-func (s *scanner) consumerFiles(pl config.Platform) (files, bad []string, err error) {
+// less the excluded ones; bad lists the globs that are not valid, and dead
+// the valid ones that match no file once the exclusions are taken out.
+func (s *scanner) consumerFiles(pl config.Platform) (files, bad, dead []string, err error) {
 	seen := map[string]bool{}
 	for _, g := range pl.Consumers {
 		ms, err := doublestar.Glob(s.p.FS, g, doublestar.WithFilesOnly())
@@ -317,17 +343,25 @@ func (s *scanner) consumerFiles(pl config.Platform) (files, bad []string, err er
 			continue
 		}
 		if err != nil {
-			return nil, nil, fmt.Errorf("platform %s: find consumers %q: %w", pl.Name, g, err)
+			return nil, nil, nil, fmt.Errorf("platform %s: find consumers %q: %w", pl.Name, g, err)
 		}
+		matched := false
 		for _, m := range ms {
-			if !seen[m] && !s.excluded(m) {
+			if s.excluded(m) {
+				continue
+			}
+			matched = true
+			if !seen[m] {
 				seen[m] = true
 				files = append(files, m)
 			}
 		}
+		if !matched {
+			dead = append(dead, g)
+		}
 	}
 	slices.Sort(files)
-	return files, bad, nil
+	return files, bad, dead, nil
 }
 
 // markerRE is an exemption marker's start: airframe-exempt and the rule.
