@@ -279,10 +279,17 @@ func TestPlanConfigRefs(t *testing.T) {
 	assert.Contains(t, pl.Manual[0].Message, "theme.space")
 	assert.Contains(t, pl.Manual[0].Message, "space-4")
 
-	// color-{1} with (\w+) can make color-ink as well.
+	// color-{1} with (\w+) can make color-ink as well, and color-text: a
+	// member that read no token would now read the renamed one.
 	pl = plan(t, fixture(), "color-ink", "color-text", "")
-	require.Len(t, pl.Manual, 1)
-	assert.Contains(t, pl.Manual[0].Message, "theme.color")
+	require.Len(t, pl.Manual, 2)
+	assert.Contains(t, pl.Manual[0].Message, "theme.color pattern ^(\\w+)Tone$ → color-{1} can resolve a member to color-ink")
+	assert.Contains(t, pl.Manual[1].Message, "can resolve a member to color-text, which the rename creates")
+
+	// A pattern that can make new but not old is flagged too.
+	pl = plan(t, fixture(), "gap", "space-9", "")
+	require.Len(t, pl.Manual, 2, "the pattern, and the touch invariant's ga* glob")
+	assert.Contains(t, pl.Manual[0].Message, "theme.space pattern ^space(\\d+)$ → space-{1} can resolve a member to space-9, which the rename creates")
 }
 
 func TestPlanComponents(t *testing.T) {

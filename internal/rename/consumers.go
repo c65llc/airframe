@@ -50,7 +50,8 @@ func Codemod(p *project.Project, old, new, dotted string) (*EditPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &codemod{p: p, pl: pl, oldV: map[[2]string]map[string]emit.Variant{}, newN: map[[2]string]map[emit.Variant]string{}}
+	c := &codemod{p: p, pl: pl, oldV: map[[2]string]map[string]emit.Variant{}, newN: map[[2]string]map[emit.Variant]string{},
+		patternReads: map[patternRef]bool{}}
 	edits := map[string][]consumerEdit{}
 	for _, ref := range scan.Refs {
 		if ref.Token != old {
@@ -64,6 +65,9 @@ func Codemod(p *project.Project, old, new, dotted string) (*EditPlan, error) {
 			edits[ref.File] = append(edits[ref.File], *s)
 		}
 	}
+	// Plan reports every pattern that can make old; keep those some read
+	// resolves through.
+	pl.Manual = slices.DeleteFunc(pl.Manual, func(m Manual) bool { return m.pattern != nil && !c.patternReads[*m.pattern] })
 	pl.Consumers, pl.ConsumerSources = map[string][]byte{}, map[string][]byte{}
 	for _, f := range slices.Sorted(maps.Keys(edits)) {
 		src, err := fs.ReadFile(p.FS, f)
@@ -99,6 +103,8 @@ type codemod struct {
 	pl   *EditPlan
 	oldV map[[2]string]map[string]emit.Variant // (platform, format) → old ReferenceVariants
 	newN map[[2]string]map[emit.Variant]string // (platform, format) → renamed VariantNames
+	// patternReads are the wrapper patterns some read resolves through to old.
+	patternReads map[patternRef]bool
 }
 
 func (c *codemod) platform(name string) config.Platform {
@@ -169,6 +175,9 @@ func (c *codemod) edit(ref consumer.Reference) (*consumerEdit, error) {
 		case w.Map[member] != "":
 			return nil, nil // the config's map edit renames it
 		default:
+			if i := slices.IndexFunc(w.Patterns, func(p config.WrapperPattern) bool { return p.Match.MatchString(member) }); i >= 0 {
+				c.patternReads[patternRef{ref.Platform, root, i}] = true
+			}
 			c.pl.Manual = append(c.pl.Manual, Manual{File: ref.File, Line: ref.Line, Message: fmt.Sprintf(
 				"platform %s: %s reads %s through a pattern of wrapper %s, which would now name no token; rewrite it, or the pattern, by hand",
 				ref.Platform, ref.Raw, c.pl.Old, root)})

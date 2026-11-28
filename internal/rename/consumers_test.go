@@ -136,15 +136,26 @@ func TestRenameWrappers(t *testing.T) {
 	})
 	t.Run("pattern", func(t *testing.T) {
 		// theme.space.space2 reads space-2 through ^space(\d+)$: a manual item
-		// where it is read, besides the config-level one for the pattern.
+		// where it is read, besides the config-level one for the pattern. No
+		// read resolves through apple's AppTheme.spacing pattern to space-2
+		// (airframe.yaml:24), so that one is dropped.
 		pl := mustCodemod(t, consumers(), "space-2", "space-two")
 		assert.NotContains(t, pl.Consumers, "web/src/button/Button.tsx")
 		var at []string
 		for _, m := range pl.Manual {
 			at = append(at, m.File+":"+strconv.Itoa(m.Line))
 		}
-		assert.Equal(t, []string{"airframe.yaml:14", "airframe.yaml:24", "web/src/button/Button.tsx:9"}, at)
-		assert.Contains(t, pl.Manual[2].Message, "theme.space.space2 reads space-2 through a pattern of wrapper theme.space")
+		assert.Equal(t, []string{"airframe.yaml:14", "web/src/button/Button.tsx:9"}, at)
+		assert.Contains(t, pl.Manual[1].Message, "theme.space.space2 reads space-2 through a pattern of wrapper theme.space")
+
+		// A pattern that can make new is kept with no read: space-4 → space-8
+		// could now be read as space8 through both patterns.
+		pl = mustCodemod(t, consumers(), "gap", "space-8")
+		var msgs []string
+		for _, m := range pl.Manual {
+			msgs = append(msgs, m.File+":"+strconv.Itoa(m.Line)+" "+m.Message[:strings.Index(m.Message, ":")])
+		}
+		assert.Equal(t, []string{"airframe.yaml:14 platform web", "airframe.yaml:24 platform apple"}, msgs)
 	})
 }
 

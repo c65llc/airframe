@@ -50,6 +50,17 @@ type Manual struct {
 	File    string
 	Line    int
 	Message string
+	// pattern is the wrapper pattern that can resolve a member to old, for
+	// an airframe.yaml item Plan reports without knowing the reads;
+	// Codemod keeps it only when some read does resolve through it to old.
+	pattern *patternRef
+}
+
+// patternRef is a wrapper pattern: platform, wrapper root, and its index
+// in the wrapper's patterns.
+type patternRef struct {
+	platform, root string
+	index          int
 }
 
 // EditPlan is a planned rename. Files holds the final, formatted bytes of
@@ -623,8 +634,9 @@ func pairs(n *yaml.Node) [][2]*yaml.Node {
 
 // config rewrites airframe.yaml's token references: accentColor, the
 // material3Scheme role values, the highContrast keys and wrapper map
-// values. A wrapper pattern that can resolve a member to old is a manual
-// item: its template is not edited.
+// values. A wrapper pattern that can resolve a member to old, or to new,
+// is a manual item: its template is not edited. (Codemod, which scans the
+// reads, keeps the first only when a read resolves through it to old.)
 func (r *renamer) config() error {
 	d, err := r.yamlDoc(config.File)
 	if err != nil || d == nil {
@@ -656,14 +668,21 @@ func (r *renamer) config() error {
 			if pats == nil || pats.Kind != yaml.SequenceNode {
 				continue
 			}
-			for _, pe := range pats.Content {
+			for i, pe := range pats.Content {
 				m, t := field(pe, "match"), field(pe, "token")
-				if m == nil || t == nil || !canMake(m.Value, t.Value, r.pl.Old) {
+				if m == nil || t == nil {
 					continue
 				}
-				r.pl.Manual = append(r.pl.Manual, Manual{File: d.file, Line: pe.Line, Message: fmt.Sprintf(
-					"platform %s: wrapper %s pattern %s → %s can resolve a member to %s, which would now name no token; check its members by hand",
-					name, root.Value, m.Value, t.Value, r.pl.Old)})
+				if canMake(m.Value, t.Value, r.pl.Old) {
+					r.pl.Manual = append(r.pl.Manual, Manual{File: d.file, Line: pe.Line, Message: fmt.Sprintf(
+						"platform %s: wrapper %s pattern %s → %s can resolve a member to %s, which would now name no token; check its members by hand",
+						name, root.Value, m.Value, t.Value, r.pl.Old), pattern: &patternRef{name, root.Value, i}})
+				}
+				if canMake(m.Value, t.Value, r.pl.New) {
+					r.pl.Manual = append(r.pl.Manual, Manual{File: d.file, Line: pe.Line, Message: fmt.Sprintf(
+						"platform %s: wrapper %s pattern %s → %s can resolve a member to %s, which the rename creates, so a member that read no token would now read it; check its members by hand",
+						name, root.Value, m.Value, t.Value, r.pl.New)})
+				}
 			}
 		}
 	}

@@ -64,13 +64,13 @@ func TestRenameManual(t *testing.T) {
 	code, stdout, stderr := run("--root", dir, "rename", "space-2", "space-two")
 	assert.Equal(t, ExitFindings, code)
 	assert.Contains(t, stdout, "  manual: ")
-	assert.Contains(t, stderr, "3 reference(s) are left to finish by hand")
+	assert.Contains(t, stderr, "2 reference(s) are left to finish by hand")
 	assert.Equal(t, before, treeHash(t, dir), "manual items without --allow-manual write nothing")
 
 	code, stdout, stderr = run("--root", dir, "rename", "space-2", "space-two", "--allow-manual")
 	require.Equal(t, ExitOK, code, stderr)
 	assert.Contains(t, stdout, "wrote design-system/tokens/primitive.tokens.json\n")
-	assert.Contains(t, stdout, "3 reference(s) left to finish by hand")
+	assert.Contains(t, stdout, "2 reference(s) left to finish by hand")
 	assert.Contains(t, readFile(t, dir, "airframe.yaml"), "small: space-two")
 	assert.Contains(t, readFile(t, dir, "web/src/button/Button.tsx"), "theme.space.space2", "a pattern read is the user's")
 }
