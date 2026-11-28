@@ -353,3 +353,26 @@ func TestDiffExitCode(t *testing.T) {
 	code, _, _ = run("--root", dir, "diff", "a", "b", "c")
 	assert.Equal(t, ExitUsage, code)
 }
+
+// When neither side has airframe.yaml at the prefix, the root is likely
+// wrong: exit 2 rather than diff two empty sets. In the one-ref form the
+// working tree is checked first, so no ref note is printed.
+func TestDiffBothSidesMissing(t *testing.T) {
+	r := gittest.New(t)
+	r.Write(map[string]string{"README.md": "x\n"})
+	r.Commit("one")
+	r.Git("tag", "a")
+	r.Write(map[string]string{"README.md": "y\n"})
+	r.Commit("two")
+
+	code, stdout, stderr := run("--root", r.Dir, "diff", "a", "main")
+	assert.Equal(t, ExitUsage, code)
+	assert.Empty(t, stdout)
+	assert.Equal(t, "airframe diff: neither a nor main has airframe.yaml at the repository root; is the project root right? (--root)\n", stderr)
+
+	code, stdout, stderr = run("--root", r.Dir, "diff", "a")
+	assert.Equal(t, ExitFindings, code)
+	assert.Empty(t, stdout)
+	assert.NotContains(t, stderr, "comparing against an empty token set", "no ref note before the working tree fails")
+	assert.Contains(t, stderr, "airframe.yaml")
+}

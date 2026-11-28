@@ -36,6 +36,15 @@ func TestMarkdownEscapesDescriptions(t *testing.T) {
 	assert.NotContains(t, md, "<b>")
 }
 
+// A description cannot render as a link or an image.
+func TestMarkdownEscapesLinks(t *testing.T) {
+	md := markdown(t, Diff{Changed: []Changed{{Name: "ink", Changes: []Change{
+		{Kind: KindDescription, From: "Plain.", To: "See [the docs](https://example.invalid) or ![x](y.png)"},
+	}}}})
+	assert.Contains(t, md, "| See \\[the docs\\](https://example.invalid) or \\!\\[x\\](y.png) |\n")
+	assert.NotContains(t, md, "[the docs]")
+}
+
 // Past 50 changed tokens the per-token tables fold into one <details>; the
 // added and removed lists stay as they are.
 func TestMarkdownFoldsManyChanges(t *testing.T) {

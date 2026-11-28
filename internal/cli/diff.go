@@ -35,9 +35,11 @@ var diffCommand = Command{
 // runDiff compares the project's tokens at ref A with those at ref B, or in
 // the working tree. Each side loads with its own airframe.yaml. A ref with
 // no airframe.yaml at the project's directory (from before the project was
-// adopted) is an empty side, with a note on stderr. Git missing, a
+// adopted) is an empty side, with a note on stderr; when both refs are
+// missing, the root is likely wrong and diff exits 2. Git missing, a
 // directory outside a work tree or a bad ref exits 2; a side that does not
-// load exits 1 with its diagnostics.
+// load exits 1 with its diagnostics. The working tree loads before any
+// note is printed.
 //
 // A ref side is read from git's objects, which store a symlink as a link:
 // a symlinked token or config file is skipped there, though the working
@@ -78,27 +80,36 @@ func runDiff(inv *invocation) int {
 		sides = append(sides, tokendiff.Side{})
 	}
 
-	projects := make([]*project.Project, 2)
+	// Open every side, and find the refs with no airframe.yaml (from
+	// before the project was adopted), before loading anything.
+	fsyss := make([]fs.FS, 2)
+	missing := 0
 	for i, s := range sides {
-		var fsys fs.FS
 		if s.Commit == "" {
-			fsys = os.DirFS(dir)
-		} else {
-			gfs, err := repo.FS(s.Commit)
-			if err != nil {
-				return inv.fail(err)
-			}
-			defer gfs.Close()
-			fsys = gfs
-			if _, err := fs.Stat(fsys, config.File); errors.Is(err, fs.ErrNotExist) {
-				// Before the project was adopted: compare with nothing.
-				sides[i].Missing, sides[i].Prefix = true, repo.Prefix
-				_, _ = fmt.Fprintf(inv.stderr, "airframe diff: %s has no %s at %s; comparing against an empty token set\n",
-					s.Ref, config.File, prefixName(repo.Prefix))
-				continue
-			}
+			fsyss[i] = os.DirFS(dir)
+			continue
 		}
-		p, ds, err := project.Load(fsys)
+		gfs, err := repo.FS(s.Commit)
+		if err != nil {
+			return inv.fail(err)
+		}
+		defer gfs.Close()
+		fsyss[i] = gfs
+		if _, err := fs.Stat(gfs, config.File); errors.Is(err, fs.ErrNotExist) {
+			sides[i].Missing, sides[i].Prefix = true, repo.Prefix
+			missing++
+		}
+	}
+	if missing == 2 {
+		// Two empty sides say nothing: the root is likely wrong.
+		return inv.fail(fmt.Errorf("neither %s nor %s has %s at %s; is the project root right? (--root)",
+			sides[0].Ref, sides[1].Ref, config.File, prefixName(repo.Prefix)))
+	}
+
+	projects := make([]*project.Project, 2)
+	load := func(i int) int {
+		s := sides[i]
+		p, ds, err := project.Load(fsyss[i])
 		if err != nil {
 			return inv.fail(fmt.Errorf("%s: %w", s.Label(), err))
 		}
@@ -108,6 +119,25 @@ func runDiff(inv *invocation) int {
 			return ExitFindings
 		}
 		projects[i] = p
+		return ExitOK
+	}
+	// The working tree loads first, so a ref's empty-side note is never
+	// printed above the working tree's own failure.
+	if sides[1].Commit == "" {
+		if code := load(1); code != ExitOK {
+			return code
+		}
+	}
+	for i, s := range sides {
+		switch {
+		case s.Missing:
+			_, _ = fmt.Fprintf(inv.stderr, "airframe diff: %s has no %s at %s; comparing against an empty token set\n",
+				s.Ref, config.File, prefixName(repo.Prefix))
+		case s.Commit != "":
+			if code := load(i); code != ExitOK {
+				return code
+			}
+		}
 	}
 
 	d := tokendiff.Compare(projects[0], projects[1])

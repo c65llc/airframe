@@ -486,15 +486,20 @@ reviewers what a pull request does to the tokens, add a step that writes
 - uses: actions/checkout@v4
   with:
     fetch-depth: 0
-- run: airframe diff origin/${{ github.base_ref }} --format md >> "$GITHUB_STEP_SUMMARY"
+- if: github.event_name == 'pull_request'
+  run: airframe diff "origin/$GITHUB_BASE_REF" --format md >> "$GITHUB_STEP_SUMMARY"
 ```
 
+The step runs only on pull requests, where `GITHUB_BASE_REF` names the
+branch the pull request merges into. It is read from the environment and
+quoted for the shell, never spliced into the script by the workflow.
+
 `diff` needs the base branch's commit. `actions/checkout` fetches only
-the pull request's merge commit by default, so either set `fetch-depth:
-0`, as above, or fetch the base ref yourself before the step (`git fetch
---depth=1 origin "$GITHUB_BASE_REF"`). The step assumes `airframe` is on
-the runner's `PATH`; install it as the [README](../../README.md#install)
-says.
+the pull request's merge commit by default, so either set
+`fetch-depth: 0`, as above, or fetch the base ref yourself before the
+step (`git fetch --depth=1 origin "$GITHUB_BASE_REF"`). The step assumes
+`airframe` is on the runner's `PATH`; install it as the
+[README](../../README.md#install) says.
 
 ## 5. The JSON schemas
 

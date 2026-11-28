@@ -55,6 +55,13 @@ stdout '`v0` has no airframe.yaml at the repository root'
 exec airframe diff v0 v1 --format json
 stdout '"missing": true'
 
+# Neither ref has airframe.yaml where the root points: the root is likely
+# wrong, so diff exits 2 and prints nothing.
+mkdir elsewhere
+exits 2 airframe --root elsewhere diff v1 v2
+! stdout .
+stderr '^airframe diff: neither v1 nor v2 has airframe.yaml at elsewhere/; is the project root right\? \(--root\)$'
+
 # A ref that looks like an option never reaches git.
 exits 2 airframe diff -- -x
 stderr 'ref "-x": starts with "-"; refusing to pass it to git'

@@ -154,4 +154,8 @@ func TestUsagesJSONSchema(t *testing.T) {
 	bad := map[string]any{"name": "x", "tier": "component", "component": "c", "aliasedBy": []any{},
 		"references": []any{map[string]any{"platform": "web", "file": "f", "line": 1, "col": 1, "raw": "r", "via": "direct", "owner": "shared"}}}
 	assert.NotEmpty(t, schema.Validate("usages", bad))
+	// A read carries owner or shared, never both.
+	both := map[string]any{"name": "x", "tier": "component", "component": "c", "aliasedBy": []any{},
+		"references": []any{map[string]any{"platform": "web", "file": "f", "line": 1, "col": 1, "raw": "r", "via": "direct", "owner": true, "shared": true}}}
+	assert.NotEmpty(t, schema.Validate("usages", both), "owner and shared together are refused")
 }

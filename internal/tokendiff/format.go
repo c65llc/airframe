@@ -195,12 +195,13 @@ func code(s string) string {
 
 // mdText is prose (a description, a fact) as a Markdown table cell, shown
 // as written: HTML's <, > and & become entities, Markdown's emphasis and
-// code marks and the backslash are escaped, and a pipe does not end the
-// cell.
+// code marks, link and image brackets, ! and the backslash are escaped,
+// and a pipe does not end the cell.
 var mdText = func() func(string) string {
 	r := strings.NewReplacer(
 		"&", "&amp;", "<", "&lt;", ">", "&gt;",
 		"\\", "\\\\", "*", "\\*", "_", "\\_", "`", "\\`",
+		"[", "\\[", "]", "\\]", "!", "\\!",
 	)
 	return func(s string) string { return cell(r.Replace(s)) }
 }()
