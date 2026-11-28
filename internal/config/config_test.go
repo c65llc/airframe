@@ -611,3 +611,31 @@ func TestNamingProblemsAllReported(t *testing.T) {
 	}
 	assert.Equal(t, []string{"naming.css", "naming.swfit", "naming.colorsets"}, paths)
 }
+
+func TestXAMLOptions(t *testing.T) {
+	for _, name := range []string{"windows", "win"} {
+		pre := "version: 1\nplatforms:\n  " + name + ":\n    emit: [xaml]\n    out: x.xaml\n    options: "
+		base := "platforms." + name + ".options."
+		for _, tc := range []struct{ label, opts, path, msg string }{
+			{"gamut value", "{ gamut: clip-p3 }", base + "gamut", "clip-p3"},
+			{"gamut number", "{ gamut: 5 }", base + "gamut", "gamut must be a string"},
+			{"unknown key", "{ bogus: 1 }", base + "bogus", "unknown option bogus"},
+			{"empty highContrast", "{ highContrast: {} }", base + "highContrast", "highContrast"},
+			{"scalar highContrast", "{ highContrast: true }", base + "highContrast", "highContrast"},
+			{"bogus system colour", "{ highContrast: { ink: SystemColorBogus } }", base + "highContrast.ink", "SystemColorBogus"},
+			{"number system colour", "{ highContrast: { ink: 5 } }", base + "highContrast.ink", "must be a string"},
+		} {
+			d := loadErr(t, pre+tc.opts+"\n")
+			assert.Equal(t, tc.path, d.Path, tc.label)
+			assert.Contains(t, d.Message, tc.msg, tc.label)
+		}
+		c := mustLoad(t, pre+"{ gamut: clip-srgb, highContrast: { surface: SystemColorWindowColor, ink: SystemColorWindowTextColor } }\n")
+		assert.Equal(t, [][2]string{{"ink", "SystemColorWindowTextColor"}, {"surface", "SystemColorWindowColor"}}, c.Platforms[0].HighContrast())
+		assert.Nil(t, mustLoad(t, pre+"{ gamut: css-color-4 }\n").Platforms[0].HighContrast())
+	}
+	// No options key at all is fine: xaml has no required option.
+	c := mustLoad(t, "version: 1\nplatforms:\n  windows:\n    emit: xaml\n    out: x.xaml\n")
+	assert.Nil(t, c.Platforms[0].HighContrast())
+	// Other platforms' options are not checked as xaml's.
+	mustLoad(t, "version: 1\nplatforms:\n  web:\n    emit: [css]\n    out: x.css\n    options: { highContrast: 1 }\n")
+}

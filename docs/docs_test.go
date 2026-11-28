@@ -5,6 +5,7 @@ package docs
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"slices"
@@ -19,7 +20,14 @@ import (
 )
 
 // page is what a rule ID's docs page must declare in its front matter.
-type page struct{ severity, since string }
+// retired is the release that stopped reporting the ID, or empty.
+type page struct{ severity, since, retired string }
+
+// retiredRules are IDs no release reports any more. IDs are addresses, so
+// each keeps its page, whose front matter says when it was retired.
+var retiredRules = map[string]page{
+	"emit-unsupported": {severity: "warn", since: "v0.1.0", retired: "v0.5.0"},
+}
 
 // laterRules are the lint IDs added after v0.1.0, by the release that
 // added them.
@@ -35,19 +43,33 @@ func pages() map[string]page {
 		if v, ok := laterRules[id]; ok {
 			since = v
 		}
-		out[id] = page{string(lint.DefaultSeverity(id)), since}
+		out[id] = page{severity: string(lint.DefaultSeverity(id)), since: since}
 	}
 	for _, id := range importer.IDs() {
-		out[id] = page{string(importer.Severity(id)), "v0.2.0"}
+		out[id] = page{severity: string(importer.Severity(id)), since: "v0.2.0"}
 	}
+	maps.Copy(out, retiredRules)
 	return out
 }
 
-// documented is every ID that has a page, sorted.
+// documented is every ID that has a page, sorted: every live lint ID and
+// import finding, and every retired ID.
 func documented() []string {
-	ids := slices.Concat(lint.AllIDs(), importer.IDs())
+	ids := slices.Concat(lint.AllIDs(), importer.IDs(), slices.Collect(maps.Keys(retiredRules)))
 	slices.Sort(ids)
 	return ids
+}
+
+// TestRetiredRules: a retired ID is no longer reported, so it is not in
+// lint.AllIDs, and its page says in prose that it is retired.
+func TestRetiredRules(t *testing.T) {
+	for id, want := range retiredRules {
+		assert.NotContains(t, lint.AllIDs(), id, "%s is retired, so nothing may report it", id)
+		assert.NotContains(t, importer.IDs(), id)
+		page, ok := Rule(id)
+		require.True(t, ok, "docs/rules/%s.md stays: IDs are addresses", id)
+		assert.Contains(t, page, "Retired in "+want.retired, id)
+	}
 }
 
 func TestEveryRuleHasDocs(t *testing.T) {
@@ -62,12 +84,17 @@ func TestEveryRuleHasDocs(t *testing.T) {
 			assert.GreaterOrEqual(t, len(lines), 15, "short, not empty")
 			assert.LessOrEqual(t, len(lines), 40, "short")
 
-			require.GreaterOrEqual(t, len(lines), 7)
-			assert.Equal(t, []string{"---", "severity: " + want[id].severity, "since: " + want[id].since, "---", "", "# " + id, ""}, lines[:7])
-			summary := lines[7]
+			head := []string{"---", "severity: " + want[id].severity, "since: " + want[id].since}
+			if want[id].retired != "" {
+				head = append(head, "retired: "+want[id].retired)
+			}
+			head = append(head, "---", "", "# "+id, "")
+			require.Greater(t, len(lines), len(head)+1)
+			assert.Equal(t, head, lines[:len(head)])
+			summary := lines[len(head)]
 			assert.NotEmpty(t, summary, "a one-line summary under the H1")
 			assert.False(t, strings.HasPrefix(summary, "#") || strings.HasPrefix(summary, "**"), summary)
-			assert.Empty(t, lines[8], "the summary is one line")
+			assert.Empty(t, lines[len(head)+1], "the summary is one line")
 
 			assert.Contains(t, lines, "**Why**")
 			assert.Contains(t, lines, "**Fix**")
@@ -96,7 +123,8 @@ func TestRuleUnknown(t *testing.T) {
 
 // TestReadmeMatchesRelease guards the README against drifting from what
 // the release does: it carries the install line, the quick start and the
-// Action usage, and names the unbuilt emitters only as planned.
+// Action usage, describes every emitter as built (XAML new in v0.5.0),
+// and plans no emitter.
 func TestReadmeMatchesRelease(t *testing.T) {
 	b, err := os.ReadFile("../README.md")
 	require.NoError(t, err)
@@ -104,18 +132,25 @@ func TestReadmeMatchesRelease(t *testing.T) {
 	for _, want := range []string{
 		"go install github.com/c65llc/airframe/cmd/airframe@latest",
 		"airframe init", "airframe lint", "airframe build", "airframe fmt",
-		"uses: c65llc/airframe@v0", "version: v0.4.0",
-		"**Planned (not in v0.4.0)**",
+		"uses: c65llc/airframe@v0", "version: v0.5.0",
+		"**Planned (not in v0.5.0)**",
 	} {
 		assert.Contains(t, readme, want)
 	}
-	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.4.0)**")
+	_, planned, ok := strings.Cut(readme, "**Planned (not in v0.5.0)**")
 	require.True(t, ok)
-	built, _, _ := strings.Cut(readme, "**Planned (not in v0.4.0)**")
-	assert.NotContains(t, built, "XAML", "an unbuilt emitter is described before the planned list")
-	assert.Contains(t, planned, "XAML")
-	for _, emitter := range []string{"Swift", "Kotlin"} {
+	built, _, _ := strings.Cut(readme, "**Planned (not in v0.5.0)**")
+	planned, _, ok = strings.Cut(planned, "\n## ")
+	require.True(t, ok, "the planned list ends at the next section")
+	for _, emitter := range []string{"Swift", "Kotlin", "XAML"} {
 		assert.Contains(t, built, emitter, "a built emitter is described before the planned list")
 		assert.NotContains(t, planned, emitter, "a built emitter is not planned")
 	}
+	assert.Contains(t, built, "**Emits XAML/WinUI** (new in v0.5.0)", "XAML is built and released")
+	assert.Contains(t, built, "(docs/guides/windows.md)")
+	for _, word := range []string{"emitter", "emit-unsupported", "C#"} {
+		assert.NotContains(t, planned, word, "every emitter is built; the planned list names none")
+	}
+	assert.Contains(t, planned, "Consumer rules")
+	assert.Contains(t, planned, "Components")
 }

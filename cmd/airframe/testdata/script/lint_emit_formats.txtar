@@ -4,14 +4,19 @@ cp typo.yaml airframe.yaml
 exits 1 airframe lint
 stdout 'airframe.yaml:7: error schema-invalid: .*csss'
 
-# A format a later release builds is accepted and reported as a warning;
-# lint passes unless --strict.
-cp future.yaml airframe.yaml
-exec airframe lint
-stdout 'warn emit-unsupported: platform windows: format xaml is not built until a later release'
-exits 1 airframe lint --strict
+# Every format airframe.yaml accepts is built: a config naming all six
+# lints and builds with no warning (emit-unsupported is retired).
+cp every.yaml airframe.yaml
 exec airframe build
-stderr 'emit-unsupported'
+! stderr .
+stdout '^wrote design-system/generated/windows/DesignTokens\.xaml$'
+stdout '^wrote design-system/generated/android/DesignColorValues\.kt$'
+stdout '^wrote design-system/generated/apple/DesignTokens\.swift$'
+exec airframe build --check
+! stdout .
+exec airframe lint --strict
+! stdout 'warn '
+! stdout 'emit-unsupported'
 
 # An out key that is not one of the platform's formats is schema-invalid.
 cp outkey.yaml airframe.yaml
@@ -27,7 +32,7 @@ modes:
 platforms:
   web: {emit: csss}
   json: {emit: [json]}
--- future.yaml --
+-- every.yaml --
 version: 1
 content: design-system
 modes:
@@ -36,6 +41,8 @@ modes:
 platforms:
   web: {emit: css}
   json: {emit: [json]}
+  apple: {emit: [swift, colorsets]}
+  android: {emit: [kotlin], options: {package: com.example.design}}
   windows: {emit: [xaml]}
 -- outkey.yaml --
 version: 1

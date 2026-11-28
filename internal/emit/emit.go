@@ -3,9 +3,10 @@
 
 // Package emit turns a loaded project into its generated outputs: CSS
 // custom properties with mode scopes, a neutral JSON contract, for apple
-// asset-catalog colorsets and a SwiftUI DesignTokens file, and for android
-// Jetpack Compose sources (DesignTokens and per-app DesignColorValues). Every
-// output is deterministic and byte-stable (LF, final newline, sorted).
+// asset-catalog colorsets and a SwiftUI DesignTokens file, for android
+// Jetpack Compose sources (DesignTokens and per-app DesignColorValues), and
+// for windows WinUI 3 XAML resource dictionaries. Every output is
+// deterministic and byte-stable (LF, final newline, sorted).
 package emit
 
 import (
@@ -28,7 +29,8 @@ import (
 type Emitter func(p *project.Project, pl config.Platform) (map[string][]byte, error)
 
 // Emitters maps each emit format to its emitter.
-var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON, "kotlin": Kotlin, "swift": Swift}
+// Every format config.Formats accepts has one.
+var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON, "kotlin": Kotlin, "swift": Swift, "xaml": XAML}
 
 // defaultOut is where a format is written, under the content directory,
 // when its platform sets no out.
@@ -38,6 +40,7 @@ var defaultOut = map[string]string{
 	"swift": "generated/apple/DesignTokens.swift",
 	// kotlin is the per-app values file; options.sharedOut names the shared one.
 	"kotlin": "generated/android/DesignColorValues.kt",
+	"xaml":   "generated/windows/DesignTokens.xaml",
 	// colorsets is a catalog folder, not a file.
 	"colorsets": "generated/apple/Assets.xcassets/Tokens",
 }
@@ -51,8 +54,9 @@ func (e *configError) Error() string { return e.msg }
 // Build runs every emitter the filter selects and returns the outputs by
 // repo-relative path. A filter entry selects a platform by name (all its
 // formats) or a format by name (on every platform); an empty filter selects
-// everything. A format with no emitter yet is reported as emit-unsupported
-// (a warning) and skipped. A native platform selected by the filter also
+// everything. config.Load accepts only formats Emitters builds, so a
+// format with no emitter is an internal error: Build panics, which exits
+// 2. A native platform selected by the filter also
 // reports each build-bound axis it resolves at its base value
 // (emit-axis-fixed, a warning). A failing format is reported and left out;
 // the others still build.
@@ -72,15 +76,10 @@ func Build(p *project.Project, filter []string) (map[string][]byte, []diag.Diagn
 			native = native || slices.Contains(nativeFormats, format)
 			em, ok := Emitters[format]
 			if !ok {
-				// config.Load accepts only known formats, so this is
-				// one a later release builds.
-				ds = append(ds, diag.Diagnostic{
-					Rule: "emit-unsupported", Severity: diag.Warn, File: config.File,
-					Path:    "platforms." + pl.Name + ".emit",
-					Message: fmt.Sprintf("platform %s: format %s is not built until a later release", pl.Name, format),
-					Docs:    diag.DocsURL("emit-unsupported"),
-				})
-				continue
+				// config.Load accepts only formats with an emitter
+				// (TestBuildEveryAcceptedFormatHasAnEmitter), so this is
+				// a bug, not a finding.
+				panic(fmt.Sprintf("emit: no emitter for format %s, which config accepted (platform %s)", format, pl.Name))
 			}
 			files, err := em(p, pl)
 			if err != nil {

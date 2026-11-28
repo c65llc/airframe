@@ -176,28 +176,40 @@ func TestEmitListSkipsFormat(t *testing.T) {
 	assert.Contains(t, string(out[minimalJSON]), `"only-json"`)
 }
 
-// TestBuildReportsUnsupported: a format config accepts but this release
-// does not build is reported once per platform and format, as a warning;
-// the built formats still build.
-func TestBuildReportsUnsupported(t *testing.T) {
+// TestBuildEveryFormat: every format config accepts is built, at its
+// default out, with no diagnostic: emit-unsupported is retired.
+func TestBuildEveryFormat(t *testing.T) {
 	fsys := memFS(t, minimalDir)
 	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}\n  android: {emit: [kotlin], options: {package: com.example.design}}\n  windows: {emit: [xaml]}", 1)
-	out, ds := Build(loadFS(t, fsys), nil)
-	require.Len(t, ds, 1, "%v", ds)
-	for i, f := range []string{"xaml"} {
-		assert.Equal(t, "emit-unsupported", ds[i].Rule)
-		assert.Equal(t, diag.Warn, ds[i].Severity)
-		assert.Equal(t, "airframe.yaml", ds[i].File)
-		assert.Equal(t, "platforms.windows.emit", ds[i].Path)
-		assert.Equal(t, "platform windows: format "+f+" is not built until a later release", ds[i].Message)
+	p := loadFS(t, fsys)
+	var formats []string
+	for _, pl := range p.Config.Platforms {
+		formats = append(formats, pl.Emit...)
 	}
+	slices.Sort(formats)
+	assert.Equal(t, slices.Sorted(maps.Keys(Emitters)), formats, "the config uses every format")
+	out, ds := Build(p, nil)
+	assert.Empty(t, ds)
 	assert.Contains(t, out, minimalCSS)
 	assert.Contains(t, out, "design-system/generated/apple/Assets.xcassets/Tokens/Contents.json", "colorsets is built, at its default out")
 	assert.Contains(t, out, "design-system/generated/apple/DesignTokens.swift", "swift is built, at its default out")
 	assert.Contains(t, out, "design-system/generated/android/DesignColorValues.kt", "kotlin is built, at its default out")
+	assert.Contains(t, out, "design-system/generated/windows/DesignTokens.xaml", "xaml is built, at its default out")
+}
 
-	_, ds = Build(loadFS(t, fsys), []string{"css"})
-	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")
+// TestBuildEveryAcceptedFormatHasAnEmitter: config.Load accepts only
+// formats with an emitter, and defaultOut names each one, so Build's
+// no-emitter path is unreachable; reaching it is an internal error (a
+// panic, exit 2), never a diagnostic.
+func TestBuildEveryAcceptedFormatHasAnEmitter(t *testing.T) {
+	assert.Equal(t, slices.Sorted(slices.Values(config.Formats)), slices.Sorted(maps.Keys(Emitters)))
+	assert.Equal(t, slices.Sorted(maps.Keys(defaultOut)), slices.Sorted(maps.Keys(Emitters)))
+
+	p := loadFS(t, os.DirFS(xamlDefaultDir))
+	saved := Emitters["xaml"]
+	delete(Emitters, "xaml")
+	t.Cleanup(func() { Emitters["xaml"] = saved })
+	assert.PanicsWithValue(t, "emit: no emitter for format xaml, which config accepted (platform windows)", func() { Build(p, nil) })
 }
 
 // reorderedFS returns fsys with the token files under content renamed so
@@ -294,6 +306,14 @@ func requireDeterministic(t *testing.T, fsys project.MemFS) map[string][]byte {
 func TestAndroidDeterministic(t *testing.T) {
 	first := requireDeterministic(t, memFS(t, androidDir))
 	require.Equal(t, []string{notesKotlin, sharedKotlin, tasksKotlin}, slices.Sorted(maps.Keys(first)))
+}
+
+// TestWindowsDeterministic: the windows fixture builds the same bytes
+// however its token files and keys are ordered, for both apps'
+// dictionaries.
+func TestWindowsDeterministic(t *testing.T) {
+	first := requireDeterministic(t, memFS(t, windowsDir))
+	require.Equal(t, []string{notesXAML, tasksXAML}, slices.Sorted(maps.Keys(first)))
 }
 
 // TestAppleDeterministic: the apple fixture builds the same bytes however

@@ -1,0 +1,32 @@
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+  app: {values: [notes, tasks], base: notes, binding: build, web: {attr: data-app}}
+  channel: {values: [stable, next], base: stable, binding: build, web: {attr: data-channel}}
+platforms:
+  windows:
+    emit: [xaml]
+    out: "windows/{app}/DesignTokens.xaml"
+    fanOut: app
+    options:
+      gamut: clip-srgb
+      highContrast:
+        accent: SystemColorHighlightColor
+        banner: SystemColorButtonFaceColor
+        blue-500: SystemColorHotlightColor
+        button-bg: SystemColorButtonFaceColor
+        button-ink: SystemColorButtonTextColor
+        card-shadow: SystemColorWindowTextColor
+        elevation: SystemColorWindowTextColor
+        gray-200: SystemColorGrayTextColor
+        gray-50: SystemColorWindowColor
+        gray-800: SystemColorGrayTextColor
+        gray-900: SystemColorWindowTextColor
+        green-500: SystemColorHighlightColor
+        highlight: SystemColorHighlightColor
+        ink: SystemColorWindowTextColor
+        shadow-sm: SystemColorWindowTextColor
+        surface: SystemColorWindowColor
+        vivid: SystemColorHighlightColor

@@ -1,0 +1,17 @@
+{
+  "$extensions": {
+    "com.c65llc.airframe": {
+      "mode": "appearance:dark"
+    }
+  },
+  "ink": {
+    "$value": {
+      "colorSpace": "oklch",
+      "components": [
+        0.98,
+        0.004,
+        250
+      ]
+    }
+  }
+}

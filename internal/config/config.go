@@ -523,6 +523,11 @@ func buildPlatform(key, n *yaml.Node, axes []Axis) (Platform, *buildError) {
 				return p, err
 			}
 		}
+		if slices.Contains(p.Emit, "xaml") {
+			if err := checkXAMLOptions(p, o); err != nil {
+				return p, err
+			}
+		}
 	} else if slices.Contains(p.Emit, "kotlin") {
 		return p, &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name),
 			path: "platforms." + p.Name + ".options.package", line: key.Line}
@@ -754,6 +759,73 @@ func checkKotlinOptions(p Platform, o *yaml.Node) *buildError {
 	}
 	if !hasPkg {
 		return &buildError{msg: fmt.Sprintf("platform %s: options.package is required for kotlin", p.Name), path: base + "package", line: o.Line}
+	}
+	return nil
+}
+
+// SystemColors are the WinUI high-contrast system colours a highContrast
+// option may map a token to.
+var SystemColors = []string{
+	"SystemColorWindowTextColor", "SystemColorWindowColor", "SystemColorHighlightColor",
+	"SystemColorHighlightTextColor", "SystemColorHotlightColor", "SystemColorGrayTextColor",
+	"SystemColorButtonFaceColor", "SystemColorButtonTextColor",
+}
+
+// HighContrast returns the highContrast mapping as (token, system colour)
+// pairs sorted by token; nil when the option is unset.
+func (p Platform) HighContrast() [][2]string {
+	m, ok := p.Options["highContrast"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var out [][2]string
+	for _, tok := range slices.Sorted(maps.Keys(m)) {
+		if sys, ok := m[tok].(string); ok {
+			out = append(out, [2]string{tok, sys})
+		}
+	}
+	return out
+}
+
+var xamlGamuts = []string{"css-color-4", "clip-srgb"}
+
+// checkXAMLOptions validates the options of a platform that emits xaml.
+func checkXAMLOptions(p Platform, o *yaml.Node) *buildError {
+	base := "platforms." + p.Name + ".options."
+	bad := func(key string, line int, format string, a ...any) *buildError {
+		return &buildError{msg: fmt.Sprintf("platform %s: %s", p.Name, fmt.Sprintf(format, a...)), path: base + key, line: line}
+	}
+	ks, vs := mapping(o)
+	for i, k := range ks {
+		v := vs[i]
+		switch k.Value {
+		case "gamut":
+			if v.Kind != yaml.ScalarNode || v.ShortTag() != "!!str" {
+				return bad("gamut", v.Line, "gamut must be a string, one of %s", strings.Join(xamlGamuts, ", "))
+			}
+			if !slices.Contains(xamlGamuts, v.Value) {
+				return bad("gamut", v.Line, "gamut %s is not one of %s", v.Value, strings.Join(xamlGamuts, ", "))
+			}
+		case "highContrast":
+			if v.Kind != yaml.MappingNode {
+				return bad("highContrast", v.Line, "highContrast maps token names to WinUI system colours, as in { ink: SystemColorWindowTextColor }")
+			}
+			tks, tvs := mapping(v)
+			if len(tks) == 0 {
+				return bad("highContrast", v.Line, "highContrast maps token names to WinUI system colours, as in { ink: SystemColorWindowTextColor }; it has no tokens")
+			}
+			for j, tk := range tks {
+				tv := tvs[j]
+				if tv.Kind != yaml.ScalarNode || tv.ShortTag() != "!!str" {
+					return bad("highContrast."+tk.Value, tv.Line, "highContrast token %s must be a string, one of %s", tk.Value, strings.Join(SystemColors, ", "))
+				}
+				if !slices.Contains(SystemColors, tv.Value) {
+					return bad("highContrast."+tk.Value, tv.Line, "highContrast token %s: %s is not one of %s", tk.Value, tv.Value, strings.Join(SystemColors, ", "))
+				}
+			}
+		default:
+			return bad(k.Value, k.Line, "unknown option %s; known: gamut, highContrast", k.Value)
+		}
 	}
 	return nil
 }
