@@ -14,6 +14,7 @@ by hand.
 | [`release.yml`](../.github/workflows/release.yml) | On a `vX.Y.Z` tag push. Job `verify` (read-only token, no persisted credentials) checks the tag is on `main` and runs vet, gofmt and the tests. Job `release` (holds `contents: write`, runs no tests) runs GoReleaser, which adopts the draft of the same name, keeps its notes, attaches the six archives and `checksums.txt`, and publishes it; then it moves the floating tags. |
 | [`action.yml`](../action.yml) | The GitHub Action. It downloads a release's archive and `checksums.txt`, verifies the SHA-256 and only then runs the binary. |
 | [`action-test.yml`](../.github/workflows/action-test.yml) | On every PR, on Linux, macOS and Windows. See [What the action test covers](#what-the-action-test-covers). |
+| [`action-release-test.yml`](../.github/workflows/action-release-test.yml) | Runs the action (`uses: ./`) end to end against a real published release on Linux, macOS and Windows: download, checksum, `lint`, `build --check`, `fmt --check` and the `path` output. On PRs that touch the action, and by hand after every release. |
 
 ## Floating tags
 
@@ -58,7 +59,12 @@ releases are cut only with the repository owner's explicit approval.
    git fetch --tags --force && git rev-parse v0.1.0^{commit} v0^{commit} v0.1^{commit}
    ```
 
-5. **Verify one archive by hand** against `checksums.txt`:
+5. **Run `Action release test`** (Actions → Action release test → Run
+   workflow, version `vX.Y.Z`): it must pass on all three operating systems.
+   It is the only check that downloads the published assets through the
+   action itself.
+
+6. **Verify one archive by hand** against `checksums.txt`:
 
    ```bash
    gh release download v0.1.0 --pattern 'checksums.txt' --pattern 'airframe_0.1.0_linux_amd64.tar.gz'
@@ -81,8 +87,7 @@ the published release and delete the draft.
 
 ## What the action test covers
 
-`action.yml` downloads a **release**, and none exists until `v0.1.0`, so
-`action-test.yml` cannot run the action end to end yet. Instead it runs the
+`action-test.yml` runs on every PR without needing a release: it runs the
 action's own script text (extracted from `action.yml`, not a copy) for the
 parts that need no release:
 
@@ -98,10 +103,9 @@ parts that need no release:
 - `build --check` exits 0 on a clean copy of `testdata/minimal` and exits 1
   after a token in a temp copy is changed.
 
-**The full download path** (fetch, checksum verification, extraction) is first
-exercised after `v0.1.0` is published: run the action against it
-(`uses: ./` with `version: v0.1.0`) on all three operating systems and
-confirm it passes.
+**The full download path** (fetch, checksum verification, extraction) is
+covered by `action-release-test.yml`, which runs the action against a real
+published release.
 
 ## The action downloads without a token
 
