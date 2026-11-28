@@ -1,0 +1,25 @@
+# --force removes an import target the run did not produce, so the project
+# on disk is what the equivalence check proved.
+exec airframe import css alias.css
+stdout '^wrote design-system/tokens/primitive.tokens.json$'
+stdout '^wrote design-system/tokens/semantic.tokens.json$'
+exists design-system/tokens/semantic.tokens.json
+
+exec airframe import css plain.css --force
+stdout '^wrote design-system/tokens/primitive.tokens.json$'
+stdout '^removed design-system/tokens/semantic.tokens.json$'
+! exists design-system/tokens/semantic.tokens.json
+exec airframe build
+exec airframe lint
+
+-- airframe.yaml --
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: [":root[data-theme='dark']"]}}
+platforms:
+  web: {emit: css}
+-- alias.css --
+:root { --gray: #888; --ink: var(--gray); }
+-- plain.css --
+:root { --gap: 4px; }

@@ -142,7 +142,32 @@ func runImport(inv *invocation) int {
 		}
 		_, _ = fmt.Fprintln(inv.stdout, "wrote", name)
 	}
+	// Under --force, a target this run did not produce is left over from
+	// an earlier import: remove it, so the project on disk is what the
+	// equivalence check proved.
+	for _, name := range staleTargets(cfg.Content, res.Files) {
+		err := root.Remove(filepath.FromSlash(name))
+		switch {
+		case err == nil:
+			_, _ = fmt.Fprintln(inv.stdout, "removed", name)
+		case !errors.Is(err, fs.ErrNotExist):
+			return inv.fail(err)
+		}
+	}
 	return ExitOK
+}
+
+// staleTargets lists, in order, the import targets under content that
+// files does not hold.
+func staleTargets(content string, files map[string][]byte) []string {
+	var out []string
+	for _, t := range importTargets {
+		name := path.Join(content, t)
+		if _, ok := files[name]; !ok {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // projectPath is name, a path relative to the working directory or
