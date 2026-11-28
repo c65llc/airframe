@@ -1,6 +1,6 @@
 # Airframe — design
 
-- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); the rest is planned.
+- **Status:** v0.1.2 implements the core (§6.1–6.3, the source and invariant rules in §6.4, and `init`, `fmt`, `lint`, `build`, `show`, `explain`, `rules`, `schema` from §6.5) with CSS and JSON emitters; v0.2.0 adds `import css` (§6.7 item 2); v0.3.0 adds the Apple emitters and v0.4.0 the Android emitter (§6.7 item 3); the rest is planned.
 - **Family:** Starboard (screens and flows) · **Airframe** (design systems) · Gantry (decisions, defects, evidence)
 - **License:** AGPL-3.0-only, © 2026 C65 LLC
 
@@ -158,7 +158,7 @@ lint:
   rules: { fallback-literal: error, contrast-below: error }
 ```
 
-v0.3.0 builds the `css`, `json`, `swift` and `colorsets` formats; `kotlin` lands in the next release. It accepts `xaml` and reports it as `emit-unsupported` (a warning) until its emitter lands.
+v0.4.0 builds the `css`, `json`, `swift`, `colorsets` and `kotlin` formats. It accepts `xaml` and reports it as `emit-unsupported` (a warning) until its emitter lands.
 
 ### 6.3 Records
 
