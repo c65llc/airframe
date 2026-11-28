@@ -7,11 +7,13 @@
 package tokendiff
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"math"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
@@ -54,9 +56,9 @@ type Token struct {
 	Value     Value  `json:"value"`
 }
 
-// Rename pairs a removed token with an added one of the same type and the
-// same value in every context. It is a guess: both stay in Removed and
-// Added.
+// Rename pairs a removed token with an added one of the same type, tier
+// and component and the same value in every context. It is a guess: both
+// stay in Removed and Added.
 type Rename struct {
 	From string `json:"from"`
 	To   string `json:"to"`
@@ -180,22 +182,67 @@ func changes(as *tokens.Set, ta *tokens.Token, bs *tokens.Set, tb *tokens.Token)
 	return out
 }
 
-// renames pairs each removed token, in name order, with the first added
-// token not yet paired that has its type and its value in every context.
+// renames pairs removed tokens with added ones. A pair needs the same
+// type, tier and component, and the same value in every context. Among
+// the candidates, pairs sharing more name segments go first, then by From
+// and To name; each token pairs at most once. The result is sorted by From.
 func renames(as, bs *tokens.Set, removed, added []Token) []Rename {
-	var out []Rename
-	taken := map[string]bool{}
+	type candidate struct {
+		from, to string
+		shared   int
+	}
+	var cands []candidate
 	for _, r := range removed {
 		ta := as.Tokens[r.Name]
 		for _, n := range added {
 			tb := bs.Tokens[n.Name]
-			if taken[n.Name] || ta.Type != tb.Type || !sameEverywhere(as, ta, bs, tb) {
+			if ta.Type != tb.Type || ta.Tier != tb.Tier || ta.Component != tb.Component || !sameEverywhere(as, ta, bs, tb) {
 				continue
 			}
-			taken[n.Name] = true
-			out = append(out, Rename{From: r.Name, To: n.Name})
-			break
+			cands = append(cands, candidate{r.Name, n.Name, sharedSegments(ta, tb)})
 		}
+	}
+	slices.SortFunc(cands, func(x, y candidate) int {
+		return cmp.Or(cmp.Compare(y.shared, x.shared), cmp.Compare(x.from, y.from), cmp.Compare(x.to, y.to))
+	})
+	var out []Rename
+	taken := map[string]bool{} // "from\x00" or "to\x00" plus the name
+	for _, c := range cands {
+		if taken["from\x00"+c.from] || taken["to\x00"+c.to] {
+			continue
+		}
+		taken["from\x00"+c.from], taken["to\x00"+c.to] = true, true
+		out = append(out, Rename{From: c.from, To: c.to})
+	}
+	slices.SortFunc(out, func(x, y Rename) int { return cmp.Compare(x.From, y.From) })
+	return out
+}
+
+// sharedSegments is how many distinct name segments a and b have in common.
+func sharedSegments(a, b *tokens.Token) int {
+	in := map[string]bool{}
+	for _, s := range segments(a) {
+		in[s] = true
+	}
+	n := 0
+	for _, s := range segments(b) {
+		if in[s] {
+			n++
+			in[s] = false
+		}
+	}
+	return n
+}
+
+// segments are t's name segments: its DTCG path segments, each split on
+// dashes ("gap-large" in a path is two), or its name split on dashes.
+func segments(t *tokens.Token) []string {
+	var out []string
+	for _, p := range t.Path {
+		out = append(out, strings.Split(p, "-")...)
+	}
+	if len(out) == 0 {
+		out = strings.Split(t.Name, "-")
 	}
 	return out
 }

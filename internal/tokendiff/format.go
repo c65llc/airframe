@@ -186,21 +186,40 @@ func code(s string) string {
 	return fence + s + fence
 }
 
-// mdValue is a value as a Markdown cell: a colour as "■ #rrggbb oklch(…)".
-// GitHub strips inline styles and data-URI images from job summaries, so
-// the swatch is a glyph and the hex.
+// mdText is prose (a description, a fact) as a Markdown table cell, shown
+// as written: HTML's <, > and & become entities, Markdown's emphasis and
+// code marks and the backslash are escaped, and a pipe does not end the
+// cell.
+var mdText = func() func(string) string {
+	r := strings.NewReplacer(
+		"&", "&amp;", "<", "&lt;", ">", "&gt;",
+		"\\", "\\\\", "*", "\\*", "_", "\\_", "`", "\\`",
+	)
+	return func(s string) string { return cell(r.Replace(s)) }
+}()
+
+// mdValue is a value as a Markdown cell: a colour as ■ `#rrggbb`
+// `oklch(…)`, two code spans. GitHub strips inline styles and data-URI
+// images from job summaries, so the swatch is a glyph and the hex.
 func mdValue(v Value) string {
 	switch {
 	case v.Error != "":
-		return "? (" + cell(v.Error) + ")"
+		return "? (" + mdText(v.Error) + ")"
 	case v.Hex != "":
-		return "■ " + cell(code(v.Hex+" "+v.Value))
+		return "■ " + cell(code(v.Hex)) + " " + cell(code(v.Value))
 	}
 	return cell(code(v.Value))
 }
 
+// foldChangedOver is how many changed tokens Markdown lists in the open;
+// past it, their tables fold into one <details>.
+const foldChangedOver = 50
+
 // WriteMarkdown writes d for a pull request's job summary: a heading per
-// group and a context | before | after table per changed token.
+// group and a context | before | after table per changed token. Past
+// foldChangedOver changed tokens, those tables fold into a <details>, so a
+// large diff stays under the summary's size limit; the other groups stay
+// open.
 func WriteMarkdown(w io.Writer, d Diff, from, to Side) error {
 	var b strings.Builder
 	label := func(s Side) string {
@@ -222,7 +241,7 @@ func WriteMarkdown(w io.Writer, d Diff, from, to Side) error {
 		}
 		fmt.Fprintf(&b, "\n### %s (%d)\n\n| token | type | tier | value |\n| --- | --- | --- | --- |\n", title, len(ts))
 		for _, t := range ts {
-			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", code(t.Name), cell(orDash(t.Type)), cell(orDash(t.Tier)), mdValue(t.Value))
+			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", code(t.Name), mdText(orDash(t.Type)), mdText(orDash(t.Tier)), mdValue(t.Value))
 		}
 	}
 	group("Added", d.Added)
@@ -235,6 +254,10 @@ func WriteMarkdown(w io.Writer, d Diff, from, to Side) error {
 	}
 	if len(d.Changed) > 0 {
 		fmt.Fprintf(&b, "\n### Changed (%d)\n", len(d.Changed))
+		fold := len(d.Changed) > foldChangedOver
+		if fold {
+			fmt.Fprintf(&b, "\n<details><summary>%d changed tokens</summary>\n", len(d.Changed))
+		}
 		for _, c := range d.Changed {
 			fmt.Fprintf(&b, "\n#### %s\n\n| context | before | after |\n| --- | --- | --- |\n", code(c.Name))
 			for _, ch := range c.Changes {
@@ -242,8 +265,11 @@ func WriteMarkdown(w io.Writer, d Diff, from, to Side) error {
 					fmt.Fprintf(&b, "| %s | %s | %s |\n", cell(ContextLabel(string(ch.Context))), mdValue(ch.Before), mdValue(ch.After))
 					continue
 				}
-				fmt.Fprintf(&b, "| *%s* | %s | %s |\n", ch.Kind, cell(orDash(ch.From)), cell(orDash(ch.To)))
+				fmt.Fprintf(&b, "| *%s* | %s | %s |\n", ch.Kind, mdText(orDash(ch.From)), mdText(orDash(ch.To)))
 			}
+		}
+		if fold {
+			b.WriteString("\n</details>\n")
 		}
 	}
 	_, err := io.WriteString(w, b.String())

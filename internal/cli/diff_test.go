@@ -97,7 +97,7 @@ func TestDiffFormats(t *testing.T) {
 			code, stdout, stderr := run("--root", dir, "diff", "v1", "main", "--format", format)
 			require.Equal(t, ExitOK, code, stderr)
 			got := strings.NewReplacer(v1, "<v1>", v2, "<v2>").Replace(stdout)
-			golden := filepath.Join("testdata", "diff."+format+".golden")
+			golden := filepath.Join(testdata, "diff."+format+".golden")
 			if *update {
 				require.NoError(t, os.WriteFile(golden, []byte(got), 0o644))
 			}

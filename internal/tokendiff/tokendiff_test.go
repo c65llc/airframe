@@ -4,6 +4,8 @@
 package tokendiff
 
 import (
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -157,4 +159,79 @@ func TestCompareBaseValueChange(t *testing.T) {
 	assert.Equal(t, "ink", d.Changed[0].Name)
 	require.Len(t, d.Changed[0].Changes, 1, "a new mode value is a change in that mode only")
 	assert.Equal(t, "appearance:dark", string(d.Changed[0].Changes[0].Context))
+}
+
+// renameTok is a dimension token of tier tier (and component comp) of
+// the given px value.
+func renameTok(name, tier, comp string, px int) string {
+	ext := `"tier": "` + tier + `"`
+	if comp != "" {
+		ext += `, "component": "` + comp + `"`
+	}
+	return `"` + name + `": {"$type": "dimension", "$value": {"value": ` + strconv.Itoa(px) + `, "unit": "px"}, "$extensions": {"com.c65llc.airframe": {` + ext + `}}}`
+}
+
+func renameProject(t *testing.T, toks ...string) *project.Project {
+	t.Helper()
+	return load(t, map[string]string{"ds/t.tokens.json": "{" + strings.Join(toks, ",") + "}"})
+}
+
+func TestRenamesNeedSameTierAndComponent(t *testing.T) {
+	a := renameProject(t,
+		renameTok("old-semantic", "semantic", "", 4),
+		renameTok("old-primitive", "primitive", "", 6),
+	)
+	b := renameProject(t,
+		renameTok("new-primitive-four", "primitive", "", 4), // same value, other tier
+		renameTok("new-semantic-six", "semantic", "", 6),    // same value, other tier
+	)
+	assert.Empty(t, Compare(a, b).Renamed)
+
+	// The same value, tier and type, but another component: no pair.
+	a = load(t, map[string]string{"ds/t.tokens.json": "{" + renameTok("button-pad", "component", "button", 4) + "}",
+		"ds/components/button.yaml": "id: button\ntokens: [button-pad]\nshared: true\n"})
+	b = load(t, map[string]string{"ds/t.tokens.json": "{" + renameTok("card-pad", "component", "card", 4) + "}",
+		"ds/components/card.yaml": "id: card\ntokens: [card-pad]\nshared: true\n"})
+	assert.Empty(t, Compare(a, b).Renamed)
+}
+
+// Several candidates: each removed token pairs with the added one that
+// shares most name segments, not the first in name order, and no token
+// pairs twice.
+func TestRenamesPreferSharedSegments(t *testing.T) {
+	a := renameProject(t,
+		renameTok("card-gap", "semantic", "", 8),
+		renameTok("button-gap", "semantic", "", 8),
+		renameTok("lone", "semantic", "", 8),
+	)
+	b := renameProject(t,
+		renameTok("aa-card-gap", "semantic", "", 8),  // shares card, gap with card-gap
+		renameTok("button-space", "semantic", "", 8), // shares button with button-gap
+		renameTok("zz-unrelated", "semantic", "", 8), // shares nothing
+	)
+	assert.Equal(t, []Rename{
+		{From: "button-gap", To: "button-space"},
+		{From: "card-gap", To: "aa-card-gap"},
+		{From: "lone", To: "zz-unrelated"},
+	}, Compare(a, b).Renamed)
+
+	// Cross-pairing: name order would give a→x and leave b without its
+	// better match; segments decide instead.
+	a = renameProject(t,
+		renameTok("a-gap", "semantic", "", 2),
+		renameTok("b-gap-wide", "semantic", "", 2),
+	)
+	b = renameProject(t,
+		renameTok("x-gap-wide", "semantic", "", 2), // shares gap, wide with b-gap-wide
+		renameTok("y-gap", "semantic", "", 2),      // shares gap with both
+	)
+	assert.Equal(t, []Rename{
+		{From: "a-gap", To: "y-gap"},
+		{From: "b-gap-wide", To: "x-gap-wide"},
+	}, Compare(a, b).Renamed)
+
+	// Equal segments: name order, each once.
+	a = renameProject(t, renameTok("p", "semantic", "", 1), renameTok("q", "semantic", "", 1))
+	b = renameProject(t, renameTok("r", "semantic", "", 1), renameTok("s", "semantic", "", 1), renameTok("t", "semantic", "", 1))
+	assert.Equal(t, []Rename{{From: "p", To: "r"}, {From: "q", To: "s"}}, Compare(a, b).Renamed)
 }

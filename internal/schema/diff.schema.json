@@ -13,7 +13,7 @@
     "removed": { "type": "array", "items": { "$ref": "#/$defs/token" } },
     "renamed": {
       "type": "array",
-      "description": "A guess: a removed and an added token with the same type and the same value in every context. Both also stay in removed and added.",
+      "description": "A guess: a removed and an added token with the same type, tier and component and the same value in every context; among several, the pair sharing the most name segments. Each token pairs at most once, and both also stay in removed and added.",
       "items": {
         "type": "object",
         "additionalProperties": false,
