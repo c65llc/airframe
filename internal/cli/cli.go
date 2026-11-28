@@ -174,6 +174,7 @@ var Commands = []Command{
 		},
 	},
 	diffCommand,
+	retireCommand,
 	{
 		Name:    "explain",
 		Args:    "<rule-id|token>",
@@ -206,6 +207,7 @@ var handlers = map[string]func(*invocation) int{
 	"usages":  runUsages,
 	"find":    runFind,
 	"diff":    runDiff,
+	"retire":  runRetire,
 	"explain": runExplain,
 	"rules":   runRules,
 	"schema":  runSchema,
