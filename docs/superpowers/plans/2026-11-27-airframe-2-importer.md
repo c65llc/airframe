@@ -56,7 +56,7 @@
   Anything else (`calc()`, `clamp()`, other units, keywords) is `import-unsupported-value`, and that declaration is not imported.
 - **Value equality** (for the equivalence check):
   - Colours compare in OKLab: Euclidean distance ≤ 1e-4 and |Δalpha| ≤ 1e-4. Hue is ignored when both chromas are below 1e-4.
-  - Numbers, dimensions and durations need the same unit and |Δ| ≤ 5e-5. `px` never equals `rem`.
+  - Numbers, dimensions and durations need the same unit and |Δ| ≤ 5e-5 + 1e-9 (the slack absorbs float noise at the emitter's 4-decimal rounding boundary). `px` never equals `rem`, except that any two zero lengths are equal (`0px` = `0rem` = `0`).
   - Lists compare element by element.
   - Two values that both failed to resolve (a cycle, or a missing `var()` target) are equal; one resolved and one not is a mismatch.
 - **Token names** are the custom-property name without `--`. A name that fails Airframe's token-name rule is `import-name-invalid`.
