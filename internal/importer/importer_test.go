@@ -6,6 +6,7 @@ package importer
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"maps"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/format"
@@ -125,6 +127,9 @@ func TestImportFixture(t *testing.T) {
 	assert.Equal(t, "The main text colour: body copy and headings.", ink["$description"])
 
 	primToks := tokenFile(t, r, prim)
+	// Colours are rounded to 6 decimals; a near-zero chroma is achromatic.
+	assert.Equal(t, map[string]any{"colorSpace": "oklch", "components": []any{0.979129, 0.0, 0.0}},
+		primToks["gray-50"]["$value"])
 	sp := primToks["space-4"]
 	require.NotNil(t, sp)
 	assert.Equal(t, "dimension", sp["$type"])
@@ -419,5 +424,32 @@ modes:
 	got := byRule(r.Diagnostics, "import-unmapped-scope")
 	require.Len(t, got, 1, "%v", r.Diagnostics)
 	assert.Equal(t, config.File, got[0].File)
+	assert.Empty(t, r.Files)
+}
+
+func TestRoundColor(t *testing.T) {
+	got := roundColor(color.OKLCH{L: 0.12345678, C: 0.0000004, H: 123.4567891, Alpha: 0.33333333})
+	assert.Equal(t, color.OKLCH{L: 0.123457, C: 0, H: 0, Alpha: 0.333333}, got)
+	got = roundColor(color.OKLCH{L: 0.5, C: 0.1234567, H: 10.0000004, Alpha: 1})
+	assert.Equal(t, color.OKLCH{L: 0.5, C: 0.123457, H: 10, Alpha: 1}, got)
+}
+
+// Shadow-layer colours are rounded too, before the duplicate comparison.
+func TestImportRoundsShadowColours(t *testing.T) {
+	r := run(t, smallConfig, ":root { --s: 0 1px 2px #f8f8f8 }\n")
+	require.Empty(t, r.Diagnostics)
+	s := tokenFile(t, r, "ds/tokens/primitive.tokens.json")["s"]["$value"].([]any)
+	c := s[0].(map[string]any)["color"].(map[string]any)["components"].([]any)
+	assert.Equal(t, []any{0.979129, 0.0, 0.0}, c)
+}
+
+func TestImportFormatFailureIsReported(t *testing.T) {
+	old := formatFile
+	formatFile = func(string, []byte) ([]byte, error) { return nil, errors.New("boom") }
+	t.Cleanup(func() { formatFile = old })
+	r := run(t, smallConfig, ":root { --a: 1px }\n")
+	got := byRule(r.Diagnostics, "import-unsupported-value")
+	require.Len(t, got, 1, "%v", r.Diagnostics)
+	assert.Equal(t, "internal: could not format ds/tokens/primitive.tokens.json: boom", got[0].Message)
 	assert.Empty(t, r.Files)
 }

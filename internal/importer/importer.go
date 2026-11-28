@@ -13,10 +13,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"path"
 	"slices"
 	"strings"
 
+	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
 	"github.com/c65llc/airframe/internal/css"
 	"github.com/c65llc/airframe/internal/cssvalue"
@@ -232,6 +234,7 @@ func (im *importer) rule(file string, rule css.Rule, idx map[string]config.ModeK
 			im.report(diag.Warn, RuleFallbackDropped, file, d.Line, "%s: %s", d.Name, warn)
 		}
 		val.Line = d.Line
+		val.Lit = roundColors(val.Lit)
 		enc, err := encode(val)
 		if err != nil {
 			im.errorf(css.RuleUnsupportedValue, file, d.Line, "%s: %v", d.Name, err)
@@ -490,11 +493,8 @@ func (im *importer) files() map[string][]byte {
 	for _, name := range im.order {
 		t := im.toks[name]
 		tier, file := "primitive", primitiveFile
-		for _, e := range t.vals {
-			if e.val.Alias != "" {
-				tier, file = "semantic", semanticFile
-				break
-			}
+		if slices.ContainsFunc(t.keys(), func(k config.ModeKey) bool { return t.vals[k].val.Alias != "" }) {
+			tier, file = "semantic", semanticFile
 		}
 		base := t.vals[""]
 		tok := &object{}
@@ -527,14 +527,45 @@ func (im *importer) files() map[string][]byte {
 		p := path.Join(im.cfg.Content, f)
 		raw, err := marshal(docs[f])
 		if err == nil {
-			raw, err = format.File(p, raw)
+			raw, err = formatFile(p, raw)
 		}
 		if err != nil {
-			// The importer built this JSON itself; failing to format it
-			// is a bug, not a problem with the input.
-			panic(fmt.Sprintf("importer: formatting %s: %v", p, err))
+			im.errorf(css.RuleUnsupportedValue, p, 0, "internal: could not format %s: %v", p, err)
+			return nil
 		}
 		out[p] = raw
+	}
+	return out
+}
+
+// formatFile canonicalises a written file; a variable so a test can make
+// it fail.
+var formatFile = format.File
+
+// roundColors rounds every colour in lit (a colour, or a shadow's layer
+// colours) with roundColor, so written files and duplicate comparisons
+// carry no float noise.
+func roundColors(lit any) any {
+	switch l := lit.(type) {
+	case color.OKLCH:
+		return roundColor(l)
+	case []tokens.Shadow:
+		out := slices.Clone(l)
+		for i := range out {
+			out[i].Color = roundColor(out[i].Color)
+		}
+		return out
+	}
+	return lit
+}
+
+// roundColor rounds L, C, H and alpha to 6 decimals; a chroma below 1e-6
+// is achromatic, written with C = 0 and H = 0.
+func roundColor(c color.OKLCH) color.OKLCH {
+	r := func(v float64) float64 { return math.Round(v*1e6) / 1e6 }
+	out := color.OKLCH{L: r(c.L), C: r(c.C), H: r(c.H), Alpha: r(c.Alpha)}
+	if c.C < 1e-6 {
+		out.C, out.H = 0, 0
 	}
 	return out
 }
