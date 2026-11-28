@@ -1,0 +1,38 @@
+{
+  "colors": [
+    {
+      "color": {
+        "color-space": "display-p3",
+        "components": {
+          "alpha": "1.0000",
+          "blue": "0.9835",
+          "green": "0.9747",
+          "red": "0.9678"
+        }
+      },
+      "idiom": "universal"
+    },
+    {
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ],
+      "color": {
+        "color-space": "display-p3",
+        "components": {
+          "alpha": "1.0000",
+          "blue": "0.1055",
+          "green": "0.0878",
+          "red": "0.0739"
+        }
+      },
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "airframe",
+    "version": 1
+  }
+}

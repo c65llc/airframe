@@ -200,8 +200,8 @@ func TestBuildReportsUnsupported(t *testing.T) {
 	fsys := memFS(t, minimalDir)
 	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "platforms:", "platforms:\n  apple: {emit: [swift, colorsets]}", 1)
 	out, ds := Build(loadFS(t, fsys), nil)
-	require.Len(t, ds, 2)
-	for i, f := range []string{"swift", "colorsets"} {
+	require.Len(t, ds, 1)
+	for i, f := range []string{"swift"} {
 		assert.Equal(t, "emit-unsupported", ds[i].Rule)
 		assert.Equal(t, diag.Warn, ds[i].Severity)
 		assert.Equal(t, "airframe.yaml", ds[i].File)
@@ -209,6 +209,7 @@ func TestBuildReportsUnsupported(t *testing.T) {
 		assert.Equal(t, "platform apple: format "+f+" is not built until a later release", ds[i].Message)
 	}
 	assert.Contains(t, out, minimalCSS)
+	assert.Contains(t, out, "design-system/generated/apple/Assets.xcassets/Tokens/Contents.json", "colorsets is built, at its default out")
 
 	_, ds = Build(loadFS(t, fsys), []string{"css"})
 	assert.Empty(t, ds, "a filter that leaves the format out reports nothing")

@@ -1,0 +1,36 @@
+{
+  "button": {
+    "bg": {
+      "$type": "color",
+      "$value": "{accent}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    },
+    "ink": {
+      "$type": "color",
+      "$value": "{ink}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "button"
+        }
+      }
+    }
+  },
+  "card": {
+    "shadow": {
+      "$type": "shadow",
+      "$value": "{elevation}",
+      "$extensions": {
+        "com.c65llc.airframe": {
+          "tier": "component",
+          "component": "card"
+        }
+      }
+    }
+  }
+}

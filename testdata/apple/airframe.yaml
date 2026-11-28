@@ -1,0 +1,13 @@
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+  app: {values: [notes, tasks], base: notes, binding: build, web: {attr: data-app}}
+  channel: {values: [stable, next], base: stable, binding: build, web: {attr: data-channel}}
+platforms:
+  apple:
+    emit: [swift, colorsets]
+    out: {swift: ios/Shared/DesignTokens.swift, colorsets: "ios/{app}/Assets.xcassets/Tokens/"}
+    fanOut: app
+    options: {accentColor: accent}

@@ -26,13 +26,15 @@ import (
 type Emitter func(p *project.Project, pl config.Platform) (map[string][]byte, error)
 
 // Emitters maps each emit format to its emitter.
-var Emitters = map[string]Emitter{"css": CSS, "json": JSON}
+var Emitters = map[string]Emitter{"colorsets": Colorsets, "css": CSS, "json": JSON}
 
 // defaultOut is where a format is written, under the content directory,
 // when its platform sets no out.
 var defaultOut = map[string]string{
 	"css":  "generated/css/tokens.css",
 	"json": "generated/json/tokens.json",
+	// colorsets is a catalog folder, not a file.
+	"colorsets": "generated/apple/Assets.xcassets/Tokens",
 }
 
 // configError is airframe.yaml spelling something an emitter cannot use.
