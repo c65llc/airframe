@@ -1,0 +1,16 @@
+version: 1
+content: design-system
+modes:
+  appearance: {values: [light, dark], binding: runtime, web: {light: ":root", dark: ["@media (prefers-color-scheme: dark) :root:not([data-theme='light'])", ":root[data-theme='dark']"]}}
+  density: {values: [compact, standard, relaxed], base: standard, binding: runtime, web: {attr: data-density}}
+  app: {values: [notes, tasks], base: notes, binding: build, web: {attr: data-app}}
+  channel: {values: [stable, next], base: stable, binding: build, web: {attr: data-channel}}
+platforms:
+  android:
+    emit: [kotlin]
+    out: {kotlin: "android/{app}/src/main/kotlin/DesignColorValues.kt"}
+    fanOut: app
+    options:
+      package: com.example.design
+      sharedOut: android/shared/src/main/kotlin/DesignTokens.kt
+      material3Scheme: {primary: accent, onPrimary: button-ink, tertiary: highlight}

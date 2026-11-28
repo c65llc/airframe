@@ -1,0 +1,13 @@
+{
+  "$extensions": {
+    "com.c65llc.airframe": {
+      "mode": "appearance:dark"
+    }
+  },
+  "surface": {
+    "$value": "{gray.900}"
+  },
+  "ink": {
+    "$value": "{gray.50}"
+  }
+}
