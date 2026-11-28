@@ -57,16 +57,27 @@ public struct DesignTokens: Sendable {
     }
 
     public static let accent = Color("Tokens/Accent")
+    public var accent: Color { Self.accent }
     public static let banner = Color("Tokens/Banner")
+    public var banner: Color { Self.banner }
     public static let blue500 = Color("Tokens/Blue500")
+    public var blue500: Color { Self.blue500 }
     public static let buttonBg = Color("Tokens/ButtonBg")
+    public var buttonBg: Color { Self.buttonBg }
     public static let buttonInk = Color("Tokens/ButtonInk")
+    public var buttonInk: Color { Self.buttonInk }
     public static let cardShadow: [Shadow] = [Shadow(color: Color("Tokens/CardShadowLayer1"), x: 0.0, y: 1.0, blur: 2.0, spread: 0.0, inset: false)]
+    public var cardShadow: [Shadow] { Self.cardShadow }
     public static let `default`: Double = 1.0
+    public var `default`: Double { Self.`default` }
     public static let durationFast: TimeInterval = 0.15
+    public var durationFast: TimeInterval { Self.durationFast }
     public static let easeStandard: Bezier = Bezier(x1: 0.2, y1: 0.0, x2: 0.0, y2: 1.0)
+    public var easeStandard: Bezier { Self.easeStandard }
     public static let elevation: [Shadow] = [Shadow(color: Color("Tokens/ElevationLayer1"), x: 0.0, y: 1.0, blur: 2.0, spread: 0.0, inset: false)]
+    public var elevation: [Shadow] { Self.elevation }
     public static let fontBody: [String] = ["Inter", "system-ui"]
+    public var fontBody: [String] { Self.fontBody }
 
     public var gap: CGFloat {
         switch density {
@@ -77,11 +88,17 @@ public struct DesignTokens: Sendable {
     }
 
     public static let gray200 = Color("Tokens/Gray200")
+    public var gray200: Color { Self.gray200 }
     public static let gray50 = Color("Tokens/Gray50")
+    public var gray50: Color { Self.gray50 }
     public static let gray800 = Color("Tokens/Gray800")
+    public var gray800: Color { Self.gray800 }
     public static let gray900 = Color("Tokens/Gray900")
+    public var gray900: Color { Self.gray900 }
     public static let green500 = Color("Tokens/Green500")
+    public var green500: Color { Self.green500 }
     public static let gutter: CGFloat = 16.0
+    public var gutter: CGFloat { Self.gutter }
 
     public var hairline: CGFloat {
         switch (appearance, density) {
@@ -95,12 +112,19 @@ public struct DesignTokens: Sendable {
     }
 
     public static let highlight = Color("Tokens/Highlight")
+    public var highlight: Color { Self.highlight }
     public static let ink = Color("Tokens/Ink")
+    public var ink: Color { Self.ink }
     public static let opacityMuted: Double = 0.6
+    public var opacityMuted: Double { Self.opacityMuted }
     public static let radius: CGFloat = 4.0
+    public var radius: CGFloat { Self.radius }
     public static let shadowSm: [Shadow] = [Shadow(color: Color("Tokens/ShadowSmLayer1"), x: 0.0, y: 1.0, blur: 2.0, spread: 0.0, inset: false)]
+    public var shadowSm: [Shadow] { Self.shadowSm }
     public static let space1: CGFloat = 4.0
+    public var space1: CGFloat { Self.space1 }
     public static let space2: CGFloat = 8.0
+    public var space2: CGFloat { Self.space2 }
 
     public var surface: Color {
         switch density {
@@ -111,5 +135,7 @@ public struct DesignTokens: Sendable {
     }
 
     public static let vivid = Color("Tokens/Vivid")
+    public var vivid: Color { Self.vivid }
     public static let weightStrong: Font.Weight = .bold
+    public var weightStrong: Font.Weight { Self.weightStrong }
 }

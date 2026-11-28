@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -344,6 +345,86 @@ func TestSwiftNamespaceFollowsFanOut(t *testing.T) {
 	_, err := Swift(p, applePlatform(t, p))
 	require.Error(t, err)
 	assert.Equal(t, "the colorset namespace differs per app; put {app} in the swift out path", err.Error())
+}
+
+// TestSwiftStaticForwarder: a static member also reads on an instance.
+func TestSwiftStaticForwarder(t *testing.T) {
+	s := appleSwift(t)
+	assert.Contains(t, s, "    public static let ink = Color(\"Tokens/Ink\")\n    public var ink: Color { Self.ink }\n")
+	assert.Contains(t, s, "    public static let `default`: Double = 1.0\n    public var `default`: Double { Self.`default` }\n")
+}
+
+// TestSwiftTypeNameNotKeyword: an axis or naming template whose Swift type
+// name is a keyword, or Self, Type, Any or Protocol, is emit-failed.
+func TestSwiftTypeNameNotKeyword(t *testing.T) {
+	fsys := memFS(t, appleDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "  density: {", "  type: {", 1)
+	for path, src := range fsys {
+		if strings.HasSuffix(path, ".json") {
+			fsys[path] = strings.ReplaceAll(src, "density:", "type:")
+		}
+	}
+	out, ds := Build(loadFS(t, fsys), []string{"swift"})
+	ds = slices.DeleteFunc(ds, func(d diag.Diagnostic) bool { return d.Rule != "emit-failed" })
+	require.Len(t, ds, 1, "%v", ds)
+	assert.Contains(t, ds[0].Message, "axis type")
+	assert.Contains(t, ds[0].Message, "Type")
+	assert.Empty(t, out)
+
+	for _, typ := range []string{"Self", "Type", "Any", "Protocol", "Struct"} {
+		fsys := memFS(t, appleDir)
+		fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "version: 1\n", "version: 1\nnaming: {swift: \""+typ+".{camel}\"}\n", 1)
+		out, ds := Build(loadFS(t, fsys), []string{"swift"})
+		ds = slices.DeleteFunc(ds, func(d diag.Diagnostic) bool { return d.Rule != "emit-failed" })
+		if typ == "Struct" {
+			assert.Empty(t, ds, "Struct is no keyword")
+			continue
+		}
+		require.Len(t, ds, 1, "%s: %v", typ, ds)
+		assert.Contains(t, ds[0].Message, typ+".{camel}", typ)
+		assert.Empty(t, out, typ)
+	}
+	fsys = memFS(t, appleDir)
+	fsys["airframe.yaml"] = strings.Replace(fsys["airframe.yaml"], "version: 1\n", "version: 1\nnaming: {swift: \"struct.{camel}\"}\n", 1)
+	p := loadFS(t, fsys)
+	_, err := Swift(p, applePlatform(t, p))
+	require.Error(t, err, "a lower-case keyword")
+}
+
+// colorRef is a colorset a generated Swift file reads.
+var colorRef = regexp.MustCompile(`Color\("([^"]+)"\)`)
+
+// TestSwiftColorsExistInCatalogs: every colour a Swift file names is a
+// colorset in every catalog the file is compiled with (a shared file:
+// each app's; a per-app file: its app's), so the two emitters cannot
+// drift apart.
+func TestSwiftColorsExistInCatalogs(t *testing.T) {
+	appNamespaced := perAppFS(t)
+	appNamespaced["airframe.yaml"] = strings.Replace(appNamespaced["airframe.yaml"], "ios/{app}/Assets.xcassets/Tokens/", "ios/Assets.xcassets/{app}/", 1)
+	appNamespaced["airframe.yaml"] = strings.Replace(appNamespaced["airframe.yaml"], "    options: {accentColor: accent}\n", "", 1)
+	for name, fsys := range map[string]fs.FS{"shared": os.DirFS(appleDir), "per-app": perAppFS(t), "app-namespaced": appNamespaced} {
+		p := loadFS(t, fsys)
+		pl := applePlatform(t, p)
+		swift := swiftOf(t, p)
+		sets := colorsetsOf(t, p)
+		catalogTmpl := path.Dir(strings.TrimSuffix(pl.Out["colorsets"], "/")) // the catalog root, holding the namespace folder
+		for file, src := range swift {
+			apps := []string{"notes", "tasks"}
+			for _, a := range apps {
+				if strings.Contains(file, "/"+a+"/") {
+					apps = []string{a}
+				}
+			}
+			refs := colorRef.FindAllStringSubmatch(string(src), -1)
+			require.NotEmpty(t, refs, file)
+			for _, app := range apps {
+				catalog := strings.ReplaceAll(catalogTmpl, "{app}", app)
+				for _, r := range refs {
+					assert.Contains(t, sets, catalog+"/"+r[1]+".colorset/Contents.json", "%s: %s in the %s catalog", name, file, app)
+				}
+			}
+		}
+	}
 }
 
 func TestSwiftRegistered(t *testing.T) {

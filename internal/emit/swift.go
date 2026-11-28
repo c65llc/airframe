@@ -29,8 +29,10 @@ import (
 // enums, stored properties and init parameters defaulting to each axis's
 // base; appearance is one only when a non-colour token varies on it, as a
 // colour's colorset handles appearance itself. A token varying on none of
-// them is a static let; one that does is an instance property whose
-// exhaustive switch covers every combination of their values. Colours
+// them is a static let, with an instance property forwarding to it so
+// every member reads alike on an instance; one that does is an instance
+// property whose exhaustive switch covers every combination of their
+// values. Colours
 // (and shadow colours) read Task 4's colorsets by ColorsetName, so they
 // need colorsets emitted on the same platform.
 func Swift(p *project.Project, pl config.Platform) (map[string][]byte, error) {
@@ -80,6 +82,13 @@ var swiftReserved = []string{"Bezier", "Bool", "CGFloat", "CaseIterable", "Color
 // keeps to ASCII, which every Swift toolchain and code review reads alike.
 var swiftIdentRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// swiftTypeName reports whether id can name a declared type: an
+// identifier that is no keyword (a backticked one still cannot be a type)
+// nor one of the names Swift gives a meaning in type position.
+func swiftTypeName(id string) bool {
+	return swiftIdentRE.MatchString(id) && !swiftKeywords[id] && !slices.Contains([]string{"Any", "Protocol", "Self", "Type"}, id)
+}
+
 func validSwift(id string) bool {
 	return swiftIdentRE.MatchString(strings.TrimSuffix(strings.TrimPrefix(id, "`"), "`"))
 }
@@ -112,7 +121,7 @@ func (sw *swifter) prepare() error {
 		return fmt.Errorf("swift naming template %q needs a type part, as in DesignTokens.{camel}", sw.template)
 	}
 	typ := sw.template[:i]
-	if !swiftIdentRE.MatchString(typ) || slices.Contains(swiftReserved, typ) {
+	if !swiftTypeName(typ) || slices.Contains(swiftReserved, typ) {
 		return fmt.Errorf("swift naming template %q names type %s, which is not a Swift type name the file can declare", sw.template, typ)
 	}
 	sw.typ = typ
@@ -166,8 +175,11 @@ func (sw *swifter) prepare() error {
 		}
 		sw.params = append(sw.params, a)
 		enum, prop := Pascal(a.Name), SwiftIdent(Camel(a.Name))
-		if !validSwift(enum) || !validSwift(prop) {
-			return fmt.Errorf("axis %s has no Swift spelling (%s, %s)", a.Name, enum, prop)
+		if !validSwift(prop) {
+			return fmt.Errorf("axis %s has no Swift property name (%s)", a.Name, prop)
+		}
+		if !swiftTypeName(enum) {
+			return fmt.Errorf("axis %s would be Swift enum %s, which is not a Swift type name the file can declare", a.Name, enum)
 		}
 		for _, n := range []string{enum, strings.Trim(prop, "`")} {
 			if prev, dup := owner[n]; dup {
@@ -409,6 +421,9 @@ func (sw *swifter) member(b *strings.Builder, m swiftMember, o Output) error {
 		} else {
 			fmt.Fprintf(b, "    public static let %s: %s = %s\n", m.name, typ, expr)
 		}
+		// The instance forwarder lets tokens.x read every member alike,
+		// whether or not it varies.
+		fmt.Fprintf(b, "    public var %s: %s { Self.%s }\n", m.name, typ, m.name)
 		return nil
 	}
 	var subject []string
