@@ -52,7 +52,7 @@ func public(err error) string {
 	case errors.Is(err, gitfs.ErrNoGit):
 		return "git is not installed (no git on PATH); airframe_diff needs it"
 	}
-	return "the server could not read the project's files; check that the project directory is readable, then retry"
+	return "the server could not read or write the project's files; check that the project directory is readable and writable, then retry"
 }
 
 // argsError is the text for arguments that do not decode: the argument

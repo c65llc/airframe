@@ -466,22 +466,8 @@ func (inv *invocation) load() (string, *project.Project, []diag.Diagnostic, erro
 	return dir, p, ds, nil
 }
 
-// writeFile writes data to the project-relative slash path rel inside root
-// atomically: a temporary file in the same directory, renamed into place.
-// It creates the parent directories. Every step goes through root, so
-// neither ".." nor a symlink can carry the write outside the project. An
-// existing file keeps its permission bits; a new one gets 0644.
-func writeFile(root *os.Root, rel string, data []byte) error {
-	tmp, err := stageFile(root, rel, data)
-	if err != nil {
-		return err
-	}
-	if err := root.Rename(tmp, filepath.FromSlash(rel)); err != nil {
-		_ = root.Remove(tmp)
-		return err
-	}
-	return nil
-}
+// writeFile is project.WriteFile: an atomic write through root.
+var writeFile = project.WriteFile
 
 // refuseLinks reports, and exits 1 for, a project-relative file in files
 // that is a symbolic link: writing it would replace the link with a

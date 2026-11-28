@@ -25,27 +25,47 @@ func (o overlay) Open(name string) (fs.File, error) {
 	if _, ok := o.files[name]; ok {
 		return o.files.Open(name)
 	}
-	return o.base.Open(name)
+	f, err := o.base.Open(name)
+	if errors.Is(err, fs.ErrNotExist) && o.holds(name) {
+		return o.files.Open(name) // a directory only the overlay's files imply
+	}
+	return f, err
+}
+
+// holds reports whether an overlay file lies under the directory name.
+func (o overlay) holds(name string) bool {
+	for file := range o.files {
+		if name == "." || strings.HasPrefix(file, name+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ReadDir lists base's entries for name with the overlay's files in it
-// added, so a new token or component file is found where the loader looks.
+// added, and the directories they imply, so a new token or component file
+// is found where the loader looks, even in a new directory.
 func (o overlay) ReadDir(name string) ([]fs.DirEntry, error) {
 	entries, err := fs.ReadDir(o.base, name)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 	found := err == nil
+	prefix := name + "/"
+	if name == "." {
+		prefix = ""
+	}
 	for file := range o.files {
-		if path.Dir(file) != name {
+		rest, ok := strings.CutPrefix(file, prefix)
+		if !ok {
 			continue
 		}
 		found = true
-		base := path.Base(file)
-		if slices.ContainsFunc(entries, func(e fs.DirEntry) bool { return e.Name() == base }) {
+		child, _, _ := strings.Cut(rest, "/")
+		if slices.ContainsFunc(entries, func(e fs.DirEntry) bool { return e.Name() == child }) {
 			continue
 		}
-		info, _ := fs.Stat(o.files, file) // the file is in o.files, so Stat cannot fail
+		info, _ := fs.Stat(o.files, path.Join(name, child)) // a file or a directory o.files implies, so Stat cannot fail
 		entries = append(entries, fs.FileInfoToDirEntry(info))
 	}
 	if !found {

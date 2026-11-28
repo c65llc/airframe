@@ -94,7 +94,7 @@ func TestMCPMatchesCLI(t *testing.T) {
 			require.NoError(t, err)
 			assert.JSONEq(t, out, string(strip), args)
 		} else if args[0] == "find" {
-			assert.Empty(t, res[i].Structured, "structuredContent is an object; find's array is the text alone")
+			assert.JSONEq(t, `{"hits":`+out+`}`, string(res[i].Structured), "structuredContent is an object: find's array is its hits")
 		} else {
 			assert.JSONEq(t, out, string(res[i].Structured), args)
 		}
@@ -123,12 +123,34 @@ func TestMCPDiffMatchesCLI(t *testing.T) {
 	}
 }
 
+// A write through MCP leaves exactly what airframe fmt and airframe build
+// would: fmt --check and build --check are clean afterwards.
+func TestMCPWriteMatchesFmtAndBuild(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.CopyFS(dir, os.DirFS("../../testdata/minimal")))
+	mcpCalls(t, dir,
+		`{"name":"airframe_token_set","arguments":{"name":"surface","set":{"$value":"{gray.200}","$description":"The page."}}}`,
+		`{"name":"airframe_token_set","arguments":{"name":"gap-md","create":true,"path":"gap.md","file":"design-system/tokens/semantic.tokens.json","set":{"$value":"{space.1}","tier":"semantic"}}}`,
+		`{"name":"airframe_token_set","arguments":{"name":"gap-md","set":{"modes.appearance:dark":"{space.5}"}}}`,
+		`{"name":"airframe_component_set","arguments":{"id":"button","create":true,"set":{"noun":"Button","tokens":["button-bg","button-ink","button-target","button-gap"],"owners":["web/**"]}}}`,
+	)
+	for _, args := range [][]string{{"fmt", "--check"}, {"build", "--check"}} {
+		code, out, errOut := run(append([]string{"--root", dir}, args...)...)
+		assert.Equal(t, ExitOK, code, args, out+errOut)
+		assert.Empty(t, out, args)
+	}
+	_, out, _ := run("--root", dir, "show", "gap-md", "--json")
+	assert.Contains(t, out, `"key": "appearance:dark"`)
+}
+
 func TestMCPCommand(t *testing.T) {
 	dir := usagesProject(t)
 	var stdout, stderr bytes.Buffer
 	code := Main([]string{"--root", dir, "mcp", "--read-only"}, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`), &stdout, &stderr)
 	assert.Equal(t, ExitOK, code)
 	assert.Contains(t, stdout.String(), `"name":"airframe_find"`)
+	assert.NotContains(t, stdout.String(), `"name":"airframe_token_set"`, "--read-only hides the write tools")
+	assert.NotContains(t, stdout.String(), `"name":"airframe_component_set"`)
 	assert.Regexp(t, `^airframe mcp: serving .+ \(read-only\)\n$`, stderr.String())
 
 	// A fresh read on every call: an edit between calls is seen.

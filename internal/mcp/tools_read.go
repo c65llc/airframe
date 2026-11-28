@@ -149,7 +149,13 @@ func findTool(s *server, raw json.RawMessage) (toolResult, error) {
 	if hits == nil {
 		hits = []find.Hit{} // find --json prints [] for none
 	}
-	return fencedJSON(encodeJSON(hits)), nil
+	// The fenced text is find --json's array; structuredContent, which MCP
+	// makes an object, holds it as hits.
+	r := fencedJSON(encodeJSON(hits))
+	r.Structured = encodeJSON(struct {
+		Hits []find.Hit `json:"hits"`
+	}{hits})
+	return r, nil
 }
 
 func showTool(s *server, raw json.RawMessage) (toolResult, error) {

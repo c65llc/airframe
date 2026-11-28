@@ -8,8 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -128,7 +130,7 @@ func ok(t *testing.T, root *os.Root, name string, args, v any) string {
 	require.False(t, r.IsError, r.Content[0].Text)
 	payload := unfence(t, r, "json")
 	if strings.HasPrefix(payload, "[") {
-		assert.Empty(t, r.Structured, "structuredContent is an object, so an array has none")
+		assert.JSONEq(t, `{"hits":`+payload+`}`, string(r.Structured), "structuredContent is an object: an array is its hits")
 	} else {
 		assert.JSONEq(t, string(r.Structured), payload, "the fenced text is the structured content")
 	}
@@ -168,7 +170,7 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, "2025-06-18", r.ProtocolVersion)
 	assert.Equal(t, map[string]map[string]bool{"tools": {"listChanged": false}}, r.Capabilities)
 	assert.Equal(t, map[string]string{"name": "airframe", "title": "Airframe", "version": "v9"}, r.ServerInfo)
-	for _, name := range readToolNames {
+	for _, name := range append(append([]string{}, readToolNames...), writeToolNames...) {
 		assert.Contains(t, r.Instructions, name, "the instructions name every tool")
 	}
 	assert.Contains(t, r.Instructions, "<untrusted-data>")
@@ -328,64 +330,49 @@ func listed(t *testing.T, opts Options) []string {
 	return out
 }
 
+// writeToolNames are the write tools in tools/list order.
+var writeToolNames = []string{"airframe_token_set", "airframe_component_set"}
+
 func TestToolsList(t *testing.T) {
-	assert.Equal(t, readToolNames, listed(t, Options{}))
+	assert.Equal(t, append(append([]string{}, readToolNames...), writeToolNames...), listed(t, Options{}))
 	msgs, _ := serve(t, emptyRoot(t), Options{}, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
 	var r struct{ Tools []toolInfo }
 	require.NoError(t, json.Unmarshal(msgs[0].Result, &r))
 	for _, tl := range r.Tools {
-		assert.Equal(t, true, tl.Annotations["readOnlyHint"], tl.Name)
-		assert.NotContains(t, tl.Annotations, "destructiveHint", tl.Name)
+		writes := slices.Contains(writeToolNames, tl.Name)
+		assert.Equal(t, !writes, tl.Annotations["readOnlyHint"], tl.Name)
+		if writes {
+			assert.Equal(t, true, tl.Annotations["destructiveHint"], tl.Name)
+			for _, arg := range []string{"preview", "format", "baseVersion"} {
+				assert.Contains(t, tl.InputSchema["properties"], arg, tl.Name)
+			}
+		} else {
+			assert.NotContains(t, tl.Annotations, "destructiveHint", tl.Name)
+		}
 	}
 }
 
-// withWriteTool adds a write tool to the registry for one test: the write
-// tools come later, but --read-only must already hide and refuse them.
-func withWriteTool(t *testing.T) *int {
-	t.Helper()
-	calls := new(int)
-	saved := tools
-	t.Cleanup(func() { tools = saved })
-	tools = append(append([]tool{}, saved...), tool{
-		name: "airframe_test_write", title: "A write", description: "Writes.", write: true,
-		input: object(nil, map[string]any{"preview": boolean("Write nothing.")}),
-		run: func(*server, json.RawMessage) (toolResult, error) {
-			*calls++
-			return fencedJSON([]byte("{}\n")), nil
-		},
-	})
-	return calls
-}
-
 func TestToolsListReadOnly(t *testing.T) {
-	calls := withWriteTool(t)
-	assert.Equal(t, append(append([]string{}, readToolNames...), "airframe_test_write"), listed(t, Options{}))
 	assert.Equal(t, readToolNames, listed(t, Options{ReadOnly: true}), "--read-only leaves the write tools out")
 
-	msgs, _ := serve(t, fixture(t, "consumers"), Options{ReadOnly: true},
-		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"airframe_test_write","arguments":{}}}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"airframe_rules"}}`,
+	root := fixture(t, "minimal")
+	before := snapshot(t, root)
+	msgs, _ := serve(t, root, Options{ReadOnly: true},
+		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"airframe_token_set","arguments":{"name":"surface","set":{"$value":"{gray.200}"}}}}`,
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"airframe_component_set","arguments":{"id":"card","create":true,"set":{"shared":true}}}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"airframe_rules"}}`,
 	)
-	require.NotNil(t, msgs[0].Error, "--read-only refuses a write tool by name")
-	assert.Equal(t, codeInvalidParams, msgs[0].Error.Code)
-	assert.Contains(t, msgs[0].Error.Message, `unknown tool "airframe_test_write"`)
-	assert.Nil(t, msgs[1].Error)
-	assert.Zero(t, *calls)
-
-	// Without --read-only it runs, and is annotated as a write.
-	msgs, _ = serve(t, emptyRoot(t), Options{}, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
-	var r struct{ Tools []toolInfo }
-	require.NoError(t, json.Unmarshal(msgs[0].Result, &r))
-	last := r.Tools[len(r.Tools)-1]
-	assert.Equal(t, false, last.Annotations["readOnlyHint"])
-	assert.Equal(t, true, last.Annotations["destructiveHint"])
-	callTool(t, emptyRoot(t), Options{}, "airframe_test_write", nil)
-	assert.Equal(t, 1, *calls)
+	for i, name := range writeToolNames {
+		require.NotNil(t, msgs[i].Error, "--read-only refuses %s by name", name)
+		assert.Equal(t, codeInvalidParams, msgs[i].Error.Code)
+		assert.Contains(t, msgs[i].Error.Message, `unknown tool "`+name+`"`)
+	}
+	assert.Nil(t, msgs[2].Error)
+	assert.Equal(t, before, snapshot(t, root), "nothing was written")
 }
 
 func TestToolCallsAreLogged(t *testing.T) {
-	withWriteTool(t)
-	s := newServer(fixture(t, "consumers"), Options{}, nil)
+	s := newServer(fixture(t, "minimal"), Options{}, nil)
 	var log bytes.Buffer
 	s.log, s.session = &log, "abcd1234"
 	tick := time.Unix(0, 0)
@@ -394,14 +381,16 @@ func TestToolCallsAreLogged(t *testing.T) {
 		initLine,
 		`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"airframe_rules"}}`,
 		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"airframe_show","arguments":{"name":"nope"}}}`,
-		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"airframe_test_write"}}`,
+		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"airframe_token_set","arguments":{"name":"surface","set":{"$description":"Page."},"preview":true}}}`,
+		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"airframe_token_set","arguments":{"name":"surface","set":{"$description":"Page."}}}}`,
 	}, "\n")
 	require.NoError(t, s.serve(strings.NewReader(in), io.Discard))
 	lines := strings.Split(strings.TrimSuffix(log.String(), "\n"), "\n")
-	require.Len(t, lines, 3)
+	require.Len(t, lines, 4)
 	assert.Regexp(t, `^airframe mcp: session=abcd1234 client="test 1" tool=airframe_rules class=read preview=false outcome=ok ms=3 bytes=\d+$`, lines[0])
 	assert.Regexp(t, `^airframe mcp: session=abcd1234 client="test 1" tool=airframe_show class=read preview=false outcome=error ms=3 bytes=\d+ error="unknown token or component \\"nope\\"; airframe_find finds tokens"$`, lines[1])
-	assert.Regexp(t, `^airframe mcp: session=abcd1234 client="test 1" tool=airframe_test_write class=write preview=false outcome=ok ms=3 bytes=\d+$`, lines[2])
+	assert.Regexp(t, `^airframe mcp: session=abcd1234 client="test 1" tool=airframe_token_set class=write preview=true outcome=ok ms=3 bytes=\d+$`, lines[2])
+	assert.Regexp(t, `^airframe mcp: session=abcd1234 client="test 1" tool=airframe_token_set class=write preview=false outcome=ok ms=3 bytes=\d+ written=design-system/tokens/semantic.tokens.json$`, lines[3], "a description emits nowhere, so only the source changes")
 
 	// Before initialize the client is unknown.
 	s = newServer(fixture(t, "consumers"), Options{}, nil)
@@ -420,7 +409,7 @@ func TestStructuredContentOnlyFrom20250618(t *testing.T) {
 }
 
 func TestUnknownArgumentsAreRefused(t *testing.T) {
-	for _, name := range readToolNames {
+	for _, name := range append(append([]string{}, readToolNames...), writeToolNames...) {
 		msg := fails(t, fixture(t, "consumers"), name, map[string]any{"idd": "x"})
 		assert.Contains(t, msg, `invalid arguments: unknown argument "idd"`, name)
 	}
@@ -460,7 +449,7 @@ func TestErrorsNeverQuoteTheProject(t *testing.T) {
 		msg := fails(t, root, name, args)
 		assert.Equal(t, "airframe.yaml does not load; airframe_lint reports why: fix it, then retry", msg, name)
 	}
-	assert.Contains(t, public(errors.New("open SYSTEM: denied")), "could not read the project")
+	assert.Contains(t, public(errors.New("open SYSTEM: denied")), "could not read or write the project")
 	assert.NotContains(t, public(errors.New("open SYSTEM: denied")), "SYSTEM")
 }
 
@@ -473,11 +462,13 @@ func TestBrokenConfig(t *testing.T) {
 		return root
 	}
 	for name, args := range map[string]any{
-		"airframe_find":     map[string]any{"query": "surface"},
-		"airframe_show":     map[string]any{"name": "surface"},
-		"airframe_usages":   map[string]any{"token": "surface"},
-		"airframe_can_read": map[string]any{"file": "a.css", "token": "surface"},
-		"airframe_specimen": map[string]any{"sheet": "colors"},
+		"airframe_find":          map[string]any{"query": "surface"},
+		"airframe_show":          map[string]any{"name": "surface"},
+		"airframe_usages":        map[string]any{"token": "surface"},
+		"airframe_can_read":      map[string]any{"file": "a.css", "token": "surface"},
+		"airframe_specimen":      map[string]any{"sheet": "colors"},
+		"airframe_token_set":     map[string]any{"name": "surface", "set": map[string]any{"$value": "{gray.50}"}},
+		"airframe_component_set": map[string]any{"id": "button", "set": map[string]any{"noun": "Button"}},
 	} {
 		assert.Contains(t, fails(t, broken(), name, args), "airframe.yaml does not load; airframe_lint reports why", name)
 	}
@@ -499,10 +490,10 @@ func TestToolsRegistry(t *testing.T) {
 	for _, sp := range specs {
 		assert.Regexp(t, `^airframe_[a-z_]+$`, sp.Name)
 		assert.NotEmpty(t, sp.Summary, sp.Name)
-		assert.False(t, sp.Writes, sp.Name, "the write tools come with plan 7 task 3")
+		assert.Equal(t, slices.Contains(writeToolNames, sp.Name), sp.Writes, sp.Name)
 		names = append(names, sp.Name)
 	}
-	assert.Equal(t, readToolNames, names)
+	assert.Equal(t, append(append([]string{}, readToolNames...), writeToolNames...), names)
 }
 
 // Text from the project cannot close the fence or hide in invisible
@@ -558,4 +549,20 @@ func TestOverlay(t *testing.T) {
 	require.Len(t, entries, 1)
 	_, err = o.ReadDir("c")
 	require.ErrorIs(t, err, os.ErrNotExist)
+
+	// A directory only the overlay has is listed and opened.
+	deep := overlay{base: base, files: project.MemFS{"a/new/n.json": "n"}}
+	entries, err = deep.ReadDir("a")
+	require.NoError(t, err)
+	require.Len(t, entries, 3)
+	assert.True(t, entries[0].IsDir())
+	assert.Equal(t, "new", entries[0].Name())
+	f, err := deep.Open("a/new")
+	require.NoError(t, err)
+	info, err := f.Stat()
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+	matches, err := fs.Glob(deep, "a/*/*.json")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a/new/n.json"}, matches)
 }

@@ -54,7 +54,7 @@ func fencedJSON(data []byte) toolResult {
 	text := invisible.ReplaceAllStringFunc(strings.TrimSuffix(escaped.String(), "\n"), jsonEscape)
 	r := toolResult{Content: []content{{Type: "text", Text: fence("json", text)}, {Type: "text", Text: UntrustedDataRule}}}
 	// MCP's structuredContent is an object; a document that is not one
-	// (find's array of hits) is the fenced text alone.
+	// leaves it to the tool (find wraps its array as hits).
 	if bytes.HasPrefix(bytes.TrimSpace(data), []byte("{")) {
 		r.Structured = json.RawMessage(data)
 	}

@@ -57,8 +57,8 @@ func integer(description string) map[string]any {
 }
 
 // tools is every tool, in the order tools/list gives them: the read tools
-// (tools_read.go), then the write tools.
-var tools = readTools
+// (tools_read.go), then the write tools (tools_write.go).
+var tools = slices.Concat(readTools, writeTools)
 
 // ToolSpec is a tool's wire name, its one-line summary and whether it
 // writes, for the tests that keep the shipped skills in step with the
