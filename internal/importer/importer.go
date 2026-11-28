@@ -39,38 +39,11 @@ type Result struct {
 	Diagnostics                   []diag.Diagnostic
 }
 
-// Source is one stylesheet to import, by name.
-type Source struct {
-	File string
-	Data []byte
-}
-
 // The token files an import writes, under <content>/.
 const (
 	primitiveFile = "tokens/primitive.tokens.json"
 	semanticFile  = "tokens/semantic.tokens.json"
 )
-
-// ImportSources parses each source with css.Parse, in order (later sources
-// win the cascade), and imports the sheets. The parse diagnostics join the
-// import's own in Result.Diagnostics, sorted, and any error among them
-// leaves Files empty.
-func ImportSources(cfg *config.Config, srcs []Source) Result {
-	var sheets []*css.Sheet
-	var parsed []diag.Diagnostic
-	for _, s := range srcs {
-		sh, ds := css.Parse(s.File, s.Data)
-		sheets = append(sheets, sh)
-		parsed = append(parsed, ds...)
-	}
-	r := Import(cfg, sheets)
-	r.Diagnostics = append(parsed, r.Diagnostics...)
-	diag.Sort(r.Diagnostics)
-	if hasError(r.Diagnostics) {
-		r.Files = map[string][]byte{}
-	}
-	return r
-}
 
 // Import maps every rule of sheets to a mode key and builds the token
 // files. Problems are diagnostics; with any error, Files is empty.

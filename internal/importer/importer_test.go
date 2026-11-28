@@ -19,6 +19,7 @@ import (
 
 	"github.com/c65llc/airframe/internal/color"
 	"github.com/c65llc/airframe/internal/config"
+	"github.com/c65llc/airframe/internal/css"
 	"github.com/c65llc/airframe/internal/diag"
 	"github.com/c65llc/airframe/internal/format"
 	"github.com/c65llc/airframe/internal/project"
@@ -41,9 +42,35 @@ func loadConfig(t *testing.T, src string) *config.Config {
 	return cfg
 }
 
+// source is one stylesheet to import, by name.
+type source struct {
+	File string
+	Data []byte
+}
+
+// importSources does what the CLI does: it parses each source with
+// css.Parse, in order (later sources win the cascade), imports the
+// sheets, and joins the parse diagnostics to the import's own, sorted.
+func importSources(cfg *config.Config, srcs []source) Result {
+	var sheets []*css.Sheet
+	var parsed []diag.Diagnostic
+	for _, s := range srcs {
+		sh, ds := css.Parse(s.File, s.Data)
+		sheets = append(sheets, sh)
+		parsed = append(parsed, ds...)
+	}
+	r := Import(cfg, sheets)
+	r.Diagnostics = append(parsed, r.Diagnostics...)
+	diag.Sort(r.Diagnostics)
+	if hasError(r.Diagnostics) {
+		r.Files = map[string][]byte{}
+	}
+	return r
+}
+
 func run(t *testing.T, cfgSrc, cssSrc string) Result {
 	t.Helper()
-	return ImportSources(loadConfig(t, cfgSrc), []Source{{File: "theme.css", Data: []byte(cssSrc)}})
+	return importSources(loadConfig(t, cfgSrc), []source{{File: "theme.css", Data: []byte(cssSrc)}})
 }
 
 func byRule(ds []diag.Diagnostic, rule string) []diag.Diagnostic {
@@ -93,7 +120,7 @@ func fixture(t *testing.T) ([]byte, Result) {
 	cssData, err := os.ReadFile(filepath.Join(dir, "theme.css"))
 	require.NoError(t, err)
 	cfg := loadConfig(t, string(cfgData))
-	return cfgData, ImportSources(cfg, []Source{{File: "theme.css", Data: cssData}})
+	return cfgData, importSources(cfg, []source{{File: "theme.css", Data: cssData}})
 }
 
 func TestImportFixture(t *testing.T) {
@@ -420,7 +447,7 @@ modes:
 	assert.Contains(t, err.Error(), "appearance:dark")
 	assert.Contains(t, err.Error(), "contrast:high")
 
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px }\n")}})
 	got := byRule(r.Diagnostics, "import-unmapped-scope")
 	require.Len(t, got, 1, "%v", r.Diagnostics)
 	assert.Equal(t, config.File, got[0].File)

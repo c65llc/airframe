@@ -17,7 +17,7 @@ import (
 // checked against, to the severities an import actually reports.
 func TestSeverityMatchesReports(t *testing.T) {
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(
 		":root { --a: 1px; --a: 2px; --b: var(--a, 3px); --c: calc(1px + 2px) }\n")}})
 	var rules []string
 	for _, d := range r.Diagnostics {

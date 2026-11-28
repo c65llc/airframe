@@ -37,7 +37,7 @@ func sheet(t *testing.T, file, src string) *css.Sheet {
 func checkCSS(t *testing.T, cfgSrc, src string) CheckResult {
 	t.Helper()
 	cfg := loadConfig(t, cfgSrc)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(src)}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(src)}})
 	require.Empty(t, errorsIn(r.Diagnostics), "%v", r.Diagnostics)
 	return Check(cfg, []byte(cfgSrc), r.Files, []*css.Sheet{sheet(t, "theme.css", src)})
 }
@@ -109,7 +109,7 @@ func TestCheckInvalidOnBothSidesIsEqual(t *testing.T) {
 	cycle := "\n:root {\n  --a: var(--b);\n  --b: var(--a);\n  --m: var(--zz);\n}\n"
 	old := src + ":root { --a: var(--b); --b: var(--a); --m: var(--zz); }\n"
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(src)}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(src)}})
 	require.Empty(t, r.Diagnostics)
 
 	t.Run("both invalid", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestCheckAlsoFallback(t *testing.T) {
 
 func TestCheckGeneratedOnlyProperty(t *testing.T) {
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; --b: 2px; }\n:root[data-theme='dark'] { --b: 3px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; --b: 2px; }\n:root[data-theme='dark'] { --b: 3px; }\n")}})
 	require.Empty(t, r.Diagnostics)
 	res := Check(cfg, []byte(smallConfig), r.Files, []*css.Sheet{sheet(t, "theme.css", ":root { --a: 1px; }\n")})
 	got := byRule(res.Diagnostics, RuleNotEquivalent)
@@ -174,7 +174,7 @@ func TestCheckCapsReports(t *testing.T) {
 	gen.WriteString("}\n")
 	old.WriteString("}\n")
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(gen.String())}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(gen.String())}})
 	require.Empty(t, r.Diagnostics)
 	res := Check(cfg, []byte(smallConfig), r.Files, []*css.Sheet{sheet(t, "theme.css", old.String())})
 	got := byRule(res.Diagnostics, RuleNotEquivalent)
@@ -188,7 +188,7 @@ func TestCheckCapsReports(t *testing.T) {
 func TestCheckNoCSSPlatform(t *testing.T) {
 	cfgSrc := strings.Replace(smallConfig, "emit: css", "emit: json", 1)
 	cfg := loadConfig(t, cfgSrc)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
 	require.Empty(t, r.Diagnostics)
 	res := Check(cfg, []byte(cfgSrc), r.Files, []*css.Sheet{sheet(t, "theme.css", ":root { --a: 1px; }\n")})
 	require.Len(t, res.Diagnostics, 1)
@@ -203,7 +203,7 @@ func TestCheckFirstCSSPlatformWins(t *testing.T) {
 	cfgSrc := strings.Replace(smallConfig, "  web: {emit: css}\n",
 		"  data: {emit: [json]}\n  web: {emit: [json, css]}\n  other: {emit: [css], out: {css: x/other.css}}\n", 1)
 	cfg := loadConfig(t, cfgSrc)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
 	require.Empty(t, r.Diagnostics)
 	var used []string
 	old := emitCSS
@@ -232,7 +232,7 @@ func TestCheckSurfacesLoadDiagnostics(t *testing.T) {
 
 func TestCheckEmitFailureIsReported(t *testing.T) {
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
 	old := emitCSS
 	emitCSS = func(*project.Project, config.Platform) (map[string][]byte, error) {
 		return nil, fmt.Errorf("boom")
@@ -246,7 +246,7 @@ func TestCheckEmitFailureIsReported(t *testing.T) {
 
 func TestCheckNothingCompared(t *testing.T) {
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
 	editEmitted(t, func(string) string { return "/* empty */\n" })
 	res := Check(cfg, []byte(smallConfig), r.Files, []*css.Sheet{sheet(t, "theme.css", "")})
 	require.Len(t, res.Diagnostics, 1)
@@ -264,7 +264,7 @@ func TestCheckTooManyEnvironments(t *testing.T) {
 		}
 	}
 	cfg := loadConfig(t, smallConfig)
-	r := ImportSources(cfg, []Source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
+	r := importSources(cfg, []source{{File: "theme.css", Data: []byte(":root { --a: 1px; }\n")}})
 	res := Check(cfg, []byte(smallConfig), r.Files, []*css.Sheet{sheet(t, "theme.css", b.String())})
 	require.Len(t, res.Diagnostics, 1, "%v", res.Diagnostics)
 	assert.Equal(t, css.RuleTooManyEnvironments, res.Diagnostics[0].Rule)
