@@ -36,6 +36,8 @@ var laterRules = map[string]string{
 	// The consumer rules.
 	"fallback-literal": "v0.6.0", "primitive-read-by-consumer": "v0.6.0", "reference-undeclared": "v0.6.0",
 	"token-owner-violation": "v0.6.0", "wrapper-unmapped": "v0.6.0",
+	// The component and retired-treatment rules.
+	"component-incomplete": "v0.7.0", "component-unruled": "v0.7.0", "retired-used": "v0.7.0",
 }
 
 // pages is every documented ID: the lint rules at their default severity,

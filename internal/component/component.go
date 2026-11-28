@@ -44,6 +44,19 @@ type Component struct {
 
 	tokensLine int   // line of the tokens key; 0 when unset
 	tokenLines []int // line of each Tokens item
+	// lines are the lines of the ruling and hostedBy values, of the
+	// implementations key, and of each implementations.<platform> value.
+	lines map[string]int
+}
+
+// LineOf is the line of at in the file: "ruling", "hostedBy",
+// "implementations" (its key) or "implementations.<platform>" (that
+// value). It is the record's Line when at is not set.
+func (c *Component) LineOf(at string) int {
+	if l, ok := c.lines[at]; ok {
+		return l
+	}
+	return c.Line
 }
 
 func invalid(file, at string, line int, format string, a ...any) diag.Diagnostic {
@@ -75,7 +88,7 @@ func Parse(file string, data []byte) (*Component, []diag.Diagnostic) {
 		return nil, ds
 	}
 	n := root.Content[0]
-	c := &Component{File: file, Line: n.Line}
+	c := &Component{File: file, Line: n.Line, lines: map[string]int{}}
 	stringAt := func(at string, v *yaml.Node) (string, *diag.Diagnostic) {
 		if !isString(v) {
 			d := invalid(file, at, v.Line, "%s must be a string", at)
@@ -94,8 +107,10 @@ func Parse(file string, data []byte) (*Component, []diag.Diagnostic) {
 		case "noun":
 			c.Noun, err = stringAt(k, v)
 		case "ruling":
+			c.lines[k] = v.Line
 			c.Ruling, err = stringAt(k, v)
 		case "hostedBy":
+			c.lines[k] = v.Line
 			if v.ShortTag() != "!!null" {
 				c.HostedBy, err = stringAt(k, v)
 			}
@@ -128,7 +143,9 @@ func Parse(file string, data []byte) (*Component, []diag.Diagnostic) {
 			}
 		case "implementations":
 			c.Implementations = map[string]string{}
+			c.lines[k] = n.Content[i].Line
 			for j := 0; j+1 < len(v.Content); j += 2 {
+				c.lines[k+"."+v.Content[j].Value] = v.Content[j+1].Line
 				var s string
 				if s, err = stringAt(k+"."+v.Content[j].Value, v.Content[j+1]); err != nil {
 					break

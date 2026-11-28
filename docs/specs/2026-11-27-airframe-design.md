@@ -242,7 +242,7 @@ shared: false
 | Source | `schema-invalid`, `token-unclassified`, `tier-violation`, `literal-in-semantic`, `density-missing`, `accent-group-partial`, `prefix-multiple-hues`, `alias-cycle`, `alias-unresolved`, `alias-type-mismatch`, `mode-ambiguous`, `mode-override-conflict`, `mode-base-value`, `emitted-stale`, `not-formatted` | v0.1.2 |
 | Invariant | `contrast-below`, `hue-reserved`, `accent-flip`, `dimension-below` | v0.1.2 |
 | Consumer | `reference-undeclared`, `token-owner-violation`, `primitive-read-by-consumer`, `fallback-literal`, `wrapper-unmapped` | v0.6.0 (see `docs/guides/consumers.md`) |
-| Consumer | `retired-used`, `component-unruled` | planned (§6.7 step 5) |
+| Consumer | `retired-used`, `component-unruled`, `component-incomplete` | planned (§6.7 step 5) |
 
 - **Tiers:** a primitive aliases nothing; a semantic token reads primitives (never literals); a component token reads semantics and is read only by its owner.
 - **Invariant findings** name the invariant ID, the token pair, the mode context and the measured value. Each is computed in every context it applies to, including the base context.

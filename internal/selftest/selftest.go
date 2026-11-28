@@ -7,7 +7,9 @@
 // their own), and each clean fixture must produce no finding at all:
 // fixtures/clean (the init scaffold) and fixtures/clean-consumers (consumer
 // files on every platform, wrappers of all three shapes and a component
-// with owners, so the consumer rules are proven silent on real reads). A gate
+// with owners, a ruling, a file per platform and one n/a, so the consumer
+// and component rules are proven silent on real reads; with no gantry.yaml
+// its ruling is checked for syntax only). A gate
 // whose self-test fails is not believed, however clean its real run reads.
 package selftest
 

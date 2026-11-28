@@ -1,0 +1,5 @@
+- id: flush-left-bar
+  spellings:
+    css:
+      - "inset 3px 0 0"
+  marker: audited-bar

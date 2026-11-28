@@ -4,6 +4,7 @@
 package lint
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"path"
@@ -71,23 +72,39 @@ func consumerFiles(s *consumer.Result) int {
 // (nil) and records the exemption; one without a reason suppresses
 // nothing and says so at the end of the message.
 func (c *Context) consumerFinding(s *consumer.Result, rule, platform, file string, line, col int, msg string) *diag.Diagnostic {
+	return c.markedFinding(s, rule, "", platform, file, line, col, msg)
+}
+
+// markedFinding is consumerFinding for a finding that a marker word of its
+// own (a retired treatment's marker) also escapes, as airframe-exempt
+// does; marker "" accepts airframe-exempt alone. The exemption is recorded
+// under the marker that suppressed it.
+func (c *Context) markedFinding(s *consumer.Result, rule, marker, platform, file string, line, col int, msg string) *diag.Diagnostic {
 	if file != config.File {
-		var bare []int
+		type bareMarker struct {
+			name string
+			line int
+		}
+		var bare []bareMarker
 		for _, e := range s.Exempt {
 			if e.Rule != rule || e.Platform != platform || e.File != file || e.Line != line {
 				continue
 			}
+			if e.Marker != "" && e.Marker != marker {
+				continue
+			}
+			name := cmp.Or(e.Marker, "airframe-exempt")
 			if strings.TrimSpace(e.Reason) == "" {
-				bare = append(bare, e.MarkerLine)
+				bare = append(bare, bareMarker{name, e.MarkerLine})
 				continue
 			}
 			c.exemptions = append(c.exemptions, Exemption{
-				Rule: rule, File: file, Line: line, Marker: "airframe-exempt", Reason: e.Reason,
+				Rule: rule, File: file, Line: line, Marker: name, Reason: e.Reason,
 			})
 			return nil
 		}
-		for _, ml := range slices.Compact(bare) {
-			msg += fmt.Sprintf(" (airframe-exempt on line %d has no reason)", ml)
+		for _, b := range slices.Compact(bare) {
+			msg += fmt.Sprintf(" (%s on line %d has no reason)", b.name, b.line)
 		}
 	}
 	return &diag.Diagnostic{

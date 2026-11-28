@@ -1,0 +1,7 @@
+id: button
+ruling: "@ruling:button"
+tokens: [button-bg]
+owners: [web/src/button/**]
+hostedBy: toolbar
+implementations:
+  web: web/src/button/Button.tsx
